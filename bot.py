@@ -35,24 +35,27 @@ BOT_TOKEN = os.environ["BOT_TOKEN"]
 # ────────────────────────────────────────────────────────────
 def _init_arabic_font():
     here      = os.path.dirname(os.path.abspath(__file__))
-    font_file = os.path.join(here, 'NotoNaskhArabic-Regular.ttf')
+    font_file = os.path.join(here, 'Cairo-Regular.ttf')
 
     if not os.path.exists(font_file):
-        url = ('https://github.com/googlefonts/noto-fonts/raw/main/'
-               'hinted/ttf/NotoNaskhArabic/NotoNaskhArabic-Regular.ttf')
+        # Cairo font supports BOTH Arabic and Latin characters
+        url = ('https://github.com/google/fonts/raw/main/'
+               'ofl/cairo/static/Cairo-Regular.ttf')
         try:
             urllib.request.urlretrieve(url, font_file)
-            logger.info('Arabic font downloaded successfully.')
+            logger.info('Cairo font downloaded successfully.')
         except Exception as exc:
-            logger.warning(f'Arabic font download failed: {exc}')
+            logger.warning(f'Cairo font download failed: {exc}')
 
     if os.path.exists(font_file):
         fm.fontManager.addfont(font_file)
-        return fm.FontProperties(fname=font_file).get_name()
+        prop = fm.FontProperties(fname=font_file)
+        logger.info(f'Using font: {prop.get_name()}')
+        return prop.get_name()
 
-    # Fallback: search system fonts
+    # Fallback: search system fonts for bilingual support
     for f in fm.fontManager.ttflist:
-        if any(k in f.name.lower() for k in ('noto', 'arabic', 'amiri')):
+        if any(k in f.name.lower() for k in ('cairo', 'tajawal', 'almarai')):
             return f.name
 
     return 'DejaVu Sans'
