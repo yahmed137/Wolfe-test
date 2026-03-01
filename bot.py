@@ -85,15 +85,15 @@ def validate_bullish(p1, p2, p3, p4, p5, tol=0.03):
     if not (p1['type'] == 'L' and p2['type'] == 'H' and
             p3['type'] == 'L' and p4['type'] == 'H' and p5['type'] == 'L'):
         return None
-    if v[2] >= v[0]:         return None
-    if v[3] >= v[1]:         return None
-    if v[3] <= v[0]:         return None
-    if v[4] >= v[2]:         return None
+    if v[2] >= v[0]:          return None
+    if v[3] >= v[1]:          return None
+    if v[3] <= v[0]:          return None
+    if v[4] >= v[2]:          return None
 
     s13 = (v[2] - v[0]) / (b[2] - b[0]) if b[2] != b[0] else 0
     s24 = (v[3] - v[1]) / (b[3] - b[1]) if b[3] != b[1] else 0
-    if s13 >= 0 or s24 >= 0: return None
-    if s13 >= s24:           return None
+    if s13 >= 0 or s24 >= 0:  return None
+    if s13 >= s24:            return None
 
     proj = line_at(b[4], b[0], v[0], b[2], v[2])
     if proj != 0:
@@ -115,15 +115,15 @@ def validate_bearish(p1, p2, p3, p4, p5, tol=0.03):
     if not (p1['type'] == 'H' and p2['type'] == 'L' and
             p3['type'] == 'H' and p4['type'] == 'L' and p5['type'] == 'H'):
         return None
-    if v[2] <= v[0]:         return None
-    if v[3] <= v[1]:         return None
-    if v[3] >= v[0]:         return None
-    if v[4] <= v[2]:         return None
+    if v[2] <= v[0]:          return None
+    if v[3] <= v[1]:          return None
+    if v[3] >= v[0]:          return None
+    if v[4] <= v[2]:          return None
 
     s13 = (v[2] - v[0]) / (b[2] - b[0]) if b[2] != b[0] else 0
     s24 = (v[3] - v[1]) / (b[3] - b[1]) if b[3] != b[1] else 0
-    if s13 <= 0 or s24 <= 0: return None
-    if s13 >= s24:           return None
+    if s13 <= 0 or s24 <= 0:  return None
+    if s13 >= s24:            return None
 
     proj = line_at(b[4], b[0], v[0], b[2], v[2])
     if proj != 0:
@@ -273,7 +273,8 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     # Percent label
     price_range  = max(v) - min(v)
     label_offset = price_range * 0.08
-    pct_y  = arrow_land_price + label_offset if is_bull else arrow_land_price - label_offset
+    pct_y = (arrow_land_price + label_offset if is_bull
+             else arrow_land_price - label_offset)
     ax.text(
         arrow_land_zb, pct_y, f'{pct:+.1f}%',
         fontsize=13, fontweight='bold', color=C_A,
@@ -293,13 +294,15 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
             textcoords='offset points',
             ha='center', va='top' if is_low else 'bottom',
             fontsize=8.5, fontweight='bold', color=C_W,
-            bbox=dict(boxstyle='round,pad=0.3', fc='white', ec=C_W, alpha=0.9, lw=0.6),
+            bbox=dict(boxstyle='round,pad=0.3', fc='white',
+                      ec=C_W, alpha=0.9, lw=0.6),
             arrowprops=dict(arrowstyle='-', color=C_W, lw=0.6),
         )
 
     emoji = '📈' if is_bull else '📉'
     ax.set_title(
-        f'{emoji}   {ticker}   —   {direction} Wolfe Wave   |   Timeframe: {tf_label}',
+        f'{emoji}   {ticker}   —   {direction} Wolfe Wave'
+        f'   |   Timeframe: {tf_label}',
         fontsize=16, fontweight='bold', pad=16, color='#212121',
     )
     ax.set_ylabel('')
@@ -321,7 +324,8 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
         transform=ax.transAxes,
         fontsize=10, fontfamily='monospace', fontweight='bold', color=bt,
         verticalalignment='bottom', horizontalalignment='left',
-        bbox=dict(boxstyle='round,pad=0.6', facecolor=bc, edgecolor=bt, alpha=0.92, lw=1.2),
+        bbox=dict(boxstyle='round,pad=0.6', facecolor=bc,
+                  edgecolor=bt, alpha=0.92, lw=1.2),
         zorder=10,
     )
 
@@ -409,7 +413,6 @@ TADAWUL_TICKERS = [
 # ────────────────────────────────────────────────────────────
 # 8. TIMEFRAME MAP
 # ────────────────────────────────────────────────────────────
-# key → (label, yf_interval, yf_period, resample_rule)
 TF_MAP = {
     '30m': ('30 دقيقة', '30m',  '60d', None),
     '1h':  ('1 ساعة',   '60m',  '60d', None),
@@ -440,7 +443,6 @@ def build_tf_keyboard():
 
 
 def build_filter_keyboard(tf_key):
-    # callback format:  filter_{tf_key}_{direction}
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("📈 صاعد فقط", callback_data=f"filter_{tf_key}_bullish"),
@@ -452,6 +454,14 @@ def build_filter_keyboard(tf_key):
         [
             InlineKeyboardButton("🔙 رجوع", callback_data="back_to_start"),
         ],
+    ])
+
+
+def build_start_keyboard():
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🏠 البداية", callback_data="back_to_start"),
+        ]
     ])
 
 # ────────────────────────────────────────────────────────────
@@ -499,7 +509,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ── Timeframe selected → show filter buttons ─────────────
     if data.startswith("scan_"):
-        tf_key = data[5:]                       # e.g. "30m"
+        tf_key = data[5:]
         if tf_key not in TF_MAP:
             await query.edit_message_text("فاصل زمني غير معروف.")
             return
@@ -512,13 +522,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # ── Filter selected → run scan ───────────────────────────
-    # callback format:  filter_{tf_key}_{direction}
     if data.startswith("filter_"):
-        parts = data.split("_", 2)              # ['filter', tf_key, direction]
+        parts = data.split("_", 2)
         if len(parts) != 3:
             await query.edit_message_text("بيانات غير صالحة.")
             return
-        _, tf_key, direction = parts            # direction: bullish/bearish/both
+        _, tf_key, direction = parts
 
         if tf_key not in TF_MAP:
             await query.edit_message_text("فاصل زمني غير معروف.")
@@ -533,7 +542,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown",
         )
 
-        # ── Run the scan ─────────────────────────────────────
+        # ── Run the scan ──────────────────────────────────────
         results, ohlc_data = scan_tickers(
             TADAWUL_TICKERS, period, interval, resample_rule
         )
@@ -545,18 +554,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         for tk, patterns in results.items():
             for r in patterns:
-                pct  = ((r['target_price'] - r['entry_price']) / r['entry_price']) * 100
+                pct  = ((r['target_price'] - r['entry_price'])
+                        / r['entry_price']) * 100
                 item = {
                     'ticker':     tk,
                     'last_close': r['last_close'],
                     'entry':      round(r['entry_price'], 2),
                     'target':     r['target_price'],
                     'pct':        round(pct, 1),
-                    'p5_date':    (r['points'][4]['date'].strftime('%Y-%m-%d %H:%M')
-                                   if is_intraday
-                                   else r['points'][4]['date'].strftime('%Y-%m-%d')),
-                    '_r':         r,
-                    '_df':        ohlc_data[tk],
+                    'p5_date':    (
+                        r['points'][4]['date'].strftime('%Y-%m-%d %H:%M')
+                        if is_intraday
+                        else r['points'][4]['date'].strftime('%Y-%m-%d')
+                    ),
+                    '_r':  r,
+                    '_df': ohlc_data[tk],
                 }
                 if r['direction'] == 'Bullish':
                     bullish_list.append(item)
@@ -569,7 +581,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         show_bull = direction in ('bullish', 'both')
         show_bear = direction in ('bearish', 'both')
 
-        # ── Summary ───────────────────────────────────────────
+        # ── Summary message ───────────────────────────────────
         summary = f"✅ *اكتمل الفحص — {tf_label}*\n\n"
         if show_bull:
             summary += f"📈 ولفي صاعد: *{len(bullish_list)}*\n"
@@ -582,7 +594,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=chat_id,
             text=summary,
             parse_mode="Markdown",
-            reply_markup=build_tf_keyboard(),
         )
 
         # ── Bullish results ───────────────────────────────────
@@ -594,9 +605,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             for item in bullish_list:
                 msg = (
-                    f"📈 *{item['ticker']}*\n"
+                    f"📈 رمز السهم: *{item['ticker'].split('.')[0]}*\n"
                     f"آخر إغلاق : `{item['last_close']}`\n"
-                    f"دخول (P5) : `{item['entry']}`\n"
+                    f"قاع (5) : `{item['entry']}`\n"
                     f"هدف (1→4) : `{item['target']}`\n"
                     f"النسبة     : `{item['pct']:+.1f}%`\n"
                     f"تاريخ P5   : `{item['p5_date']}`"
@@ -621,9 +632,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             for item in bearish_list:
                 msg = (
-                    f"📉 *{item['ticker']}*\n"
+                    f"📉 رمز السهم: *{item['ticker'].split('.')[0]}*\n"
                     f"آخر إغلاق : `{item['last_close']}`\n"
-                    f"دخول (P5) : `{item['entry']}`\n"
+                    f"قاع (5) : `{item['entry']}`\n"
                     f"هدف (1→4) : `{item['target']}`\n"
                     f"النسبة     : `{item['pct']:+.1f}%`\n"
                     f"تاريخ P5   : `{item['p5_date']}`"
@@ -638,8 +649,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await context.bot.send_photo(chat_id=chat_id, photo=buf)
                 except Exception as e:
                     logger.error(f"Chart error {item['ticker']}: {e}")
-###############################################################                    
-        # ── زر العودة للبداية بعد انتهاء النتائج ─────────────
+
+        # ── زر العودة للبداية بعد انتهاء كل النتائج ──────────
         await context.bot.send_message(
             chat_id=chat_id,
             text="🔄 *انتهى الفحص — اضغط للبدء من جديد*",
@@ -647,7 +658,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=build_start_keyboard(),
         )
         return
-############################################################
+
 # ────────────────────────────────────────────────────────────
 # 12. MAIN — Webhook (Render) / Polling (local)
 # ────────────────────────────────────────────────────────────
