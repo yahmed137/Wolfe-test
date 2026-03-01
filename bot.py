@@ -75,6 +75,7 @@ def ar(text: str) -> str:
 # 2. COMPANY NAMES
 # ────────────────────────────────────────────────────────────
 COMPANY_NAMES = {
+    'TASI.SR':'تاسي',
     '1010.SR': 'الرياض',
     '1020.SR': 'الجزيرة',
     '1030.SR': 'الإستثمار',
@@ -619,11 +620,11 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     info_lines = [
         f"  {ar(company)}",
         f"  {'─' * 24}",
-        #f"  {ar('الإغلاق')}  :  {last_close:.2f}",
-        #f"  {ar('الموجة 5')}  :  {entry:.2f}",
-        #f"  {ar('1 → 4')}  :  {target:.2f}",
-        #f"  {ar('النسبة')}    :  {pct:+.1f}%",
-        #f"  {ar('الفاصل')}    :  {ar(tf_label)}",
+        f"  {ar('الإغلاق')}  :  {last_close:.2f}",
+        f"  {ar('الموجة 5')}  :  {entry:.2f}",
+        f"  {ar('1 → 4')}  :  {target:.2f}",
+        f"  {ar('النسبة')}    :  {pct:+.1f}%",
+        f"  {ar('الفاصل')}    :  {ar(tf_label)}",
     ]
     info = '\n'.join(info_lines)
 
@@ -688,7 +689,7 @@ def scan_tickers(tickers, period, interval, resample_rule=None, max_workers=15):
 # 9. TICKERS
 # ────────────────────────────────────────────────────────────
 TADAWUL_TICKERS = [
-    '1010.SR','1020.SR','1030.SR','1050.SR','1060.SR','1080.SR','1111.SR','1120.SR',
+    'TASI.SR','1010.SR','1020.SR','1030.SR','1050.SR','1060.SR','1080.SR','1111.SR','1120.SR',
     '1140.SR','1150.SR','1180.SR','1182.SR','1183.SR','1201.SR','1202.SR','1210.SR',
     '1211.SR','1212.SR','1213.SR','1214.SR','1301.SR','1302.SR','1303.SR','1304.SR',
     '1320.SR','1321.SR','1322.SR','1323.SR','1810.SR','1820.SR','1830.SR','1831.SR',
