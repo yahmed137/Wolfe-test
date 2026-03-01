@@ -617,15 +617,15 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     bt = '#2E7D32' if is_bull else '#C62828'
 
     ##&&##
-    yas = '{ar('ولف صاعد')}' if is_bull else '{ar('ولف هابط')}'
+    yas = {ar'ولف صاعد')} if is_bull else {ar'ولف هابط')}
     info_lines = [
         f"  {ar(company)}",
         f"  {'─' * 22}",
-        f"  {ar'الاغلاق')}   :  {last_close:.2f}",
-        f"  {ar('الموجة 5')}  :  {entry:.2f}",
-        f"  1→4           :  {target:.2f}",
-        f"  {ar('النسبة')}     :  {pct:+.1f}%",
-        f"  {ar('الفاصل')}  :  {ar(tf_label)}",
+        f" {last_close:.2f}"   :  {ar'الاغلاق')},
+        f" {entry:.2f}"    :   {ar('الموجة 5')},
+        f" {target:.2f}"   : 1→4,
+        f" {pct:+.1f}%"    : {ar('النسبة')},
+        f" {ar(tf_label)}"   : {ar('الفاصل')},
     ]
     info = '\n'.join(info_lines)
 
