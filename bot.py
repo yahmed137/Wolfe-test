@@ -617,13 +617,12 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     bt = '#2E7D32' if is_bull else '#C62828'
 
     info_lines = [
-        f"  {direction.upper()} WOLFE WAVE",
+        f"  {ar(company)}",
         f"  {'─' * 22}",
-        f"  {ar('الشركة')}  :  {ar(company)}",
-        f"  Close     :  {last_close:.2f}",
-        f"  Entry P5  :  {entry:.2f}",
-        f"  Target    :  {target:.2f}",
-        f"  Gain      :  {pct:+.1f}%",
+        f"  الاغلاق     :  {last_close:.2f}",
+        f"  الموجة 5  :  {entry:.2f}",
+        f"  1→4    :  {target:.2f}",
+        f"  النسبة      :  {pct:+.1f}%",
         f"  {ar('الفاصل')}  :  {ar(tf_label)}",
     ]
     info = '\n'.join(info_lines)
@@ -916,7 +915,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"الاسم : `{item['name']}`\n"
                     f"آخر إغلاق : `{item['last_close']}`\n"
                     f"قاع (5) : `{item['entry']}`\n"
-                    f"هدف (1→4) : `{item['target']}`\n"
+                    f"خط (1→4) : `{item['target']}`\n"
                     f"النسبة     : `{item['pct']:+.1f}%`\n"
                     f"تاريخ (5)   : `{item['p5_date']}`"
                 )
@@ -943,7 +942,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"الاسم : `{item['name']}`\n"
                     f"آخر إغلاق : `{item['last_close']}`\n"
                     f"قمة (5) : `{item['entry']}`\n"
-                    f"هدف (1→4) : `{item['target']}`\n"
+                    f"خط (1→4) : `{item['target']}`\n"
                     f"النسبة     : `{item['pct']:+.1f}%`\n"
                     f"تاريخ (5)  : `{item['p5_date']}`"
                 )
