@@ -638,7 +638,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await context.bot.send_photo(chat_id=chat_id, photo=buf)
                 except Exception as e:
                     logger.error(f"Chart error {item['ticker']}: {e}")
-
+###############################################################                    
+        # ── زر العودة للبداية بعد انتهاء النتائج ─────────────
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="🔄 *انتهى الفحص — اضغط للبدء من جديد*",
+            parse_mode="Markdown",
+            reply_markup=build_start_keyboard(),
+        )
+        return
+############################################################
 # ────────────────────────────────────────────────────────────
 # 12. MAIN — Webhook (Render) / Polling (local)
 # ────────────────────────────────────────────────────────────
