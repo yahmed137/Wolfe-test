@@ -605,7 +605,7 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     # ── Title (Arabic text fixed with ar()) ───────────────────
     emoji = '📈' if is_bull else '📉'
     ax.set_title(
-        f'{emoji}  {ticker}  |  {ar(company)}  |  '
+        f'{emoji}  *{item['ticker'].split('.')[0]}*  |  {ar(company)}  |  '
         f'{direction} Wolfe Wave  |  {ar(tf_label)}',
         fontsize=15, fontweight='bold', pad=16,
         color='#212121', fontfamily=ARABIC_FONT,
@@ -616,6 +616,8 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     bc = '#E8F5E9' if is_bull else '#FFEBEE'
     bt = '#2E7D32' if is_bull else '#C62828'
 
+    ##&&##
+    yas = '{ar('ولف صاعد}' if is_bull else '{ar('ولف هابط}'
     info_lines = [
         f"  {ar(company)}",
         f"  {'─' * 22}",
