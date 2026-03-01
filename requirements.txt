@@ -5,3 +5,5 @@ pandas
 scipy
 matplotlib
 mplfinance
+arabic-reshaper
+python-bidi
