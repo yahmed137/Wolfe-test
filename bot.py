@@ -1,5 +1,6 @@
 import os
 import io
+import asyncio
 import logging
 import warnings
 import urllib.request
@@ -7,6 +8,7 @@ warnings.filterwarnings('ignore')
 
 import arabic_reshaper
 from bidi.algorithm import get_display
+from aiohttp import web as aio_web
 
 import yfinance as yf
 import numpy as np
@@ -38,7 +40,6 @@ def _init_arabic_font():
     font_file = os.path.join(here, 'Cairo-Regular.ttf')
 
     if not os.path.exists(font_file):
-        # Cairo font supports BOTH Arabic and Latin characters
         url = ('https://github.com/google/fonts/raw/main/'
                'ofl/cairo/static/Cairo-Regular.ttf')
         try:
@@ -53,7 +54,6 @@ def _init_arabic_font():
         logger.info(f'Using font: {prop.get_name()}')
         return prop.get_name()
 
-    # Fallback: search system fonts for bilingual support
     for f in fm.fontManager.ttflist:
         if any(k in f.name.lower() for k in ('cairo', 'tajawal', 'almarai')):
             return f.name
@@ -66,7 +66,6 @@ logger.info(f'Arabic font in use: {ARABIC_FONT}')
 
 
 def ar(text: str) -> str:
-    """Reshape Arabic characters + apply BiDi for correct matplotlib rendering."""
     try:
         return get_display(arabic_reshaper.reshape(str(text)))
     except Exception:
@@ -488,12 +487,13 @@ def find_active_wolfe(df, max_bars_since_p5=8):
 # 7. CHART → PNG bytes
 # ────────────────────────────────────────────────────────────
 def plot_wolfe_chart(ticker, df, result, tf_label):
-    pts       = result['points']
-    direction = result['direction']
-    entry     = result['entry_price']
-    target    = result['target_price']
-    is_bull   = direction == 'Bullish'
-    company   = get_name(ticker)
+    pts          = result['points']
+    direction    = result['direction']
+    entry        = result['entry_price']
+    target       = result['target_price']
+    is_bull      = direction == 'Bullish'
+    company      = get_name(ticker)
+    ticker_code  = ticker.split('.')[0]
 
     b          = [p['bar']   for p in pts]
     v          = [p['price'] for p in pts]
@@ -530,7 +530,6 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     ax = axes[0]
     fig.subplots_adjust(left=0.04, right=0.96, top=0.92, bottom=0.06)
 
-    # Wolfe wave lines
     ax.plot(zb, v, color=C_W, lw=2.5, zorder=6, alpha=0.8)
     ax.scatter(zb, v, s=120, c='white', edgecolors=C_W,
                linewidths=2.5, zorder=7)
@@ -548,7 +547,7 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     f2 = [line_at(x+off, b[1], v[1], b[3], v[3]) for x in fx]
     ax.fill_between(fx, f1, f2, alpha=0.04, color=C_W)
 
-    tgt_end_zb  = n_z + 5
+    tgt_end_zb = n_z + 5
     ax.plot([zb[0], tgt_end_zb],
             [v[0], line_at(tgt_end_zb+off, b[0], v[0], b[3], v[3])],
             color=C_T, lw=3.0, ls='-.', alpha=0.85, zorder=5)
@@ -581,12 +580,12 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
         arrow_land_zb, pct_y, f'{pct:+.1f}%',
         fontsize=13, fontweight='bold', color=C_A,
         ha='center', va='bottom' if is_bull else 'top',
+        fontfamily=ARABIC_FONT,
         bbox=dict(boxstyle='round,pad=0.3', fc='white',
                   ec=C_A, alpha=0.9, lw=0.8),
         zorder=10,
     )
 
-    # P1–P5 labels (English/numbers — default font is fine)
     for i in range(5):
         is_low = pts[i]['type'] == 'L'
         dt_str = pts[i]['date'].strftime('%b %d')
@@ -602,28 +601,35 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
             arrowprops=dict(arrowstyle='-', color=C_W, lw=0.6),
         )
 
-    # ── Title (Arabic text fixed with ar()) ───────────────────
-    emoji = '📈' if is_bull else '📉'
+    # ── Title ────────────────────────────────────────────────
+    emoji        = '📈' if is_bull else '📉'
+    direction_ar = ar('ولفي صاعد') if is_bull else ar('ولفي هابط')
     ax.set_title(
-        f'{emoji}  *{item['ticker'].split('.')[0]}*  |  {ar(company)}  |  '
-        f'{direction} Wolfe Wave  |  {ar(tf_label)}',
+        f'{emoji}  {ticker_code}  |  {ar(company)}  |  '
+        f'{direction_ar}  |  {ar(tf_label)}',
         fontsize=15, fontweight='bold', pad=16,
         color='#212121', fontfamily=ARABIC_FONT,
     )
     ax.set_ylabel('')
 
-    # ── Info box (Arabic text fixed with ar()) ────────────────
+    # ── Info box ─────────────────────────────────────────────
     bc = '#E8F5E9' if is_bull else '#FFEBEE'
     bt = '#2E7D32' if is_bull else '#C62828'
 
     info_lines = [
-        f"  {ar(company)}",
-        f"  {'─' * 22}",
-        f" {last_close:.2f}   :  {ar'الاغلاق')}",
-        f" {entry:.2f}    :   {ar('الموجة 5')}",
-        f" {target:.2f}   : 1→4,
-        f" {pct:+.1f}%    : {ar('النسبة')}",
-        f" {ar(tf_label)}   : {ar('الفاصل')}",
+        f"  {ar(company)}  —  {direction_ar}",
+        f"  {'─' * 24}",
+        f"  {ar('الإغلاق')}  :  {last_close:.2f}",
+        f"  {ar('الموجة 5')}  :  {entry:.2f}",
+        f"  {ar('الهدف 1→4')}  :  {target:.2f}",
+        f"  {ar('النسبة')}    :  {pct:+.1f}%",
+        f"  {ar('الفاصل')}    :  {ar(tf_label)}",
+
+        f"  Last Close :  {last_close:.2f}\n"
+        f"  Entry (P5)  :  {entry:.2f}\n"
+        f"  Target 1→4 :  {target:.2f}\n"
+        f"  Potential    :  {pct:+.1f}%\n"
+        f"  Timeframe  :  {tf_label}"
     ]
     info = '\n'.join(info_lines)
 
@@ -791,7 +797,161 @@ WELCOME_MSG = (
 )
 
 # ────────────────────────────────────────────────────────────
-# 13. HANDLERS
+# 13. LANDING PAGE HTML
+# ────────────────────────────────────────────────────────────
+LANDING_HTML = """<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>فاحص الولفي ويف — السوق السعودي</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      background: rgba(255,255,255,0.07);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255,255,255,0.13);
+      border-radius: 28px;
+      padding: 56px 44px;
+      text-align: center;
+      max-width: 500px;
+      width: 92%;
+      box-shadow: 0 24px 70px rgba(0,0,0,0.45);
+      color: white;
+    }
+    .logo { font-size: 76px; margin-bottom: 18px; }
+    h1 {
+      font-size: 26px;
+      font-weight: 800;
+      margin-bottom: 10px;
+      letter-spacing: 0.5px;
+    }
+    .subtitle {
+      font-size: 15px;
+      color: rgba(255,255,255,0.6);
+      line-height: 1.7;
+      margin-bottom: 32px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(46,213,115,0.12);
+      border: 1px solid rgba(46,213,115,0.35);
+      color: #2ed573;
+      padding: 9px 22px;
+      border-radius: 50px;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 36px;
+    }
+    .dot {
+      width: 9px; height: 9px;
+      background: #2ed573;
+      border-radius: 50%;
+      animation: blink 1.4s ease-in-out infinite;
+    }
+    @keyframes blink {
+      0%,100% { opacity:1; transform:scale(1); }
+      50%      { opacity:0.25; transform:scale(0.8); }
+    }
+    .divider {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      margin: 28px 0;
+    }
+    .stats {
+      display: flex;
+      justify-content: center;
+      gap: 28px;
+      margin-bottom: 32px;
+    }
+    .stat { text-align: center; }
+    .stat-num {
+      font-size: 28px;
+      font-weight: 800;
+      color: #74b9ff;
+    }
+    .stat-lbl {
+      font-size: 12px;
+      color: rgba(255,255,255,0.45);
+      margin-top: 2px;
+    }
+    .btn {
+      display: inline-block;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      text-decoration: none;
+      padding: 15px 36px;
+      border-radius: 50px;
+      font-size: 16px;
+      font-weight: 700;
+      box-shadow: 0 6px 24px rgba(102,126,234,0.45);
+      transition: transform .2s, box-shadow .2s;
+    }
+    .btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 32px rgba(102,126,234,0.65);
+    }
+    .footer {
+      margin-top: 32px;
+      font-size: 11px;
+      color: rgba(255,255,255,0.28);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">📈</div>
+    <h1>فاحص موجات الولفي ويف</h1>
+    <p class="subtitle">
+      بوت تيليغرام ذكي لفحص موجات الولفي ويف<br>
+      على جميع أسهم السوق السعودي — تداول
+    </p>
+
+    <div class="badge">
+      <div class="dot"></div>
+      البوت يعمل الآن
+    </div>
+
+    <hr class="divider">
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num">240+</div>
+        <div class="stat-lbl">سهم مفحوص</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">6</div>
+        <div class="stat-lbl">أطر زمنية</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">2</div>
+        <div class="stat-lbl">نوع موجة</div>
+      </div>
+    </div>
+
+    <a class="btn" href="https://t.me/BOT_USERNAME" target="_blank">
+      🤖 &nbsp; فتح البوت في تيليغرام
+    </a>
+
+    <div class="footer">
+      Wolfe Wave Scanner &nbsp;•&nbsp; Saudi Market (Tadawul) &nbsp;•&nbsp; 2025
+    </div>
+  </div>
+</body>
+</html>"""
+
+# ────────────────────────────────────────────────────────────
+# 14. HANDLERS
 # ────────────────────────────────────────────────────────────
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -812,7 +972,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     data  = query.data
 
-    # ── Back to start ─────────────────────────────────────────
     if data == "back_to_start":
         await query.edit_message_text(
             WELCOME_MSG, parse_mode="Markdown",
@@ -820,7 +979,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # ── Timeframe selected ────────────────────────────────────
     if data.startswith("scan_"):
         tf_key = data[5:]
         if tf_key not in TF_MAP:
@@ -833,7 +991,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # ── Filter selected → run scan ────────────────────────────
     if data.startswith("filter_"):
         parts = data.split("_", 2)
         if len(parts) != 3:
@@ -912,12 +1069,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for item in bullish_list:
                 msg = (
                     f"رمز السهم: *{item['ticker'].split('.')[0]}*\n"
-                    f"الاسم : `{item['name']}`\n"
+                    f"الاسم       : `{item['name']}`\n"
                     f"آخر إغلاق : `{item['last_close']}`\n"
-                    f"قاع (5) : `{item['entry']}`\n"
-                    f"خط (1→4) : `{item['target']}`\n"
-                    f"النسبة     : `{item['pct']:+.1f}%`\n"
-                    f"تاريخ (5)   : `{item['p5_date']}`"
+                    f"قاع (5)    : `{item['entry']}`\n"
+                    f"خط (1→4)  : `{item['target']}`\n"
+                    f"النسبة      : `{item['pct']:+.1f}%`\n"
+                    f"تاريخ (5)  : `{item['p5_date']}`"
                 )
                 await context.bot.send_message(
                     chat_id=chat_id, text=msg, parse_mode="Markdown"
@@ -939,11 +1096,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for item in bearish_list:
                 msg = (
                     f"رمز السهم: *{item['ticker'].split('.')[0]}*\n"
-                    f"الاسم : `{item['name']}`\n"
+                    f"الاسم       : `{item['name']}`\n"
                     f"آخر إغلاق : `{item['last_close']}`\n"
-                    f"قمة (5) : `{item['entry']}`\n"
-                    f"خط (1→4) : `{item['target']}`\n"
-                    f"النسبة     : `{item['pct']:+.1f}%`\n"
+                    f"قمة (5)    : `{item['entry']}`\n"
+                    f"خط (1→4)  : `{item['target']}`\n"
+                    f"النسبة      : `{item['pct']:+.1f}%`\n"
                     f"تاريخ (5)  : `{item['p5_date']}`"
                 )
                 await context.bot.send_message(
@@ -966,7 +1123,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
 # ────────────────────────────────────────────────────────────
-# 14. MAIN
+# 15. MAIN
 # ────────────────────────────────────────────────────────────
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
@@ -979,11 +1136,43 @@ def main():
 
     if RENDER_EXTERNAL_URL:
         webhook_url = f"{RENDER_EXTERNAL_URL}/webhook"
-        logger.info(f"Starting webhook → {webhook_url}  (port {PORT})")
-        app.run_webhook(
-            listen="0.0.0.0", port=PORT,
-            url_path="/webhook", webhook_url=webhook_url,
-        )
+
+        # ── aiohttp route: landing page ───────────────────────
+        async def home(_request):
+            return aio_web.Response(
+                text=LANDING_HTML, content_type='text/html'
+            )
+
+        # ── aiohttp route: telegram webhook ──────────────────
+        async def webhook_route(request):
+            data   = await request.json()
+            update = Update.de_json(data, app.bot)
+            await app.update_queue.put(update)
+            return aio_web.Response(text='OK')
+
+        async def run_all():
+            # Register webhook with Telegram
+            await app.bot.set_webhook(webhook_url)
+            logger.info(f"Webhook set → {webhook_url}")
+
+            # Build aiohttp server with both routes
+            web_app = aio_web.Application()
+            web_app.router.add_get('/',         home)
+            web_app.router.add_post('/webhook', webhook_route)
+
+            runner = aio_web.AppRunner(web_app)
+            await runner.setup()
+            await aio_web.TCPSite(runner, '0.0.0.0', PORT).start()
+            logger.info(f"Server listening on port {PORT}")
+
+            # Start PTB application
+            async with app:
+                await app.start()
+                await asyncio.Event().wait()   # run forever
+                await app.stop()
+
+        asyncio.run(run_all())
+
     else:
         logger.info("Starting polling (local dev)")
         app.run_polling(drop_pending_updates=True)
