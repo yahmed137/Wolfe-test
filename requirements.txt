@@ -7,3 +7,4 @@ matplotlib
 mplfinance
 arabic-reshaper
 python-bidi
+aiohttp==3.9.5
