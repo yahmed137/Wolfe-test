@@ -617,18 +617,13 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     bt = '#2E7D32' if is_bull else '#C62828'
 
     info_lines = [
-        f"  {ar(company)}  —  {direction_ar}",
+        f"  {direction_ar}  —  {ar(company)}",
         f"  {'─' * 24}",
         f"  {ar('الإغلاق')}  :  {last_close:.2f}",
         f"  {ar('الموجة 5')}  :  {entry:.2f}",
-        f"  {ar('1→4')}  :  {target:.2f}",
+        f"  {ar('1 → 4')}  :  {target:.2f}",
         f"  {ar('النسبة')}    :  {pct:+.1f}%",
         f"  {ar('الفاصل')}    :  {ar(tf_label)}",
-        f"  {last_close:.2f} :  {ar('الإغلاق')}",
-        f"  {entry:.2f} :  {ar('الموجة 5')}",
-        f"  {target:.2f}  : {ar('1→4')}",
-        f"  {pct:+.1f}%   : {ar('النسبة')}",
-        f"  {ar(tf_label)}   :  {ar('الفاصل')}",
     ]
     info = '\n'.join(info_lines)
 
@@ -943,7 +938,7 @@ LANDING_HTML = """<!DOCTYPE html>
     </a>
 
     <div class="footer">
-      Wolfe Wave Scanner &nbsp;•&nbsp; Saudi Market (Tadawul) &nbsp;•&nbsp; 2025
+      Wolfe Wave Scanner &nbsp;•&nbsp; Saudi Market (Tadawul) &nbsp;•&nbsp; 2026
     </div>
   </div>
 </body>
@@ -1071,7 +1066,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"الاسم       : `{item['name']}`\n"
                     f"آخر إغلاق : `{item['last_close']}`\n"
                     f"قاع (5)    : `{item['entry']}`\n"
-                    f"خط (1→4)  : `{item['target']}`\n"
+                    f"خط (1←4)  : `{item['target']}`\n"
                     f"النسبة      : `{item['pct']:+.1f}%`\n"
                     f"تاريخ (5)  : `{item['p5_date']}`"
                 )
@@ -1098,7 +1093,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"الاسم       : `{item['name']}`\n"
                     f"آخر إغلاق : `{item['last_close']}`\n"
                     f"قمة (5)    : `{item['entry']}`\n"
-                    f"خط (1→4)  : `{item['target']}`\n"
+                    f"خط (1←4)  : `{item['target']}`\n"
                     f"النسبة      : `{item['pct']:+.1f}%`\n"
                     f"تاريخ (5)  : `{item['p5_date']}`"
                 )
