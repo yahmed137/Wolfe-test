@@ -619,10 +619,10 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     info_lines = [
         f"  {ar(company)}",
         f"  {'─' * 22}",
-        f"  الاغلاق     :  {last_close:.2f}",
-        f"  الموجة 5  :  {entry:.2f}",
-        f"  1→4    :  {target:.2f}",
-        f"  النسبة      :  {pct:+.1f}%",
+        f"  {ar('الاغلاق}   :  {last_close:.2f}",
+        f"  {ar('الموجة 5}  :  {entry:.2f}",
+        f"  1→4           :  {target:.2f}",
+        f"  {ar('النسبة}     :  {pct:+.1f}%",
         f"  {ar('الفاصل')}  :  {ar(tf_label)}",
     ]
     info = '\n'.join(info_lines)
