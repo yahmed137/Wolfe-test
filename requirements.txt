@@ -1,0 +1,7 @@
+python-telegram-bot==21.3
+yfinance
+numpy
+pandas
+scipy
+matplotlib
+mplfinance
