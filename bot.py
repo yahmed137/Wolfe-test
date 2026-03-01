@@ -886,13 +886,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             for item in bullish_list:
                 msg = (
-                    f"📈 رمز السهم: *{item['ticker'].split('.')[0]}*\n"
-                    f"الاسم       : `{item['name']}`\n"
+                    f"رمز السهم: *{item['ticker'].split('.')[0]}*\n"
+                    f"الاسم : `{item['name']}`\n"
                     f"آخر إغلاق : `{item['last_close']}`\n"
                     f"قاع (5) : `{item['entry']}`\n"
                     f"هدف (1→4) : `{item['target']}`\n"
-                    f"النسبة     : `{item['pct']:+.1f}%`\n"
-                    f"تاريخ 5   : `{item['p5_date']}`"
+                    f"النسبة  : `{item['pct']:+.1f}%`\n"
+                    f"تاريخ (5) : `{item['p5_date']}`"
                 )
                 await context.bot.send_message(
                     chat_id=chat_id, text=msg, parse_mode="Markdown"
@@ -914,13 +914,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             for item in bearish_list:
                 msg = (
-                    f"📉 رمز السهم: *{item['ticker'].split('.')[0]}*\n"
-                    f"الاسم       : `{item['name']}`\n"
+                    f"رمز السهم: *{item['ticker'].split('.')[0]}*\n"
+                    f"الاسم : `{item['name']}`\n"
                     f"آخر إغلاق : `{item['last_close']}`\n"
                     f"قاع (5) : `{item['entry']}`\n"
                     f"هدف (1→4) : `{item['target']}`\n"
-                    f"النسبة     : `{item['pct']:+.1f}%`\n"
-                    f"تاريخ 5   : `{item['p5_date']}`"
+                    f"النسبة  : `{item['pct']:+.1f}%`\n"
+                    f"تاريخ (5) : `{item['p5_date']}`"
                 )
                 await context.bot.send_message(
                     chat_id=chat_id, text=msg, parse_mode="Markdown"
