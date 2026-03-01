@@ -616,8 +616,6 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     bc = '#E8F5E9' if is_bull else '#FFEBEE'
     bt = '#2E7D32' if is_bull else '#C62828'
 
-    ##&&##
-    yas = {ar'ولف صاعد')} if is_bull else {ar'ولف هابط')}
     info_lines = [
         f"  {ar(company)}",
         f"  {'─' * 22}",
