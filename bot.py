@@ -2,7 +2,11 @@ import os
 import io
 import logging
 import warnings
+import urllib.request
 warnings.filterwarnings('ignore')
+
+import arabic_reshaper
+from bidi.algorithm import get_display
 
 import yfinance as yf
 import numpy as np
@@ -12,6 +16,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
 import mplfinance as mpf
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -26,7 +31,46 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 
 # ────────────────────────────────────────────────────────────
-# 1. COMPANY NAMES
+# 1. ARABIC FONT + TEXT SUPPORT
+# ────────────────────────────────────────────────────────────
+def _init_arabic_font():
+    here      = os.path.dirname(os.path.abspath(__file__))
+    font_file = os.path.join(here, 'NotoNaskhArabic-Regular.ttf')
+
+    if not os.path.exists(font_file):
+        url = ('https://github.com/googlefonts/noto-fonts/raw/main/'
+               'hinted/ttf/NotoNaskhArabic/NotoNaskhArabic-Regular.ttf')
+        try:
+            urllib.request.urlretrieve(url, font_file)
+            logger.info('Arabic font downloaded successfully.')
+        except Exception as exc:
+            logger.warning(f'Arabic font download failed: {exc}')
+
+    if os.path.exists(font_file):
+        fm.fontManager.addfont(font_file)
+        return fm.FontProperties(fname=font_file).get_name()
+
+    # Fallback: search system fonts
+    for f in fm.fontManager.ttflist:
+        if any(k in f.name.lower() for k in ('noto', 'arabic', 'amiri')):
+            return f.name
+
+    return 'DejaVu Sans'
+
+
+ARABIC_FONT = _init_arabic_font()
+logger.info(f'Arabic font in use: {ARABIC_FONT}')
+
+
+def ar(text: str) -> str:
+    """Reshape Arabic characters + apply BiDi for correct matplotlib rendering."""
+    try:
+        return get_display(arabic_reshaper.reshape(str(text)))
+    except Exception:
+        return str(text)
+
+# ────────────────────────────────────────────────────────────
+# 2. COMPANY NAMES
 # ────────────────────────────────────────────────────────────
 COMPANY_NAMES = {
     '1010.SR': 'الرياض',
@@ -305,7 +349,7 @@ def get_name(ticker: str) -> str:
     return COMPANY_NAMES.get(ticker, ticker)
 
 # ────────────────────────────────────────────────────────────
-# 2. PIVOT DETECTION
+# 3. PIVOT DETECTION
 # ────────────────────────────────────────────────────────────
 def find_pivots(df, order=5):
     high = df['High'].values
@@ -338,7 +382,7 @@ def get_alternating_pivots(pivots):
     return alt
 
 # ────────────────────────────────────────────────────────────
-# 3. UTILITIES
+# 4. UTILITIES
 # ────────────────────────────────────────────────────────────
 def line_at(x, x1, y1, x2, y2):
     if x2 == x1:
@@ -356,36 +400,31 @@ def resample_ohlc(df, rule):
     }).dropna()
 
 # ────────────────────────────────────────────────────────────
-# 4. WOLFE WAVE VALIDATORS
+# 5. WOLFE WAVE VALIDATORS
 # ────────────────────────────────────────────────────────────
 def validate_bullish(p1, p2, p3, p4, p5, tol=0.03):
     v = [p['price'] for p in [p1, p2, p3, p4, p5]]
     b = [p['bar']   for p in [p1, p2, p3, p4, p5]]
 
     if not (p1['type'] == 'L' and p2['type'] == 'H' and
-            p3['type'] == 'L' and p4['type'] == 'H' and
-            p5['type'] == 'L'):
+            p3['type'] == 'L' and p4['type'] == 'H' and p5['type'] == 'L'):
         return None
-    if v[2] >= v[0]:         return None
-    if v[3] >= v[1]:         return None
-    if v[3] <= v[0]:         return None
-    if v[4] >= v[2]:         return None
+    if v[2] >= v[0]:          return None
+    if v[3] >= v[1]:          return None
+    if v[3] <= v[0]:          return None
+    if v[4] >= v[2]:          return None
 
     s13 = (v[2]-v[0])/(b[2]-b[0]) if b[2] != b[0] else 0
     s24 = (v[3]-v[1])/(b[3]-b[1]) if b[3] != b[1] else 0
-    if s13 >= 0 or s24 >= 0: return None
-    if s13 >= s24:           return None
+    if s13 >= 0 or s24 >= 0:  return None
+    if s13 >= s24:            return None
 
     proj = line_at(b[4], b[0], v[0], b[2], v[2])
     if proj != 0 and (proj - v[4]) / abs(proj) < -tol:
         return None
 
-    return {
-        'direction':   'Bullish',
-        'points':      [p1, p2, p3, p4, p5],
-        'entry_price': v[4],
-        'p5_date':     p5['date'],
-    }
+    return {'direction': 'Bullish', 'points': [p1,p2,p3,p4,p5],
+            'entry_price': v[4], 'p5_date': p5['date']}
 
 
 def validate_bearish(p1, p2, p3, p4, p5, tol=0.03):
@@ -393,40 +432,34 @@ def validate_bearish(p1, p2, p3, p4, p5, tol=0.03):
     b = [p['bar']   for p in [p1, p2, p3, p4, p5]]
 
     if not (p1['type'] == 'H' and p2['type'] == 'L' and
-            p3['type'] == 'H' and p4['type'] == 'L' and
-            p5['type'] == 'H'):
+            p3['type'] == 'H' and p4['type'] == 'L' and p5['type'] == 'H'):
         return None
-    if v[2] <= v[0]:         return None
-    if v[3] <= v[1]:         return None
-    if v[3] >= v[0]:         return None
-    if v[4] <= v[2]:         return None
+    if v[2] <= v[0]:          return None
+    if v[3] <= v[1]:          return None
+    if v[3] >= v[0]:          return None
+    if v[4] <= v[2]:          return None
 
     s13 = (v[2]-v[0])/(b[2]-b[0]) if b[2] != b[0] else 0
     s24 = (v[3]-v[1])/(b[3]-b[1]) if b[3] != b[1] else 0
-    if s13 <= 0 or s24 <= 0: return None
-    if s13 >= s24:           return None
+    if s13 <= 0 or s24 <= 0:  return None
+    if s13 >= s24:            return None
 
     proj = line_at(b[4], b[0], v[0], b[2], v[2])
     if proj != 0 and (v[4] - proj) / abs(proj) < -tol:
         return None
 
-    return {
-        'direction':   'Bearish',
-        'points':      [p1, p2, p3, p4, p5],
-        'entry_price': v[4],
-        'p5_date':     p5['date'],
-    }
+    return {'direction': 'Bearish', 'points': [p1,p2,p3,p4,p5],
+            'entry_price': v[4], 'p5_date': p5['date']}
 
 # ────────────────────────────────────────────────────────────
-# 5. ACTIVE PATTERN FINDER
+# 6. ACTIVE PATTERN FINDER
 # ────────────────────────────────────────────────────────────
 def find_active_wolfe(df, max_bars_since_p5=8):
-    pivot_orders = [4, 5, 6, 7]
-    n = len(df)
+    n         = len(df)
     best_bull = None
     best_bear = None
 
-    for order in pivot_orders:
+    for order in [4, 5, 6, 7]:
         piv = get_alternating_pivots(find_pivots(df, order=order))
         if len(piv) < 5:
             continue
@@ -446,15 +479,10 @@ def find_active_wolfe(df, max_bars_since_p5=8):
                       combo[4]['bar'] > best_bear['points'][4]['bar']):
                 best_bear = r
 
-    out = []
-    if best_bull:
-        out.append(best_bull)
-    if best_bear:
-        out.append(best_bear)
-    return out
+    return [x for x in [best_bull, best_bear] if x]
 
 # ────────────────────────────────────────────────────────────
-# 6. CHART → PNG bytes
+# 7. CHART → PNG bytes
 # ────────────────────────────────────────────────────────────
 def plot_wolfe_chart(ticker, df, result, tf_label):
     pts       = result['points']
@@ -462,6 +490,7 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     entry     = result['entry_price']
     target    = result['target_price']
     is_bull   = direction == 'Bullish'
+    company   = get_name(ticker)
 
     b          = [p['bar']   for p in pts]
     v          = [p['price'] for p in pts]
@@ -498,6 +527,7 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     ax = axes[0]
     fig.subplots_adjust(left=0.04, right=0.96, top=0.92, bottom=0.06)
 
+    # Wolfe wave lines
     ax.plot(zb, v, color=C_W, lw=2.5, zorder=6, alpha=0.8)
     ax.scatter(zb, v, s=120, c='white', edgecolors=C_W,
                linewidths=2.5, zorder=7)
@@ -516,9 +546,8 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     ax.fill_between(fx, f1, f2, alpha=0.04, color=C_W)
 
     tgt_end_zb  = n_z + 5
-    tgt_end_bar = tgt_end_zb + off
     ax.plot([zb[0], tgt_end_zb],
-            [v[0], line_at(tgt_end_bar, b[0], v[0], b[3], v[3])],
+            [v[0], line_at(tgt_end_zb+off, b[0], v[0], b[3], v[3])],
             color=C_T, lw=3.0, ls='-.', alpha=0.85, zorder=5)
 
     z_last = min(last_bar - off, n_z - 1)
@@ -527,8 +556,7 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     ax.axhline(y=target, color=C_T, lw=0.6, ls=':', alpha=0.25)
     ax.axhline(y=entry,  color=C_E, lw=0.6, ls=':', alpha=0.25)
 
-    arrow_land_zb    = zb[4] + max(4, (z_last - zb[4]) // 2)
-    arrow_land_zb    = min(arrow_land_zb, n_z + 3)
+    arrow_land_zb    = min(zb[4] + max(4, (z_last-zb[4])//2), n_z+3)
     arrow_land_price = line_at(arrow_land_zb+off, b[0], v[0], b[3], v[3])
 
     ax.annotate(
@@ -555,6 +583,7 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
         zorder=10,
     )
 
+    # P1–P5 labels (English/numbers — default font is fine)
     for i in range(5):
         is_low = pts[i]['type'] == 'L'
         dt_str = pts[i]['date'].strftime('%b %d')
@@ -570,31 +599,37 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
             arrowprops=dict(arrowstyle='-', color=C_W, lw=0.6),
         )
 
-    company = get_name(ticker)
-    emoji   = '📈' if is_bull else '📉'
+    # ── Title (Arabic text fixed with ar()) ───────────────────
+    emoji = '📈' if is_bull else '📉'
     ax.set_title(
-        f'{emoji}   {ticker} — {company}   |   '
-        f'{direction} Wolfe Wave   |   {tf_label}',
-        fontsize=15, fontweight='bold', pad=16, color='#212121',
+        f'{emoji}  {ticker}  |  {ar(company)}  |  '
+        f'{direction} Wolfe Wave  |  {ar(tf_label)}',
+        fontsize=15, fontweight='bold', pad=16,
+        color='#212121', fontfamily=ARABIC_FONT,
     )
     ax.set_ylabel('')
 
-    bc   = '#E8F5E9' if is_bull else '#FFEBEE'
-    bt   = '#2E7D32' if is_bull else '#C62828'
-    info = (
-        f"  {direction.upper()} WOLFE WAVE\n"
-        f"  ─────────────────────\n"
-        f"  الشركة       :  {company}\n"
-        f"  Last Close :  {last_close:.2f}\n"
-        f"  Entry (P5)  :  {entry:.2f}\n"
-        f"  Target 1→4 :  {target:.2f}\n"
-        f"  Potential    :  {pct:+.1f}%\n"
-        f"  Timeframe  :  {tf_label}"
-    )
+    # ── Info box (Arabic text fixed with ar()) ────────────────
+    bc = '#E8F5E9' if is_bull else '#FFEBEE'
+    bt = '#2E7D32' if is_bull else '#C62828'
+
+    info_lines = [
+        f"  {direction.upper()} WOLFE WAVE",
+        f"  {'─' * 22}",
+        f"  {ar('الشركة')}  :  {ar(company)}",
+        f"  Close     :  {last_close:.2f}",
+        f"  Entry P5  :  {entry:.2f}",
+        f"  Target    :  {target:.2f}",
+        f"  Gain      :  {pct:+.1f}%",
+        f"  {ar('الفاصل')}  :  {ar(tf_label)}",
+    ]
+    info = '\n'.join(info_lines)
+
     ax.text(
         0.01, 0.03, info,
         transform=ax.transAxes,
-        fontsize=10, fontfamily='monospace', fontweight='bold', color=bt,
+        fontsize=10, fontweight='bold', color=bt,
+        fontfamily=ARABIC_FONT,
         verticalalignment='bottom', horizontalalignment='left',
         bbox=dict(boxstyle='round,pad=0.6', facecolor=bc,
                   edgecolor=bt, alpha=0.92, lw=1.2),
@@ -609,7 +644,7 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     return buf
 
 # ────────────────────────────────────────────────────────────
-# 7. TICKER PROCESSING
+# 8. TICKER PROCESSING
 # ────────────────────────────────────────────────────────────
 def process_ticker(ticker, period, interval, resample_rule=None):
     try:
@@ -648,7 +683,7 @@ def scan_tickers(tickers, period, interval, resample_rule=None, max_workers=15):
     return all_res, ohlc
 
 # ────────────────────────────────────────────────────────────
-# 8. TICKERS
+# 9. TICKERS
 # ────────────────────────────────────────────────────────────
 TADAWUL_TICKERS = [
     '1010.SR','1020.SR','1030.SR','1050.SR','1060.SR','1080.SR','1111.SR','1120.SR',
@@ -688,7 +723,7 @@ TADAWUL_TICKERS = [
 ]
 
 # ────────────────────────────────────────────────────────────
-# 9. TIMEFRAME MAP
+# 10. TIMEFRAME MAP
 # ────────────────────────────────────────────────────────────
 TF_MAP = {
     '30m': ('30 دقيقة', '30m',  '60d', None),
@@ -700,7 +735,7 @@ TF_MAP = {
 }
 
 # ────────────────────────────────────────────────────────────
-# 10. KEYBOARDS
+# 11. KEYBOARDS
 # ────────────────────────────────────────────────────────────
 def build_tf_keyboard():
     return InlineKeyboardMarkup([
@@ -739,13 +774,11 @@ def build_filter_keyboard(tf_key):
 
 def build_start_keyboard():
     return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("🏠 البداية", callback_data="back_to_start"),
-        ]
+        [InlineKeyboardButton("🏠 البداية", callback_data="back_to_start")]
     ])
 
 # ────────────────────────────────────────────────────────────
-# 11. WELCOME MESSAGE
+# 12. WELCOME MESSAGE
 # ────────────────────────────────────────────────────────────
 WELCOME_MSG = (
     "🎯 *فاحص موجات الولفي ويف — السوق السعودي*\n\n"
@@ -756,12 +789,11 @@ WELCOME_MSG = (
 )
 
 # ────────────────────────────────────────────────────────────
-# 12. HANDLERS
+# 13. HANDLERS
 # ────────────────────────────────────────────────────────────
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        WELCOME_MSG,
-        parse_mode="Markdown",
+        WELCOME_MSG, parse_mode="Markdown",
         reply_markup=build_tf_keyboard(),
     )
 
@@ -776,26 +808,24 @@ async def scan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    data = query.data
+    data  = query.data
 
     # ── Back to start ─────────────────────────────────────────
     if data == "back_to_start":
         await query.edit_message_text(
-            WELCOME_MSG,
-            parse_mode="Markdown",
+            WELCOME_MSG, parse_mode="Markdown",
             reply_markup=build_tf_keyboard(),
         )
         return
 
-    # ── Timeframe selected → show filter buttons ──────────────
+    # ── Timeframe selected ────────────────────────────────────
     if data.startswith("scan_"):
         tf_key = data[5:]
         if tf_key not in TF_MAP:
             await query.edit_message_text("فاصل زمني غير معروف.")
             return
-        tf_label = TF_MAP[tf_key][0]
         await query.edit_message_text(
-            f"⏱ الفاصل: *{tf_label}*\n\nاختر الفلتر:",
+            f"⏱ الفاصل: *{TF_MAP[tf_key][0]}*\n\nاختر الفلتر:",
             parse_mode="Markdown",
             reply_markup=build_filter_keyboard(tf_key),
         )
@@ -808,7 +838,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("بيانات غير صالحة.")
             return
         _, tf_key, direction = parts
-
         if tf_key not in TF_MAP:
             await query.edit_message_text("فاصل زمني غير معروف.")
             return
@@ -822,12 +851,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown",
         )
 
-        # ── Run the scan ──────────────────────────────────────
         results, ohlc_data = scan_tickers(
             TADAWUL_TICKERS, period, interval, resample_rule
         )
 
-        # ── Categorise ────────────────────────────────────────
         bullish_list = []
         bearish_list = []
         is_intraday  = interval not in ('1d', '1wk')
@@ -862,7 +889,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         show_bull = direction in ('bullish', 'both')
         show_bear = direction in ('bearish', 'both')
 
-        # ── Summary ───────────────────────────────────────────
         summary = f"✅ *اكتمل الفحص — {tf_label}*\n\n"
         if show_bull:
             summary += f"📈 ولفي صاعد: *{len(bullish_list)}*\n"
@@ -872,12 +898,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             summary += "\nلا توجد نتائج لهذا الفلتر."
 
         await context.bot.send_message(
-            chat_id=chat_id,
-            text=summary,
-            parse_mode="Markdown",
+            chat_id=chat_id, text=summary, parse_mode="Markdown"
         )
 
-        # ── Bullish results ───────────────────────────────────
         if show_bull and bullish_list:
             await context.bot.send_message(
                 chat_id=chat_id,
@@ -891,8 +914,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"آخر إغلاق : `{item['last_close']}`\n"
                     f"قاع (5) : `{item['entry']}`\n"
                     f"هدف (1→4) : `{item['target']}`\n"
-                    f"النسبة  : `{item['pct']:+.1f}%`\n"
-                    f"تاريخ (5) : `{item['p5_date']}`"
+                    f"النسبة     : `{item['pct']:+.1f}%`\n"
+                    f"تاريخ (5)   : `{item['p5_date']}`"
                 )
                 await context.bot.send_message(
                     chat_id=chat_id, text=msg, parse_mode="Markdown"
@@ -905,7 +928,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception as e:
                     logger.error(f"Chart error {item['ticker']}: {e}")
 
-        # ── Bearish results ───────────────────────────────────
         if show_bear and bearish_list:
             await context.bot.send_message(
                 chat_id=chat_id,
@@ -917,10 +939,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"رمز السهم: *{item['ticker'].split('.')[0]}*\n"
                     f"الاسم : `{item['name']}`\n"
                     f"آخر إغلاق : `{item['last_close']}`\n"
-                    f"قاع (5) : `{item['entry']}`\n"
+                    f"قمة (5) : `{item['entry']}`\n"
                     f"هدف (1→4) : `{item['target']}`\n"
-                    f"النسبة  : `{item['pct']:+.1f}%`\n"
-                    f"تاريخ (5) : `{item['p5_date']}`"
+                    f"النسبة     : `{item['pct']:+.1f}%`\n"
+                    f"تاريخ (5)  : `{item['p5_date']}`"
                 )
                 await context.bot.send_message(
                     chat_id=chat_id, text=msg, parse_mode="Markdown"
@@ -933,7 +955,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception as e:
                     logger.error(f"Chart error {item['ticker']}: {e}")
 
-        # ── زر العودة للبداية ─────────────────────────────────
         await context.bot.send_message(
             chat_id=chat_id,
             text="🔄 *انتهى الفحص — اضغط للبدء من جديد*",
@@ -943,11 +964,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
 # ────────────────────────────────────────────────────────────
-# 13. MAIN — Webhook (Render) / Polling (local)
+# 14. MAIN
 # ────────────────────────────────────────────────────────────
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
-
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("scan",  scan_command))
     app.add_handler(CallbackQueryHandler(button_handler))
@@ -959,10 +979,8 @@ def main():
         webhook_url = f"{RENDER_EXTERNAL_URL}/webhook"
         logger.info(f"Starting webhook → {webhook_url}  (port {PORT})")
         app.run_webhook(
-            listen="0.0.0.0",
-            port=PORT,
-            url_path="/webhook",
-            webhook_url=webhook_url,
+            listen="0.0.0.0", port=PORT,
+            url_path="/webhook", webhook_url=webhook_url,
         )
     else:
         logger.info("Starting polling (local dev)")
