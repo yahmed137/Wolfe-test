@@ -1055,6 +1055,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=chat_id, text=summary, parse_mode="Markdown"
         )
 
+        # ── BULLISH RESULTS: chart first, then message ──────
         if show_bull and bullish_list:
             await context.bot.send_message(
                 chat_id=chat_id,
@@ -1062,6 +1063,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="Markdown",
             )
             for item in bullish_list:
+                try:
+                    buf = plot_wolfe_chart(
+                        item['ticker'], item['_df'], item['_r'], tf_label
+                    )
+                    await context.bot.send_photo(chat_id=chat_id, photo=buf)
+                except Exception as e:
+                    logger.error(f"Chart error {item['ticker']}: {e}")
                 msg = (
                     f"رمز السهم: *{item['ticker'].split('.')[0]}*\n"
                     f"الاسم       : `{item['name']}`\n"
@@ -1074,14 +1082,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_message(
                     chat_id=chat_id, text=msg, parse_mode="Markdown"
                 )
-                try:
-                    buf = plot_wolfe_chart(
-                        item['ticker'], item['_df'], item['_r'], tf_label
-                    )
-                    await context.bot.send_photo(chat_id=chat_id, photo=buf)
-                except Exception as e:
-                    logger.error(f"Chart error {item['ticker']}: {e}")
 
+        # ── BEARISH RESULTS: chart first, then message ──────
         if show_bear and bearish_list:
             await context.bot.send_message(
                 chat_id=chat_id,
@@ -1089,6 +1091,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="Markdown",
             )
             for item in bearish_list:
+                try:
+                    buf = plot_wolfe_chart(
+                        item['ticker'], item['_df'], item['_r'], tf_label
+                    )
+                    await context.bot.send_photo(chat_id=chat_id, photo=buf)
+                except Exception as e:
+                    logger.error(f"Chart error {item['ticker']}: {e}")
                 msg = (
                     f"رمز السهم: *{item['ticker'].split('.')[0]}*\n"
                     f"الاسم       : `{item['name']}`\n"
@@ -1101,13 +1110,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_message(
                     chat_id=chat_id, text=msg, parse_mode="Markdown"
                 )
-                try:
-                    buf = plot_wolfe_chart(
-                        item['ticker'], item['_df'], item['_r'], tf_label
-                    )
-                    await context.bot.send_photo(chat_id=chat_id, photo=buf)
-                except Exception as e:
-                    logger.error(f"Chart error {item['ticker']}: {e}")
 
         await context.bot.send_message(
             chat_id=chat_id,
