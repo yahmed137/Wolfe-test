@@ -1102,6 +1102,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 msg = (
                     f"رمز السهم: *{item['ticker'].split('.')[0]}*\n"
                     f"الاسم       : `{item['name']}`\n"
+                    f"الفاصل       : `{tf_label}`\n"
                     f"آخر إغلاق : `{item['last_close']}`\n"
                     f"قمة (5)    : `{item['entry']}`\n"
                     f"خط (1←4)  : `{item['target']}`\n"
