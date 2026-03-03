@@ -868,7 +868,7 @@ LANDING_HTML = """<!DOCTYPE html>
       justify-content: center;
       overflow-x: hidden;
       position: relative;
-      padding: 20px 0 130px;
+      padding: 20px 0 140px;
     }
 
     /* ── Animated background ── */
@@ -1154,7 +1154,11 @@ LANDING_HTML = """<!DOCTYPE html>
       gap: 10px;
       flex-wrap: wrap;
     }
-    .footer-dot { width: 3px; height: 3px; background: rgba(255,255,255,0.22); border-radius: 50%; }
+    .footer-dot {
+      width: 3px; height: 3px;
+      background: rgba(255,255,255,0.22);
+      border-radius: 50%;
+    }
 
     /* ── Bottom 3-bar stocks ticker ── */
     .ticker-wrap {
@@ -1176,7 +1180,7 @@ LANDING_HTML = """<!DOCTYPE html>
       content: '';
       position: absolute;
       top: 0; bottom: 0;
-      width: 80px;
+      width: 100px;
       z-index: 3;
       pointer-events: none;
     }
@@ -1189,23 +1193,11 @@ LANDING_HTML = """<!DOCTYPE html>
       background: linear-gradient(to right, rgba(8,12,26,0.98), transparent);
     }
 
-    .marquee-track {
+    .marquee-row {
       display: flex;
       gap: 8px;
       width: max-content;
-      overflow: hidden;
-    }
-    .marquee-track.row-1 { animation: marquee-rtl 180s linear infinite; }
-    .marquee-track.row-2 { animation: marquee-ltr 200s linear infinite; }
-    .marquee-track.row-3 { animation: marquee-rtl 190s linear infinite; }
-
-    @keyframes marquee-rtl {
-      from { transform: translateX(0); }
-      to   { transform: translateX(-50%); }
-    }
-    @keyframes marquee-ltr {
-      from { transform: translateX(-50%); }
-      to   { transform: translateX(0); }
+      will-change: transform;
     }
 
     .stock-chip {
@@ -1242,7 +1234,7 @@ LANDING_HTML = """<!DOCTYPE html>
       h1 { font-size: 22px; }
       .stat-num { font-size: 24px; }
       .btn { padding: 14px 28px; font-size: 15px; }
-      body { padding-bottom: 140px; }
+      body { padding-bottom: 150px; }
     }
   </style>
 </head>
@@ -1257,19 +1249,16 @@ LANDING_HTML = """<!DOCTYPE html>
   <!-- Main card -->
   <div class="card" role="main">
 
-    <!-- Logo -->
     <div class="logo-wrap">
       <div class="logo-ring">📈</div>
     </div>
 
-    <!-- Heading -->
     <h1>فاحص موجات الولفي ويف</h1>
     <p class="subtitle">
       بوت تيليغرام ذكي لرصد موجات الولفي ويف<br>
       على <strong>جميع أسهم تداول السعودي</strong> بدقة عالية
     </p>
 
-    <!-- Status -->
     <div class="badge">
       <div class="dot"></div>
       البوت يعمل الآن
@@ -1277,7 +1266,6 @@ LANDING_HTML = """<!DOCTYPE html>
 
     <hr class="divider">
 
-    <!-- Stats -->
     <div class="stats">
       <div class="stat">
         <div class="stat-icon">🏦</div>
@@ -1296,7 +1284,6 @@ LANDING_HTML = """<!DOCTYPE html>
       </div>
     </div>
 
-    <!-- Feature pills -->
     <div class="features">
       <span class="pill">⚡ فحص فوري</span>
       <span class="pill">📊 تحليل متعدد الأطر</span>
@@ -1305,7 +1292,6 @@ LANDING_HTML = """<!DOCTYPE html>
       <span class="pill">🇸🇦 سوق تداول</span>
     </div>
 
-    <!-- CTA -->
     <div class="btn-wrap">
       <div class="btn-glow"></div>
       <a class="btn" href="https://t.me/BOT_USERNAME" target="_blank" rel="noopener">
@@ -1314,7 +1300,6 @@ LANDING_HTML = """<!DOCTYPE html>
       </a>
     </div>
 
-    <!-- Footer -->
     <div class="footer">
       <span>Wolfe Wave Scanner</span>
       <div class="footer-dot"></div>
@@ -1327,14 +1312,14 @@ LANDING_HTML = """<!DOCTYPE html>
 
   <!-- Bottom 3-bar stocks -->
   <div class="ticker-wrap" aria-hidden="true">
-    <div class="marquee-track row-1" id="bottom1"></div>
-    <div class="marquee-track row-2" id="bottom2"></div>
-    <div class="marquee-track row-3" id="bottom3"></div>
+    <div class="marquee-row" id="bottom1"></div>
+    <div class="marquee-row" id="bottom2"></div>
+    <div class="marquee-row" id="bottom3"></div>
   </div>
 
   <script>
     const STOCKS = [
-      ['^TASI',  'تاسي'],
+      ['^TASI', 'تاسي'],
       ['1010',  'الرياض'],
       ['1020',  'الجزيرة'],
       ['1030',  'الإستثمار'],
@@ -1618,13 +1603,43 @@ LANDING_HTML = """<!DOCTYPE html>
       STOCKS.slice(third * 2),
     ];
 
-    // Fill bottom 3 bars — duplicate for seamless loop
+    // Speeds in seconds per full one-set scroll (higher = slower)
+    const speeds = [180, 200, 190];
+    // Row 2 scrolls opposite direction
+    const directions = [-1, 1, -1];
+
     ['bottom1', 'bottom2', 'bottom3'].forEach((id, i) => {
       const el = document.getElementById(id);
-      if (el) {
-        const html = [...rows[i], ...rows[i]].map(([c, n]) => makeChip(c, n)).join('');
-        el.innerHTML = html;
-      }
+      if (!el) return;
+
+      // Build chips — repeat 3× for guaranteed seamless loop on any screen
+      const once = rows[i].map(([c, n]) => makeChip(c, n)).join('');
+      el.innerHTML = once + once + once;
+
+      // Wait for layout so scrollWidth is accurate
+      requestAnimationFrame(() => {
+        const oneSetWidth = el.scrollWidth / 3;
+        const pxPerMs     = oneSetWidth / (speeds[i] * 1000);
+        const dir         = directions[i];
+
+        let pos  = dir === -1 ? 0 : oneSetWidth;
+        let last = null;
+
+        function tick(ts) {
+          if (last !== null) {
+            const delta = ts - last;
+            pos += pxPerMs * delta * dir * -1;
+
+            // Reset seamlessly when one full set has scrolled
+            if (dir === -1 && pos <= -oneSetWidth) pos += oneSetWidth;
+            if (dir ===  1 && pos >= 0)            pos -= oneSetWidth;
+          }
+          last = ts;
+          el.style.transform = `translateX(${pos}px)`;
+          requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+      });
     });
   </script>
 
