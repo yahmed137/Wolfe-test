@@ -821,8 +821,9 @@ LANDING_HTML = """<!DOCTYPE html>
       display: flex;
       align-items: center;
       justify-content: center;
-      overflow: hidden;
+      overflow-x: hidden;
       position: relative;
+      padding: 20px 0 60px;
     }
 
     /* ── Animated background ── */
@@ -848,7 +849,6 @@ LANDING_HTML = """<!DOCTYPE html>
       mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%);
     }
 
-    /* Floating orbs */
     .orb {
       position: fixed;
       border-radius: 50%;
@@ -867,24 +867,6 @@ LANDING_HTML = """<!DOCTYPE html>
       to   { transform: translate(40px, 30px) scale(1.12); }
     }
 
-    /* ── Floating candlestick chart (decorative) ── */
-    .chart-deco {
-      position: fixed;
-      bottom: 24px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      align-items: flex-end;
-      gap: 6px;
-      z-index: 0;
-      opacity: 0.06;
-    }
-    .candle { display: flex; flex-direction: column; align-items: center; gap: 1px; }
-    .candle-wick { width: 2px; background: white; border-radius: 2px; }
-    .candle-body { width: 10px; border-radius: 2px; }
-    .candle.bull .candle-body { background: #10d97e; }
-    .candle.bear .candle-body { background: #f87171; }
-
     /* ── Main card ── */
     .card {
       position: relative;
@@ -896,7 +878,7 @@ LANDING_HTML = """<!DOCTYPE html>
       border-radius: 32px;
       padding: 52px 48px 44px;
       text-align: center;
-      max-width: 520px;
+      max-width: 560px;
       width: 93%;
       box-shadow:
         0 0 0 1px rgba(255,255,255,0.04) inset,
@@ -911,7 +893,6 @@ LANDING_HTML = """<!DOCTYPE html>
       to   { opacity: 1; transform: translateY(0)    scale(1); }
     }
 
-    /* Subtle top highlight */
     .card::before {
       content: '';
       position: absolute;
@@ -1019,11 +1000,7 @@ LANDING_HTML = """<!DOCTYPE html>
       transition: background 0.2s;
     }
     .stat:hover { background: rgba(255,255,255,0.04); }
-
-    /* vertical separators between stats */
-    .stat + .stat {
-      border-right: 1px solid rgba(255,255,255,0.08);
-    }
+    .stat + .stat { border-right: 1px solid rgba(255,255,255,0.08); }
 
     .stat-num {
       font-size: 30px;
@@ -1121,6 +1098,89 @@ LANDING_HTML = """<!DOCTYPE html>
       75%      { transform: rotate(8deg); }
     }
 
+    /* ── Stocks marquee section ── */
+    .stocks-section {
+      margin: 0 -48px 32px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .stocks-section-label {
+      font-size: 11px;
+      color: var(--text-mute);
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    /* fade edges */
+    .stocks-section::before,
+    .stocks-section::after {
+      content: '';
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 60px;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .stocks-section::before {
+      right: 0;
+      background: linear-gradient(to left, rgba(15,18,35,0.95), transparent);
+    }
+    .stocks-section::after {
+      left: 0;
+      background: linear-gradient(to right, rgba(15,18,35,0.95), transparent);
+    }
+
+    .marquee-track {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+      width: max-content;
+    }
+    .marquee-track.row-1 { animation: marquee-rtl 40s linear infinite; }
+    .marquee-track.row-2 { animation: marquee-ltr 50s linear infinite; }
+    .marquee-track.row-3 { animation: marquee-rtl 35s linear infinite; }
+
+    @keyframes marquee-rtl {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+    @keyframes marquee-ltr {
+      from { transform: translateX(-50%); }
+      to   { transform: translateX(0); }
+    }
+
+    .stock-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 50px;
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.65);
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: background 0.2s;
+      cursor: default;
+      user-select: none;
+    }
+    .stock-chip:hover {
+      background: rgba(124,109,245,0.12);
+      border-color: rgba(124,109,245,0.25);
+      color: var(--accent2);
+    }
+    .stock-chip .chip-code {
+      font-size: 10px;
+      color: rgba(255,255,255,0.30);
+      font-weight: 500;
+    }
+
     /* ── Footer ── */
     .footer {
       margin-top: 28px;
@@ -1134,20 +1194,20 @@ LANDING_HTML = """<!DOCTYPE html>
     }
     .footer-dot { width: 3px; height: 3px; background: rgba(255,255,255,0.22); border-radius: 50%; }
 
-    /* ── Ticker tape ── */
+    /* ── Bottom ticker tape ── */
     .ticker-wrap {
       position: fixed;
       bottom: 0; left: 0; right: 0;
       z-index: 2;
       overflow: hidden;
-      background: rgba(8,12,26,0.90);
+      background: rgba(8,12,26,0.92);
       border-top: 1px solid rgba(255,255,255,0.06);
       padding: 8px 0;
     }
     .ticker-inner {
       display: flex;
       gap: 48px;
-      animation: ticker 28s linear infinite;
+      animation: ticker 32s linear infinite;
       width: max-content;
     }
     @keyframes ticker {
@@ -1157,47 +1217,32 @@ LANDING_HTML = """<!DOCTYPE html>
     .ticker-item {
       font-size: 12px;
       font-weight: 700;
-      color: rgba(255,255,255,0.45);
+      color: rgba(255,255,255,0.40);
       white-space: nowrap;
       display: flex;
       align-items: center;
       gap: 6px;
     }
-    .ticker-item.up   { color: var(--green); }
-    .ticker-item.down { color: #f87171; }
+    .ticker-sep { color: rgba(255,255,255,0.15); }
 
     /* ── Responsive ── */
     @media (max-width: 480px) {
-      .card { padding: 40px 26px 36px; border-radius: 24px; }
+      .card { padding: 40px 20px 36px; border-radius: 24px; }
+      .stocks-section { margin: 0 -20px 28px; }
       h1 { font-size: 22px; }
-      .stats { gap: 0; }
       .stat-num { font-size: 24px; }
-      .btn { padding: 14px 32px; font-size: 15px; }
+      .btn { padding: 14px 28px; font-size: 15px; }
     }
   </style>
 </head>
 <body>
 
-  <!-- Background layers -->
   <div class="bg-canvas"></div>
   <div class="bg-grid"></div>
   <div class="orb orb-1"></div>
   <div class="orb orb-2"></div>
   <div class="orb orb-3"></div>
 
-  <!-- Decorative candlestick chart -->
-  <div class="chart-deco" aria-hidden="true">
-    <div class="candle bull"><div class="candle-wick" style="height:18px"></div><div class="candle-body" style="height:22px"></div><div class="candle-wick" style="height:8px"></div></div>
-    <div class="candle bear"><div class="candle-wick" style="height:12px"></div><div class="candle-body" style="height:30px"></div><div class="candle-wick" style="height:10px"></div></div>
-    <div class="candle bull"><div class="candle-wick" style="height:20px"></div><div class="candle-body" style="height:40px"></div><div class="candle-wick" style="height:6px"></div></div>
-    <div class="candle bear"><div class="candle-wick" style="height:8px"></div><div class="candle-body" style="height:18px"></div><div class="candle-wick" style="height:14px"></div></div>
-    <div class="candle bull"><div class="candle-wick" style="height:14px"></div><div class="candle-body" style="height:50px"></div><div class="candle-wick" style="height:8px"></div></div>
-    <div class="candle bull"><div class="candle-wick" style="height:10px"></div><div class="candle-body" style="height:34px"></div><div class="candle-wick" style="height:12px"></div></div>
-    <div class="candle bear"><div class="candle-wick" style="height:16px"></div><div class="candle-body" style="height:24px"></div><div class="candle-wick" style="height:6px"></div></div>
-    <div class="candle bull"><div class="candle-wick" style="height:12px"></div><div class="candle-body" style="height:44px"></div><div class="candle-wick" style="height:10px"></div></div>
-  </div>
-
-  <!-- Main card -->
   <div class="card" role="main">
 
     <!-- Logo -->
@@ -1230,13 +1275,25 @@ LANDING_HTML = """<!DOCTYPE html>
       <div class="stat">
         <div class="stat-icon">🕐</div>
         <div class="stat-num">6</div>
-        <div class="stat-lbl">فواصل زمنية</div>
+        <div class="stat-lbl">أطر زمنية</div>
       </div>
       <div class="stat">
         <div class="stat-icon">〽️</div>
         <div class="stat-num">2</div>
         <div class="stat-lbl">نوع موجة</div>
       </div>
+    </div>
+
+    <!-- Scrolling stocks -->
+    <div class="stocks-section" aria-label="قائمة الأسهم المفحوصة">
+      <div class="stocks-section-label">الأسهم المفحوصة</div>
+
+      <!-- Row 1 -->
+      <div class="marquee-track row-1" id="row1"></div>
+      <!-- Row 2 -->
+      <div class="marquee-track row-2" id="row2"></div>
+      <!-- Row 3 -->
+      <div class="marquee-track row-3" id="row3"></div>
     </div>
 
     <!-- Feature pills -->
@@ -1267,33 +1324,313 @@ LANDING_HTML = """<!DOCTYPE html>
 
   </div>
 
-  <!-- Ticker tape -->
+  <!-- Bottom ticker -->
   <div class="ticker-wrap" aria-hidden="true">
-    <div class="ticker-inner">
-      <!-- First set -->
-      <span class="ticker-item up">2222 أرامكو ▲ 2.34%</span>
-      <span class="ticker-item down">1120 الراجحي ▼ 0.87%</span>
-      <span class="ticker-item up">2010 سابك ▲ 1.12%</span>
-      <span class="ticker-item up">1180 الأهلي ▲ 0.55%</span>
-      <span class="ticker-item down">2350 بايونير ▼ 1.40%</span>
-      <span class="ticker-item up">4200 موبايلي ▲ 0.78%</span>
-      <span class="ticker-item down">7010 STC ▼ 0.33%</span>
-      <span class="ticker-item up">4030 بنك الجزيرة ▲ 1.95%</span>
-      <span class="ticker-item up">8010 سلامة ▲ 0.62%</span>
-      <span class="ticker-item down">2150 تداول ▼ 0.47%</span>
-      <!-- Duplicate for seamless loop -->
-      <span class="ticker-item up">2222 أرامكو ▲ 2.34%</span>
-      <span class="ticker-item down">1120 الراجحي ▼ 0.87%</span>
-      <span class="ticker-item up">2010 سابك ▲ 1.12%</span>
-      <span class="ticker-item up">1180 الأهلي ▲ 0.55%</span>
-      <span class="ticker-item down">2350 بايونير ▼ 1.40%</span>
-      <span class="ticker-item up">4200 موبايلي ▲ 0.78%</span>
-      <span class="ticker-item down">7010 STC ▼ 0.33%</span>
-      <span class="ticker-item up">4030 بنك الجزيرة ▲ 1.95%</span>
-      <span class="ticker-item up">8010 سلامة ▲ 0.62%</span>
-      <span class="ticker-item down">2150 تداول ▼ 0.47%</span>
-    </div>
+    <div class="ticker-inner" id="bottomTicker"></div>
   </div>
+
+  <script>
+    const STOCKS = [
+      ['TASI',  'تاسي'],
+      ['1010',  'الرياض'],
+      ['1020',  'الجزيرة'],
+      ['1030',  'الإستثمار'],
+      ['1050',  'بي اس اف'],
+      ['1060',  'الأول'],
+      ['1080',  'العربي'],
+      ['1111',  'مجموعة تداول'],
+      ['1120',  'الراجحي'],
+      ['1140',  'البلاد'],
+      ['1150',  'الإنماء'],
+      ['1180',  'الأهلي'],
+      ['1182',  'أملاك'],
+      ['1183',  'سهل'],
+      ['1201',  'تكوين'],
+      ['1202',  'مبكو'],
+      ['1210',  'بي سي آي'],
+      ['1211',  'معادن'],
+      ['1212',  'أسترا الصناعية'],
+      ['1213',  'نسيج'],
+      ['1214',  'شاكر'],
+      ['1301',  'أسلاك'],
+      ['1302',  'بوان'],
+      ['1303',  'الصناعات الكهربائية'],
+      ['1304',  'اليمامة للحديد'],
+      ['1320',  'أنابيب السعودية'],
+      ['1321',  'أنابيب الشرق'],
+      ['1322',  'أماك'],
+      ['1323',  'يو سي آي سي'],
+      ['1810',  'سيرا'],
+      ['1820',  'بان'],
+      ['1830',  'لجام للرياضة'],
+      ['1831',  'مهارة'],
+      ['1832',  'صدر'],
+      ['1833',  'الموارد'],
+      ['1834',  'سماسكو'],
+      ['1835',  'تمكين'],
+      ['2001',  'كيمانول'],
+      ['2010',  'سابك'],
+      ['2020',  'سابك للمغذيات الزراعية'],
+      ['2030',  'المصافي'],
+      ['2040',  'الخزف السعودي'],
+      ['2050',  'مجموعة صافولا'],
+      ['2060',  'التصنيع'],
+      ['2070',  'الدوائية'],
+      ['2080',  'الغاز'],
+      ['2081',  'الخريف'],
+      ['2082',  'أكوا'],
+      ['2083',  'مرافق'],
+      ['2084',  'مياهنا'],
+      ['2090',  'جبسكو'],
+      ['2100',  'وفرة'],
+      ['2110',  'الكابلات السعودية'],
+      ['2120',  'متطورة'],
+      ['2130',  'صدق'],
+      ['2140',  'أيان'],
+      ['2150',  'زجاج'],
+      ['2160',  'أميانتيت'],
+      ['2170',  'اللجين'],
+      ['2180',  'فيبكو'],
+      ['2190',  'سيسكو القابضة'],
+      ['2200',  'أنابيب'],
+      ['2210',  'نماء للكيماويات'],
+      ['2220',  'معدنية'],
+      ['2222',  'أرامكو السعودية'],
+      ['2223',  'لوبريف'],
+      ['2230',  'الكيميائية'],
+      ['2240',  'صناعات'],
+      ['2250',  'المجموعة السعودية'],
+      ['2270',  'سدافكو'],
+      ['2280',  'المراعي'],
+      ['2281',  'تنمية'],
+      ['2282',  'نقي'],
+      ['2283',  'المطاحن الأولى'],
+      ['2284',  'المطاحن الحديثة'],
+      ['2285',  'المطاحن العربية'],
+      ['2286',  'المطاحن الرابعة'],
+      ['2287',  'إنتاج'],
+      ['2288',  'نفوذ'],
+      ['2290',  'ينساب'],
+      ['2300',  'صناعة الورق'],
+      ['2310',  'سبكيم العالمية'],
+      ['2320',  'البابطين'],
+      ['2330',  'المتقدمة'],
+      ['2340',  'ارتيكس'],
+      ['2350',  'كيان السعودية'],
+      ['2360',  'الفخارية'],
+      ['2370',  'مسك'],
+      ['2380',  'بترو رابغ'],
+      ['2381',  'الحفر العربية'],
+      ['2382',  'أديس'],
+      ['3002',  'أسمنت نجران'],
+      ['3003',  'أسمنت المدينة'],
+      ['3004',  'أسمنت الشمالية'],
+      ['3005',  'أسمنت ام القرى'],
+      ['3007',  'الواحة'],
+      ['3008',  'الكثيري'],
+      ['3010',  'أسمنت العربية'],
+      ['3020',  'أسمنت اليمامة'],
+      ['3030',  'أسمنت السعودية'],
+      ['3040',  'أسمنت القصيم'],
+      ['3050',  'أسمنت الجنوب'],
+      ['3060',  'أسمنت ينبع'],
+      ['3080',  'أسمنت الشرقية'],
+      ['3090',  'أسمنت تبوك'],
+      ['3091',  'أسمنت الجوف'],
+      ['3092',  'أسمنت الرياض'],
+      ['4001',  'أسواق ع العثيم'],
+      ['4002',  'المواساة'],
+      ['4003',  'إكسترا'],
+      ['4004',  'دله الصحية'],
+      ['4005',  'رعاية'],
+      ['4006',  'أسواق المزرعة'],
+      ['4007',  'الحمادي'],
+      ['4008',  'ساكو'],
+      ['4009',  'السعودي الألماني'],
+      ['4011',  'لازوردي'],
+      ['4012',  'الأصيل'],
+      ['4013',  'سليمان الحبيب'],
+      ['4014',  'دار المعدات'],
+      ['4015',  'جمجوم فارما'],
+      ['4016',  'أفالون فارما'],
+      ['4017',  'فقيه الطبية'],
+      ['4018',  'الموسى'],
+      ['4019',  'اس ام سي'],
+      ['4020',  'العقارية'],
+      ['4021',  'المركز الكندي الطبي'],
+      ['4030',  'البحري'],
+      ['4031',  'الخدمات الأرضية'],
+      ['4040',  'سابتكو'],
+      ['4050',  'ساسكو'],
+      ['4051',  'باعظيم'],
+      ['4061',  'أنعام القابضة'],
+      ['4070',  'تهامة'],
+      ['4071',  'العربية'],
+      ['4072',  'إم بي سي'],
+      ['4080',  'سناد القابضة'],
+      ['4081',  'النايفات'],
+      ['4082',  'مرنة'],
+      ['4083',  'تسهيل'],
+      ['4084',  'دراية'],
+      ['4090',  'طيبة'],
+      ['4100',  'مكة'],
+      ['4110',  'باتك'],
+      ['4130',  'درب السعودية'],
+      ['4140',  'صادرات'],
+      ['4141',  'العمران'],
+      ['4142',  'كابلات الرياض'],
+      ['4143',  'تالكو'],
+      ['4144',  'رؤوم'],
+      ['4145',  'أو جي سي'],
+      ['4146',  'جاز'],
+      ['4147',  'سي جي إس'],
+      ['4148',  'الوسائل الصناعية'],
+      ['4150',  'التعمير'],
+      ['4160',  'ثمار'],
+      ['4161',  'بن داود'],
+      ['4162',  'المنجم'],
+      ['4163',  'الدواء'],
+      ['4164',  'النهدي'],
+      ['4165',  'الماجد للعود'],
+      ['4170',  'شمس'],
+      ['4180',  'مجموعة فتيحي'],
+      ['4190',  'جرير'],
+      ['4191',  'أبو معطي'],
+      ['4192',  'السيف غاليري'],
+      ['4193',  'نايس ون'],
+      ['4194',  'محطة البناء'],
+      ['4200',  'الدريس'],
+      ['4210',  'الأبحاث والإعلام'],
+      ['4220',  'إعمار'],
+      ['4230',  'البحر الأحمر'],
+      ['4240',  'سينومي ريتيل'],
+      ['4250',  'جبل عمر'],
+      ['4260',  'بدجت السعودية'],
+      ['4261',  'ذيب'],
+      ['4262',  'لومي'],
+      ['4263',  'سال'],
+      ['4264',  'طيران ناس'],
+      ['4265',  'شري'],
+      ['4270',  'طباعة وتغليف'],
+      ['4280',  'المملكة'],
+      ['4290',  'الخليج للتدريب'],
+      ['4291',  'الوطنية للتعليم'],
+      ['4292',  'عطاء'],
+      ['4300',  'دار الأركان'],
+      ['4310',  'مدينة المعرفة'],
+      ['4320',  'الأندلس'],
+      ['4321',  'سينومي سنترز'],
+      ['4322',  'رتال'],
+      ['4323',  'سمو'],
+      ['4324',  'بنان'],
+      ['4325',  'مسار'],
+      ['4326',  'الماجدية'],
+      ['4327',  'الرمز'],
+      ['4330',  'الرياض ريت'],
+      ['4331',  'الجزيرة ريت'],
+      ['4332',  'جدوى ريت الحرمين'],
+      ['4333',  'تعليم ريت'],
+      ['4334',  'المعذر ريت'],
+      ['4335',  'مشاركة ريت'],
+      ['4336',  'ملكية ريت'],
+      ['4337',  'العزيزية ريت'],
+      ['4338',  'الأهلي ريت 1'],
+      ['4339',  'دراية ريت'],
+      ['4340',  'الراجحي ريت'],
+      ['4342',  'جدوى ريت السعودية'],
+      ['4344',  'سدكو كابيتال ريت'],
+      ['4345',  'الإنماء ريت للتجزئة'],
+      ['4346',  'ميفك ريت'],
+      ['4347',  'بنيان ريت'],
+      ['4348',  'الخبير ريت'],
+      ['4349',  'الإنماء ريت الفندقي'],
+      ['4350',  'الإستثمار ريت'],
+      ['5110',  'كهرباء السعودية'],
+      ['6001',  'حلواني إخوان'],
+      ['6002',  'هرفي للأغذية'],
+      ['6004',  'كاتريون'],
+      ['6010',  'نادك'],
+      ['6012',  'ريدان'],
+      ['6013',  'التطويرية الغذائية'],
+      ['6014',  'الآمار'],
+      ['6015',  'أمريكانا'],
+      ['6016',  'برغرايززر'],
+      ['6017',  'جاهز'],
+      ['6018',  'الأندية للرياضة'],
+      ['6019',  'المسار الشامل'],
+      ['6020',  'جاكو'],
+      ['6040',  'تبوك الزراعية'],
+      ['6050',  'الأسماك'],
+      ['6060',  'الشرقية للتنمية'],
+      ['6070',  'الجوف'],
+      ['6090',  'جازادكو'],
+      ['7010',  'اس تي سي'],
+      ['7020',  'إتحاد إتصالات'],
+      ['7030',  'زين السعودية'],
+      ['7040',  'قو للإتصالات'],
+      ['7200',  'ام آي اس'],
+      ['7201',  'بحر العرب'],
+      ['7202',  'سلوشنز'],
+      ['7203',  'علم'],
+      ['7204',  'توبي'],
+      ['7211',  'عزم'],
+      ['8010',  'التعاونية'],
+      ['8012',  'جزيرة تكافل'],
+      ['8020',  'ملاذ للتأمين'],
+      ['8030',  'ميدغلف للتأمين'],
+      ['8040',  'متكاملة'],
+      ['8050',  'سلامة'],
+      ['8060',  'ولاء'],
+      ['8070',  'الدرع العربي'],
+      ['8100',  'سايكو'],
+      ['8120',  'إتحاد الخليج الأهلية'],
+      ['8150',  'أسيج'],
+      ['8160',  'التأمين العربية'],
+      ['8170',  'الاتحاد'],
+      ['8180',  'الصقر للتأمين'],
+      ['8190',  'المتحدة للتأمين'],
+      ['8200',  'الإعادة السعودية'],
+      ['8210',  'بوبا العربية'],
+      ['8230',  'تكافل الراجحي'],
+      ['8240',  'تْشب'],
+      ['8250',  'جي آي جي'],
+      ['8260',  'الخليجية العامة'],
+      ['8270',  'ليفا'],
+      ['8280',  'ليفا'],
+      ['8300',  'الوطنية'],
+      ['8310',  'أمانة للتأمين'],
+      ['8311',  'عناية'],
+      ['8313',  'رسن'],
+    ];
+
+    function makeChip(code, name) {
+      return `<div class="stock-chip"><span class="chip-code">${code}</span>${name}</div>`;
+    }
+
+    // Split stocks into 3 roughly equal rows
+    const third = Math.ceil(STOCKS.length / 3);
+    const rows = [
+      STOCKS.slice(0, third),
+      STOCKS.slice(third, third * 2),
+      STOCKS.slice(third * 2),
+    ];
+
+    ['row1','row2','row3'].forEach((id, i) => {
+      const el = document.getElementById(id);
+      // Double for seamless loop
+      const html = [...rows[i], ...rows[i]].map(([c,n]) => makeChip(c,n)).join('');
+      el.innerHTML = html;
+    });
+
+    // Bottom ticker — just show stock names separated by dots
+    (function() {
+      const el = document.getElementById('bottomTicker');
+      const items = [...STOCKS, ...STOCKS]
+        .map(([c, n]) => `<span class="ticker-item">${n} <span class="ticker-sep chip-code" style="font-size:10px;color:rgba(255,255,255,0.25)">${c}</span></span>`)
+        .join('<span class="ticker-sep" style="color:rgba(255,255,255,0.15)">•</span>');
+      el.innerHTML = items;
+    })();
+  </script>
 
 </body>
 </html>"""
