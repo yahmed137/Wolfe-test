@@ -31,33 +31,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
-ADMIN_CHAT_ID = int(os.environ.get("ADMIN_CHAT_ID", "0"))  # Set your admin Telegram user ID
-
-# ────────────────────────────────────────────────────────────
-# ADMIN REPORT HELPER (silent, no logs)
-# ────────────────────────────────────────────────────────────
-async def report_to_admin(context, user, action: str):
-    """Send a silent report to admin about user activity. No logging."""
-    if not ADMIN_CHAT_ID:
-        return
-    try:
-        first_name = user.first_name or ""
-        last_name = user.last_name or ""
-        user_id = user.id
-        username = f"@{user.username}" if user.username else "N/A"
-        report = (
-            f"📋 User Activity Report\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"First Name: {first_name}\n"
-            f"Last Name: {last_name}\n"
-            f"User ID: {user_id}\n"
-            f"Username: {username}\n"
-            f"Action: {action}\n"
-            f"━━━━━━━━━━━━━━━━━━━━"
-        )
-        await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=report)
-    except Exception:
-        pass  # Silently fail, no logs
 
 # ────────────────────────────────────────────────────────────
 # 1. ARABIC FONT + TEXT SUPPORT
@@ -432,13 +405,24 @@ def resample_ohlc(df, rule):
 # ────────────────────────────────────────────────────────────
 # 5. WOLFE WAVE VALIDATORS
 # ────────────────────────────────────────────────────────────
-def validate_bullish(p1, p2, p3, p4, p5, tol=0.03):
+def validate_bullish(p1, p2, p3, p4, p5, p0=None, tol=0.03):
     v = [p['price'] for p in [p1, p2, p3, p4, p5]]
     b = [p['bar']   for p in [p1, p2, p3, p4, p5]]
 
     if not (p1['type'] == 'L' and p2['type'] == 'H' and
             p3['type'] == 'L' and p4['type'] == 'H' and p5['type'] == 'L'):
         return None
+    
+    # P0 Validation for Bullish Wave: P0 must be High and P0 > P2
+    if p0 is None or p0['type'] != 'H': 
+        return None
+    
+    v0_p0 = p0['price']
+    v2_p2 = v[1] # P2 price
+    
+    if v0_p0 <= v2_p2: # Requirement: P0 > P2
+        return None
+
     if v[2] >= v[0]:          return None
     if v[3] >= v[1]:          return None
     if v[3] <= v[0]:          return None
@@ -453,17 +437,31 @@ def validate_bullish(p1, p2, p3, p4, p5, tol=0.03):
     if proj != 0 and (proj - v[4]) / abs(proj) < -tol:
         return None
 
-    return {'direction': 'Bullish', 'points': [p1,p2,p3,p4,p5],
+    result = {'direction': 'Bullish', 'points': [p1,p2,p3,p4,p5],
             'entry_price': v[4], 'p5_date': p5['date']}
+    if p0:
+        result['p0'] = p0
+    return result
 
 
-def validate_bearish(p1, p2, p3, p4, p5, tol=0.03):
+def validate_bearish(p1, p2, p3, p4, p5, p0=None, tol=0.03):
     v = [p['price'] for p in [p1, p2, p3, p4, p5]]
     b = [p['bar']   for p in [p1, p2, p3, p4, p5]]
 
     if not (p1['type'] == 'H' and p2['type'] == 'L' and
             p3['type'] == 'H' and p4['type'] == 'L' and p5['type'] == 'H'):
         return None
+    
+    # P0 Validation for Bearish Wave: P0 must be Low and P0 < P2
+    if p0 is None or p0['type'] != 'L': 
+        return None
+        
+    v0_p0 = p0['price']
+    v2_p2 = v[1] # P2 price
+    
+    if v0_p0 >= v2_p2: # Requirement: P0 < P2
+        return None
+
     if v[2] <= v[0]:          return None
     if v[3] <= v[1]:          return None
     if v[3] >= v[0]:          return None
@@ -478,8 +476,11 @@ def validate_bearish(p1, p2, p3, p4, p5, tol=0.03):
     if proj != 0 and (v[4] - proj) / abs(proj) < -tol:
         return None
 
-    return {'direction': 'Bearish', 'points': [p1,p2,p3,p4,p5],
+    result = {'direction': 'Bearish', 'points': [p1,p2,p3,p4,p5],
             'entry_price': v[4], 'p5_date': p5['date']}
+    if p0:
+        result['p0'] = p0
+    return result
 
 # ────────────────────────────────────────────────────────────
 # 6. ACTIVE PATTERN FINDER
@@ -497,14 +498,23 @@ def find_active_wolfe(df, max_bars_since_p5=8):
             idx = len(piv) - 5 - offset
             if idx < 0:
                 break
+            
+            # P1 is piv[idx], P5 is piv[idx+4]
             combo = piv[idx: idx + 5]
+            
+            # P0 is the pivot immediately preceding P1 in the alternating list
+            p0 = None
+            if idx > 0:
+                p0 = piv[idx - 1]
+                
             if n - 1 - combo[4]['bar'] > max_bars_since_p5:
                 continue
-            r = validate_bullish(*combo)
+                
+            r = validate_bullish(*combo, p0)
             if r and (best_bull is None or
                       combo[4]['bar'] > best_bull['points'][4]['bar']):
                 best_bull = r
-            r = validate_bearish(*combo)
+            r = validate_bearish(*combo, p0)
             if r and (best_bear is None or
                       combo[4]['bar'] > best_bear['points'][4]['bar']):
                 best_bear = r
@@ -515,25 +525,40 @@ def find_active_wolfe(df, max_bars_since_p5=8):
 # 7. CHART → PNG bytes
 # ────────────────────────────────────────────────────────────
 def plot_wolfe_chart(ticker, df, result, tf_label):
-    pts          = result['points']
+    pts_orig = result['points'] # P1 to P5 initially
     direction    = result['direction']
     entry        = result['entry_price']
     target       = result['target_price']
     is_bull      = direction == 'Bullish'
     company      = get_name(ticker)
     ticker_code  = ticker.split('.')[0]
+    
+    has_p0 = 'p0' in result
+    
+    # pts_all holds [P0, P1, P2, P3, P4, P5] if P0 exists, else [P1, P2, P3, P4, P5]
+    if has_p0:
+        pts_all = [result['p0']] + pts_orig 
+    else:
+        pts_all = pts_orig # Should not happen if P0 checks in validation pass
 
-    b          = [p['bar']   for p in pts]
-    v          = [p['price'] for p in pts]
+    b_all          = [p['bar']   for p in pts_all]
+    v_all          = [p['price'] for p in pts_all]
     last_bar   = len(df) - 1
     last_close = float(df['Close'].iloc[-1])
     pct        = ((target - entry) / entry) * 100
 
-    pad_l = max(0, b[0] - 10)
-    pad_r = min(last_bar, b[4] + 30)
+    # Determine indices based on P0 presence: P1 is index 1 if P0 exists (has_p0=True), else index 0
+    p1_idx = 1 if has_p0 else 0
+    p5_idx = len(b_all) - 1
+    
+    # P2, P3, P4 indices relative to pts_all
+    idx_p1, idx_p2, idx_p3, idx_p4 = p1_idx, p1_idx + 1, p1_idx + 2, p1_idx + 3
+    
+    pad_l = max(0, b_all[p1_idx] - 10)
+    pad_r = min(last_bar, b_all[p5_idx] + 30)
     df_z  = df.iloc[pad_l: pad_r + 1].copy()
     off   = pad_l
-    zb    = [x - off for x in b]
+    zb    = [x - off for x in b_all]
     n_z   = len(df_z)
 
     C_W  = '#0D47A1' if is_bull else '#B71C1C'
@@ -558,26 +583,31 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     ax = axes[0]
     fig.subplots_adjust(left=0.04, right=0.96, top=0.92, bottom=0.06)
 
-    ax.plot(zb, v, color=C_W, lw=2.5, zorder=6, alpha=0.8)
-    ax.scatter(zb, v, s=120, c='white', edgecolors=C_W,
+    ax.plot(zb, v_all, color=C_W, lw=2.5, zorder=6, alpha=0.8)
+    ax.scatter(zb, v_all, s=120, c='white', edgecolors=C_W,
                linewidths=2.5, zorder=7)
 
-    ext = zb[4] + 8
-    ax.plot([zb[0], ext],
-            [v[0], line_at(ext+off, b[0], v[0], b[2], v[2])],
+    ext = zb[idx_p4] + 8
+    
+    # Line 1-3 (P1 to P3)
+    ax.plot([zb[idx_p1], ext],
+            [v_all[idx_p1], line_at(ext+off, b_all[idx_p1], v_all[idx_p1], b_all[idx_p3], v_all[idx_p3])],
             color=C_W, lw=1.0, ls='--', alpha=0.3)
-    ax.plot([zb[1], ext],
-            [v[1], line_at(ext+off, b[1], v[1], b[3], v[3])],
+    
+    # Line 2-4 (P2 to P4)
+    ax.plot([zb[idx_p2], ext],
+            [v_all[idx_p2], line_at(ext+off, b_all[idx_p2], v_all[idx_p2], b_all[idx_p4], v_all[idx_p4])],
             color=C_24, lw=1.0, ls='--', alpha=0.3)
 
-    fx = np.arange(zb[0], zb[4] + 1)
-    f1 = [line_at(x+off, b[0], v[0], b[2], v[2]) for x in fx]
-    f2 = [line_at(x+off, b[1], v[1], b[3], v[3]) for x in fx]
+    fx = np.arange(zb[idx_p1], zb[idx_p4] + 1)
+    f1 = [line_at(x+off, b_all[idx_p1], v_all[idx_p1], b_all[idx_p3], v_all[idx_p3]) for x in fx]
+    f2 = [line_at(x+off, b_all[idx_p2], v_all[idx_p2], b_all[idx_p4], v_all[idx_p4]) for x in fx]
     ax.fill_between(fx, f1, f2, alpha=0.04, color=C_W)
 
+    # Target Line (P1 to P4 extension)
     tgt_end_zb = n_z + 5
-    ax.plot([zb[0], tgt_end_zb],
-            [v[0], line_at(tgt_end_zb+off, b[0], v[0], b[3], v[3])],
+    ax.plot([zb[idx_p1], tgt_end_zb],
+            [v_all[idx_p1], line_at(tgt_end_zb+off, b_all[idx_p1], v_all[idx_p1], b_all[idx_p4], v_all[idx_p4])],
             color=C_T, lw=3.0, ls='-.', alpha=0.85, zorder=5)
 
     z_last = min(last_bar - off, n_z - 1)
@@ -586,13 +616,13 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     ax.axhline(y=target, color=C_T, lw=0.6, ls=':', alpha=0.25)
     ax.axhline(y=entry,  color=C_E, lw=0.6, ls=':', alpha=0.25)
 
-    arrow_land_zb    = min(zb[4] + max(4, (z_last-zb[4])//2), n_z+3)
-    arrow_land_price = line_at(arrow_land_zb+off, b[0], v[0], b[3], v[3])
+    arrow_land_zb    = min(zb[p5_idx] + 4, n_z+3)
+    arrow_land_price = line_at(arrow_land_zb+off, b_all[idx_p1], v_all[idx_p1], b_all[idx_p4], v_all[idx_p4])
 
     ax.annotate(
         '',
         xy=(arrow_land_zb, arrow_land_price),
-        xytext=(zb[4], entry),
+        xytext=(zb[p5_idx], entry),
         arrowprops=dict(
             arrowstyle='-|>', color=C_A, lw=3.0, mutation_scale=22,
             connectionstyle='arc3,rad=0.15' if is_bull else 'arc3,rad=-0.15',
@@ -600,7 +630,7 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
         zorder=8,
     )
 
-    price_range  = max(v) - min(v)
+    price_range  = max(v_all) - min(v_all)
     label_offset = price_range * 0.08
     pct_y = (arrow_land_price + label_offset if is_bull
              else arrow_land_price - label_offset)
@@ -614,12 +644,15 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
         zorder=10,
     )
 
-    for i in range(5):
-        is_low = pts[i]['type'] == 'L'
-        dt_str = pts[i]['date'].strftime('%b %d')
+    for i in range(len(pts_all)):
+        p = pts_all[i]
+        is_low = p['type'] == 'L'
+        dt_str = p['date'].strftime('%b %d')
+        label = f'P{i}' 
+
         ax.annotate(
-            f'P{i+1}  {v[i]:.2f}\n{dt_str}',
-            xy=(zb[i], v[i]),
+            f'{label}  {v_all[i]:.2f}\n{dt_str}',
+            xy=(zb[i], v_all[i]),
             xytext=(0, -28 if is_low else 28),
             textcoords='offset points',
             ha='center', va='top' if is_low else 'bottom',
@@ -632,9 +665,21 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     # ── Title ────────────────────────────────────────────────
     emoji        = '📈' if is_bull else '📉'
     direction_ar = ar('ولفي صاعد') if is_bull else ar('ولفي هابط')
+    
+    p0_status = ""
+    if has_p0:
+        p0_price = result['p0']['price']
+        p2_price = pts_orig[1]['price'] # P2 price (index 1 in P1-P5 list)
+        
+        if is_bull:
+            cond = "P0 > P2" if p0_price > p2_price else f"P0 <= P2 ({p0_price:.2f}/{p2_price:.2f})"
+        else: # Bearish
+            cond = "P0 < P2" if p0_price < p2_price else f"P0 >= P2 ({p0_price:.2f}/{p2_price:.2f})"
+        p0_status = f" | {cond}"
+
     ax.set_title(
         f'{emoji}  {ticker_code}  |  {ar(company)}  |  '
-        f'{direction_ar}  |  {ar(tf_label)}',
+        f'{direction_ar}  |  {ar(tf_label)}{p0_status}',
         fontsize=15, fontweight='bold', pad=16,
         color='#212121', fontfamily=ARABIC_FONT,
     )
@@ -653,6 +698,13 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
         f"  {pct:+.1f}%        :  {ar('النسبة')}",
         f"  {ar(tf_label)}     :  {ar('الفاصل')}",
     ]
+    
+    if has_p0:
+        p0_price = result['p0']['price']
+        p2_price = pts_orig[1]['price']
+        info_lines.append(f"  {p0_price:.2f}        :  {ar('القاع/القمة 0')}")
+        info_lines.append(f"  {p2_price:.2f}        :  {ar('القاع/القمة 2')}")
+
     info = '\n'.join(info_lines)
 
     ax.text(
@@ -674,7 +726,7 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     return buf
 
 # ────────────────────────────────────────────────────────────
-# 8. TICKER PROCESSING (with p0 filter)
+# 8. TICKER PROCESSING
 # ────────────────────────────────────────────────────────────
 def process_ticker(ticker, period, interval, resample_rule=None):
     try:
@@ -687,23 +739,12 @@ def process_ticker(ticker, period, interval, resample_rule=None):
                 return ticker, [], None
         found    = find_active_wolfe(df, max_bars_since_p5=8)
         last_bar = len(df) - 1
-        last_close = float(df['Close'].iloc[-1])  # p0
-        filtered = []
         for r in found:
             b1 = r['points'][0]['bar'];  v1 = r['points'][0]['price']
             b4 = r['points'][3]['bar'];  v4 = r['points'][3]['price']
             r['target_price'] = round(line_at(last_bar, b1, v1, b4, v4), 2)
-            r['last_close']   = round(last_close, 2)
-
-            # p0 filter: p0 (last close) vs p2 (point 2 price, index 1)
-            p2_price = r['points'][1]['price']
-            if r['direction'] == 'Bullish' and last_close <= p2_price:
-                continue  # Bullish requires p0 > p2
-            if r['direction'] == 'Bearish' and last_close >= p2_price:
-                continue  # Bearish requires p0 < p2
-            filtered.append(r)
-
-        return ticker, filtered, df
+            r['last_close']   = round(float(df['Close'].iloc[-1]), 2)
+        return ticker, found, df
     except Exception:
         return ticker, [], None
 
@@ -826,15 +867,17 @@ WELCOME_MSG = (
     "اختر الفاصل الزمني للفحص:\n\n"
     "⚠️ تنبيه: هذا بحث عن موجات الولفي ويف فقط، "
     "لا يجب الاعتماد عليه وقد يكون خطأ. "
-    "يجب متابعة الحركة السعرية."
+    "يجب متابعة الحركة السعرية.\n\n"
+    "ملاحظة: الفحص الآن يتطلب وجود نقطة البداية (P0) كشرط إضافي."
 )
 
+# ────────────────────────────────────────────────────────────
+# 13. LANDING PAGE HTML
+# ────────────────────────────────────────────────────────────
 # ────────────────────────────────────────────────────────────
 # 14. HANDLERS
 # ────────────────────────────────────────────────────────────
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    await report_to_admin(context, user, "/start command")
     await update.message.reply_text(
         WELCOME_MSG, parse_mode="Markdown",
         reply_markup=build_tf_keyboard(),
@@ -842,8 +885,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def scan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    await report_to_admin(context, user, "/scan command")
     await update.message.reply_text(
         "اختر الفاصل الزمني للفحص:",
         reply_markup=build_tf_keyboard(),
@@ -854,10 +895,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data  = query.data
-    user  = update.effective_user
 
     if data == "back_to_start":
-        await report_to_admin(context, user, "🔙 Back to start")
         await query.edit_message_text(
             WELCOME_MSG, parse_mode="Markdown",
             reply_markup=build_tf_keyboard(),
@@ -869,7 +908,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if tf_key not in TF_MAP:
             await query.edit_message_text("فاصل زمني غير معروف.")
             return
-        await report_to_admin(context, user, f"Selected timeframe: {TF_MAP[tf_key][0]} ({tf_key})")
         await query.edit_message_text(
             f"⏱ الفاصل: *{TF_MAP[tf_key][0]}*\n\nاختر الفلتر:",
             parse_mode="Markdown",
@@ -886,12 +924,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if tf_key not in TF_MAP:
             await query.edit_message_text("فاصل زمني غير معروف.")
             return
-
-        direction_label = {"bullish": "📈 Bullish", "bearish": "📉 Bearish", "both": "📊 Both"}.get(direction, direction)
-        await report_to_admin(
-            context, user,
-            f"Started scan: TF={TF_MAP[tf_key][0]} ({tf_key}), Filter={direction_label}"
-        )
 
         tf_label, interval, period, resample_rule = TF_MAP[tf_key]
         chat_id = query.message.chat_id
@@ -912,6 +944,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         for tk, patterns in results.items():
             for r in patterns:
+                # P1 is r['points'][0], P4 is r['points'][3]
+                b1 = r['points'][0]['bar'];  v1 = r['points'][0]['price']
+                b4 = r['points'][3]['bar'];  v4 = r['points'][3]['price']
+                r['target_price'] = round(line_at(ohlc_data[tk].index[-1], b1, v1, b4, v4), 2)
+
                 pct  = ((r['target_price'] - r['entry_price'])
                         / r['entry_price']) * 100
                 item = {
@@ -942,11 +979,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         summary = f"✅ *اكتمل الفحص — {tf_label}*\n\n"
         if show_bull:
-            summary += f"📈 ولفي صاعد: *{len(bullish_list)}*\n"
+            summary += f"📈 ولفي صاعد (مع P0): *{len(bullish_list)}*\n"
         if show_bear:
-            summary += f"📉 ولفي هابط: *{len(bearish_list)}*\n"
+            summary += f"📉 ولفي هابط (مع P0): *{len(bearish_list)}*\n"
         if not bullish_list and not bearish_list:
-            summary += "\nلا توجد نتائج لهذا الفلتر."
+            summary += "\nلا توجد نتائج لهذا الفلتر أو للشروط الجديدة."
 
         await context.bot.send_message(
             chat_id=chat_id, text=summary, parse_mode="Markdown"
@@ -956,7 +993,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if show_bull and bullish_list:
             await context.bot.send_message(
                 chat_id=chat_id,
-                text="📈 *— نتائج الولفي الصاعد —*",
+                text="📈 *— نتائج الولفي الصاعد (P0 > P2) —*",
                 parse_mode="Markdown",
             )
             for item in bullish_list:
@@ -985,7 +1022,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if show_bear and bearish_list:
             await context.bot.send_message(
                 chat_id=chat_id,
-                text="📉 *— نتائج الولفي الهابط —*",
+                text="📉 *— نتائج الولفي الهابط (P0 < P2) —*",
                 parse_mode="Markdown",
             )
             for item in bearish_list:
@@ -1036,7 +1073,7 @@ def main():
         # ── aiohttp route: landing page ───────────────────────
         async def home(_request):
             return aio_web.Response(
-                text="Bot is running", content_type='text/html'
+                text=LANDING_HTML, content_type='text/html'
             )
 
         # ── aiohttp route: telegram webhook ──────────────────
@@ -1047,9 +1084,11 @@ def main():
             return aio_web.Response(text='OK')
 
         async def run_all():
+            # Register webhook with Telegram
             await app.bot.set_webhook(webhook_url)
             logger.info(f"Webhook set → {webhook_url}")
 
+            # Build aiohttp server with both routes
             web_app = aio_web.Application()
             web_app.router.add_get('/',         home)
             web_app.router.add_post('/webhook', webhook_route)
@@ -1059,9 +1098,10 @@ def main():
             await aio_web.TCPSite(runner, '0.0.0.0', PORT).start()
             logger.info(f"Server listening on port {PORT}")
 
+            # Start PTB application
             async with app:
                 await app.start()
-                await asyncio.Event().wait()
+                await asyncio.Event().wait()   # run forever
                 await app.stop()
 
         asyncio.run(run_all())
