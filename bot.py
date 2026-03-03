@@ -403,19 +403,33 @@ def resample_ohlc(df, rule):
     }).dropna()
 
 # ────────────────────────────────────────────────────────────
-# 5. WOLFE WAVE VALIDATORS
+# 5. WOLFE WAVE VALIDATORS  (now with P0)
 # ────────────────────────────────────────────────────────────
-def validate_bullish(p1, p2, p3, p4, p5, tol=0.03):
+def validate_bullish(p0, p1, p2, p3, p4, p5, tol=0.03):
+    """
+    Bullish Wolfe Wave:
+      P0=H, P1=L, P2=H, P3=L, P4=H, P5=L
+      P0 > P2  (preceding high is above the wave-2 high)
+    """
     v = [p['price'] for p in [p1, p2, p3, p4, p5]]
     b = [p['bar']   for p in [p1, p2, p3, p4, p5]]
 
+    # ── type checks ──────────────────────────────────────────
+    if p0['type'] != 'H':
+        return None
     if not (p1['type'] == 'L' and p2['type'] == 'H' and
             p3['type'] == 'L' and p4['type'] == 'H' and p5['type'] == 'L'):
         return None
-    if v[2] >= v[0]:          return None
-    if v[3] >= v[1]:          return None
-    if v[3] <= v[0]:          return None
-    if v[4] >= v[2]:          return None
+
+    # ── P0 rule: P0 > P2 ────────────────────────────────────
+    if p0['price'] <= p2['price']:
+        return None
+
+    # ── existing wave rules ──────────────────────────────────
+    if v[2] >= v[0]:          return None   # P3 >= P1
+    if v[3] >= v[1]:          return None   # P4 >= P2
+    if v[3] <= v[0]:          return None   # P4 <= P1
+    if v[4] >= v[2]:          return None   # P5 >= P3
 
     s13 = (v[2]-v[0])/(b[2]-b[0]) if b[2] != b[0] else 0
     s24 = (v[3]-v[1])/(b[3]-b[1]) if b[3] != b[1] else 0
@@ -426,21 +440,37 @@ def validate_bullish(p1, p2, p3, p4, p5, tol=0.03):
     if proj != 0 and (proj - v[4]) / abs(proj) < -tol:
         return None
 
-    return {'direction': 'Bullish', 'points': [p1,p2,p3,p4,p5],
-            'entry_price': v[4], 'p5_date': p5['date']}
+    return {'direction': 'Bullish',
+            'points': [p0, p1, p2, p3, p4, p5],
+            'entry_price': v[4],
+            'p5_date': p5['date']}
 
 
-def validate_bearish(p1, p2, p3, p4, p5, tol=0.03):
+def validate_bearish(p0, p1, p2, p3, p4, p5, tol=0.03):
+    """
+    Bearish Wolfe Wave:
+      P0=L, P1=H, P2=L, P3=H, P4=L, P5=H
+      P0 < P2  (preceding low is below the wave-2 low)
+    """
     v = [p['price'] for p in [p1, p2, p3, p4, p5]]
     b = [p['bar']   for p in [p1, p2, p3, p4, p5]]
 
+    # ── type checks ──────────────────────────────────────────
+    if p0['type'] != 'L':
+        return None
     if not (p1['type'] == 'H' and p2['type'] == 'L' and
             p3['type'] == 'H' and p4['type'] == 'L' and p5['type'] == 'H'):
         return None
-    if v[2] <= v[0]:          return None
-    if v[3] <= v[1]:          return None
-    if v[3] >= v[0]:          return None
-    if v[4] <= v[2]:          return None
+
+    # ── P0 rule: P0 < P2 ────────────────────────────────────
+    if p0['price'] >= p2['price']:
+        return None
+
+    # ── existing wave rules ──────────────────────────────────
+    if v[2] <= v[0]:          return None   # P3 <= P1
+    if v[3] <= v[1]:          return None   # P4 <= P2
+    if v[3] >= v[0]:          return None   # P4 >= P1
+    if v[4] <= v[2]:          return None   # P5 <= P3
 
     s13 = (v[2]-v[0])/(b[2]-b[0]) if b[2] != b[0] else 0
     s24 = (v[3]-v[1])/(b[3]-b[1]) if b[3] != b[1] else 0
@@ -451,11 +481,13 @@ def validate_bearish(p1, p2, p3, p4, p5, tol=0.03):
     if proj != 0 and (v[4] - proj) / abs(proj) < -tol:
         return None
 
-    return {'direction': 'Bearish', 'points': [p1,p2,p3,p4,p5],
-            'entry_price': v[4], 'p5_date': p5['date']}
+    return {'direction': 'Bearish',
+            'points': [p0, p1, p2, p3, p4, p5],
+            'entry_price': v[4],
+            'p5_date': p5['date']}
 
 # ────────────────────────────────────────────────────────────
-# 6. ACTIVE PATTERN FINDER
+# 6. ACTIVE PATTERN FINDER  (now expects 6 pivots: P0–P5)
 # ────────────────────────────────────────────────────────────
 def find_active_wolfe(df, max_bars_since_p5=8):
     n         = len(df)
@@ -464,31 +496,31 @@ def find_active_wolfe(df, max_bars_since_p5=8):
 
     for order in [4, 5, 6, 7]:
         piv = get_alternating_pivots(find_pivots(df, order=order))
-        if len(piv) < 5:
+        if len(piv) < 6:                          # need P0–P5
             continue
-        for offset in range(min(4, len(piv) - 4)):
-            idx = len(piv) - 5 - offset
+        for offset in range(min(4, len(piv) - 5)):
+            idx = len(piv) - 6 - offset
             if idx < 0:
                 break
-            combo = piv[idx: idx + 5]
-            if n - 1 - combo[4]['bar'] > max_bars_since_p5:
+            combo = piv[idx: idx + 6]             # [P0,P1,P2,P3,P4,P5]
+            if n - 1 - combo[5]['bar'] > max_bars_since_p5:
                 continue
             r = validate_bullish(*combo)
             if r and (best_bull is None or
-                      combo[4]['bar'] > best_bull['points'][4]['bar']):
+                      combo[5]['bar'] > best_bull['points'][5]['bar']):
                 best_bull = r
             r = validate_bearish(*combo)
             if r and (best_bear is None or
-                      combo[4]['bar'] > best_bear['points'][4]['bar']):
+                      combo[5]['bar'] > best_bear['points'][5]['bar']):
                 best_bear = r
 
     return [x for x in [best_bull, best_bear] if x]
 
 # ────────────────────────────────────────────────────────────
-# 7. CHART → PNG bytes
+# 7. CHART → PNG bytes  (P0–P5 version)
 # ────────────────────────────────────────────────────────────
 def plot_wolfe_chart(ticker, df, result, tf_label):
-    pts          = result['points']
+    pts          = result['points']          # 6 points: P0–P5
     direction    = result['direction']
     entry        = result['entry_price']
     target       = result['target_price']
@@ -496,14 +528,14 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     company      = get_name(ticker)
     ticker_code  = ticker.split('.')[0]
 
-    b          = [p['bar']   for p in pts]
+    b          = [p['bar']   for p in pts]   # indices 0–5
     v          = [p['price'] for p in pts]
     last_bar   = len(df) - 1
     last_close = float(df['Close'].iloc[-1])
     pct        = ((target - entry) / entry) * 100
 
     pad_l = max(0, b[0] - 10)
-    pad_r = min(last_bar, b[4] + 30)
+    pad_r = min(last_bar, b[5] + 30)
     df_z  = df.iloc[pad_l: pad_r + 1].copy()
     off   = pad_l
     zb    = [x - off for x in b]
@@ -514,6 +546,7 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     C_24 = '#E65100'
     C_E  = '#6A1B9A'
     C_A  = '#00695C' if is_bull else '#880E4F'
+    C_P0 = '#FF6F00'                         # distinct colour for P0
 
     mc  = mpf.make_marketcolors(
         up='#26A69A', down='#EF5350', edge='inherit', wick='inherit'
@@ -531,41 +564,50 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     ax = axes[0]
     fig.subplots_adjust(left=0.04, right=0.96, top=0.92, bottom=0.06)
 
+    # ── zigzag P0→P5 ────────────────────────────────────────
     ax.plot(zb, v, color=C_W, lw=2.5, zorder=6, alpha=0.8)
     ax.scatter(zb, v, s=120, c='white', edgecolors=C_W,
                linewidths=2.5, zorder=7)
+    # highlight P0 with distinct colour
+    ax.scatter([zb[0]], [v[0]], s=160, c='white', edgecolors=C_P0,
+               linewidths=3, zorder=8)
 
-    ext = zb[4] + 8
-    ax.plot([zb[0], ext],
-            [v[0], line_at(ext+off, b[0], v[0], b[2], v[2])],
-            color=C_W, lw=1.0, ls='--', alpha=0.3)
+    # ── channel lines (1-3 and 2-4) ─────────────────────────
+    ext = zb[5] + 8
     ax.plot([zb[1], ext],
             [v[1], line_at(ext+off, b[1], v[1], b[3], v[3])],
+            color=C_W, lw=1.0, ls='--', alpha=0.3)
+    ax.plot([zb[2], ext],
+            [v[2], line_at(ext+off, b[2], v[2], b[4], v[4])],
             color=C_24, lw=1.0, ls='--', alpha=0.3)
 
-    fx = np.arange(zb[0], zb[4] + 1)
-    f1 = [line_at(x+off, b[0], v[0], b[2], v[2]) for x in fx]
-    f2 = [line_at(x+off, b[1], v[1], b[3], v[3]) for x in fx]
+    # ── wedge fill ───────────────────────────────────────────
+    fx = np.arange(zb[1], zb[5] + 1)
+    f1 = [line_at(x+off, b[1], v[1], b[3], v[3]) for x in fx]
+    f2 = [line_at(x+off, b[2], v[2], b[4], v[4]) for x in fx]
     ax.fill_between(fx, f1, f2, alpha=0.04, color=C_W)
 
+    # ── target line (P1→P4 extended) ─────────────────────────
     tgt_end_zb = n_z + 5
-    ax.plot([zb[0], tgt_end_zb],
-            [v[0], line_at(tgt_end_zb+off, b[0], v[0], b[3], v[3])],
+    ax.plot([zb[1], tgt_end_zb],
+            [v[1], line_at(tgt_end_zb+off, b[1], v[1], b[4], v[4])],
             color=C_T, lw=3.0, ls='-.', alpha=0.85, zorder=5)
 
+    # ── target diamond & guides ──────────────────────────────
     z_last = min(last_bar - off, n_z - 1)
     ax.plot(z_last, target, marker='D', ms=14, color=C_T,
             markeredgecolor='white', markeredgewidth=2, zorder=9)
     ax.axhline(y=target, color=C_T, lw=0.6, ls=':', alpha=0.25)
     ax.axhline(y=entry,  color=C_E, lw=0.6, ls=':', alpha=0.25)
 
-    arrow_land_zb    = min(zb[4] + max(4, (z_last-zb[4])//2), n_z+3)
-    arrow_land_price = line_at(arrow_land_zb+off, b[0], v[0], b[3], v[3])
+    # ── arrow from P5 to target zone ─────────────────────────
+    arrow_land_zb    = min(zb[5] + max(4, (z_last-zb[5])//2), n_z+3)
+    arrow_land_price = line_at(arrow_land_zb+off, b[1], v[1], b[4], v[4])
 
     ax.annotate(
         '',
         xy=(arrow_land_zb, arrow_land_price),
-        xytext=(zb[4], entry),
+        xytext=(zb[5], entry),
         arrowprops=dict(
             arrowstyle='-|>', color=C_A, lw=3.0, mutation_scale=22,
             connectionstyle='arc3,rad=0.15' if is_bull else 'arc3,rad=-0.15',
@@ -587,19 +629,21 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
         zorder=10,
     )
 
-    for i in range(5):
+    # ── point labels P0–P5 ───────────────────────────────────
+    for i in range(6):
         is_low = pts[i]['type'] == 'L'
         dt_str = pts[i]['date'].strftime('%b %d')
+        label_color = C_P0 if i == 0 else C_W
         ax.annotate(
-            f'P{i+1}  {v[i]:.2f}\n{dt_str}',
+            f'P{i}  {v[i]:.2f}\n{dt_str}',
             xy=(zb[i], v[i]),
             xytext=(0, -28 if is_low else 28),
             textcoords='offset points',
             ha='center', va='top' if is_low else 'bottom',
-            fontsize=8.5, fontweight='bold', color=C_W,
+            fontsize=8.5, fontweight='bold', color=label_color,
             bbox=dict(boxstyle='round,pad=0.3', fc='white',
-                      ec=C_W, alpha=0.9, lw=0.6),
-            arrowprops=dict(arrowstyle='-', color=C_W, lw=0.6),
+                      ec=label_color, alpha=0.9, lw=0.6),
+            arrowprops=dict(arrowstyle='-', color=label_color, lw=0.6),
         )
 
     # ── Title ────────────────────────────────────────────────
@@ -647,7 +691,7 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     return buf
 
 # ────────────────────────────────────────────────────────────
-# 8. TICKER PROCESSING
+# 8. TICKER PROCESSING  (P1→P4 target line, indices 1 & 4)
 # ────────────────────────────────────────────────────────────
 def process_ticker(ticker, period, interval, resample_rule=None):
     try:
@@ -661,8 +705,9 @@ def process_ticker(ticker, period, interval, resample_rule=None):
         found    = find_active_wolfe(df, max_bars_since_p5=8)
         last_bar = len(df) - 1
         for r in found:
-            b1 = r['points'][0]['bar'];  v1 = r['points'][0]['price']
-            b4 = r['points'][3]['bar'];  v4 = r['points'][3]['price']
+            # target is projection of line P1→P4
+            b1 = r['points'][1]['bar'];  v1 = r['points'][1]['price']
+            b4 = r['points'][4]['bar'];  v4 = r['points'][4]['price']
             r['target_price'] = round(line_at(last_bar, b1, v1, b4, v4), 2)
             r['last_close']   = round(float(df['Close'].iloc[-1]), 2)
         return ticker, found, df
@@ -791,6 +836,9 @@ WELCOME_MSG = (
     "يجب متابعة الحركة السعرية."
 )
 
+# ────────────────────────────────────────────────────────────
+# 13. LANDING PAGE HTML
+# ────────────────────────────────────────────────────────────
 # ────────────────────────────────────────────────────────────
 # 13. LANDING PAGE HTML
 # ────────────────────────────────────────────────────────────
@@ -1140,9 +1188,9 @@ LANDING_HTML = """<!DOCTYPE html>
       margin-bottom: 8px;
       width: max-content;
     }
-    .marquee-track.row-1 { animation: marquee-rtl 180s linear infinite; }
-    .marquee-track.row-2 { animation: marquee-ltr 180s linear infinite; }
-    .marquee-track.row-3 { animation: marquee-rtl 180s linear infinite; }
+    .marquee-track.row-1 { animation: marquee-rtl 400s linear infinite; }
+    .marquee-track.row-2 { animation: marquee-ltr 400s linear infinite; }
+    .marquee-track.row-3 { animation: marquee-rtl 400s linear infinite; }
 
     @keyframes marquee-rtl {
       from { transform: translateX(0); }
@@ -1714,9 +1762,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     'target':     r['target_price'],
                     'pct':        round(pct, 1),
                     'p5_date':    (
-                        r['points'][4]['date'].strftime('%Y-%m-%d %H:%M')
+                        r['points'][5]['date'].strftime('%Y-%m-%d %H:%M')
                         if is_intraday
-                        else r['points'][4]['date'].strftime('%Y-%m-%d')
+                        else r['points'][5]['date'].strftime('%Y-%m-%d')
                     ),
                     '_r':  r,
                     '_df': ohlc_data[tk],
@@ -1760,8 +1808,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception as e:
                     logger.error(f"Chart error {item['ticker']}: {e}")
                 msg = (
-                    f"رمز السهم: `{item['ticker'].split('.')[0]}`\n"
-                    #f"رمز السهم: *{item['ticker'].split('.')[0]}*\n"#
+                    f"رمز السهم: *{item['ticker'].split('.')[0]}*\n"
                     f"الاسم       : `{item['name']}`\n"
                     f"الفاصل       : `{tf_label}`\n"
                     f"آخر إغلاق : `{item['last_close']}`\n"
