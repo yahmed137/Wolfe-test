@@ -874,6 +874,156 @@ WELCOME_MSG = (
 # ────────────────────────────────────────────────────────────
 # 13. LANDING PAGE HTML
 # ────────────────────────────────────────────────────────────
+LANDING_HTML = """<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>فاحص الولفي ويف — السوق السعودي</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      background: rgba(255,255,255,0.07);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255,255,255,0.13);
+      border-radius: 28px;
+      padding: 56px 44px;
+      text-align: center;
+      max-width: 500px;
+      width: 92%;
+      box-shadow: 0 24px 70px rgba(0,0,0,0.45);
+      color: white;
+    }
+    .logo { font-size: 76px; margin-bottom: 18px; }
+    h1 {
+      font-size: 26px;
+      font-weight: 800;
+      margin-bottom: 10px;
+      letter-spacing: 0.5px;
+    }
+    .subtitle {
+      font-size: 15px;
+      color: rgba(255,255,255,0.6);
+      line-height: 1.7;
+      margin-bottom: 32px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(46,213,115,0.12);
+      border: 1px solid rgba(46,213,115,0.35);
+      color: #2ed573;
+      padding: 9px 22px;
+      border-radius: 50px;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 36px;
+    }
+    .dot {
+      width: 9px; height: 9px;
+      background: #2ed573;
+      border-radius: 50%;
+      animation: blink 1.4s ease-in-out infinite;
+    }
+    @keyframes blink {
+      0%,100% { opacity:1; transform:scale(1); }
+      50%      { opacity:0.25; transform:scale(0.8); }
+    }
+    .divider {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      margin: 28px 0;
+    }
+    .stats {
+      display: flex;
+      justify-content: center;
+      gap: 28px;
+      margin-bottom: 32px;
+    }
+    .stat { text-align: center; }
+    .stat-num {
+      font-size: 28px;
+      font-weight: 800;
+      color: #74b9ff;
+    }
+    .stat-lbl {
+      font-size: 12px;
+      color: rgba(255,255,255,0.45);
+      margin-top: 2px;
+    }
+    .btn {
+      display: inline-block;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      text-decoration: none;
+      padding: 15px 36px;
+      border-radius: 50px;
+      font-size: 16px;
+      font-weight: 700;
+      box-shadow: 0 6px 24px rgba(102,126,234,0.45);
+      transition: transform .2s, box-shadow .2s;
+    }
+    .btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 32px rgba(102,126,234,0.65);
+    }
+    .footer {
+      margin-top: 32px;
+      font-size: 11px;
+      color: rgba(255,255,255,0.28);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">📈</div>
+    <h1>فاحص موجات الولفي ويف</h1>
+    <p class="subtitle">
+      بوت تيليغرام ذكي لفحص موجات الولفي ويف<br>
+      على جميع أسهم السوق السعودي — تداول
+    </p>
+
+    <div class="badge">
+      <div class="dot"></div>
+      البوت يعمل الآن
+    </div>
+
+    <hr class="divider">
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num">240+</div>
+        <div class="stat-lbl">سهم مفحوص</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">6</div>
+        <div class="stat-lbl">أطر زمنية</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">2</div>
+        <div class="stat-lbl">نوع موجة</div>
+      </div>
+    </div>
+
+    <a class="btn" href="https://t.me/BOT_USERNAME" target="_blank">
+      🤖 &nbsp; فتح البوت في تيليغرام
+    </a>
+
+    <div class="footer">
+      Wolfe Wave Scanner &nbsp;•&nbsp; Saudi Market (Tadawul) &nbsp;•&nbsp; 2026
+    </div>
+  </div>
+</body>
+</html>"""
 # ────────────────────────────────────────────────────────────
 # 14. HANDLERS
 # ────────────────────────────────────────────────────────────
