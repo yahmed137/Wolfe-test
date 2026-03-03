@@ -1140,9 +1140,9 @@ LANDING_HTML = """<!DOCTYPE html>
       margin-bottom: 8px;
       width: max-content;
     }
-    .marquee-track.row-1 { animation: marquee-rtl 40s linear infinite; }
-    .marquee-track.row-2 { animation: marquee-ltr 50s linear infinite; }
-    .marquee-track.row-3 { animation: marquee-rtl 35s linear infinite; }
+    .marquee-track.row-1 { animation: marquee-rtl 180s linear infinite; }
+    .marquee-track.row-2 { animation: marquee-ltr 180s linear infinite; }
+    .marquee-track.row-3 { animation: marquee-rtl 180s linear infinite; }
 
     @keyframes marquee-rtl {
       from { transform: translateX(0); }
@@ -1207,7 +1207,7 @@ LANDING_HTML = """<!DOCTYPE html>
     .ticker-inner {
       display: flex;
       gap: 48px;
-      animation: ticker 32s linear infinite;
+      animation: ticker 135s linear infinite;
       width: max-content;
     }
     @keyframes ticker {
