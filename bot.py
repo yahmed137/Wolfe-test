@@ -839,9 +839,6 @@ WELCOME_MSG = (
 # ────────────────────────────────────────────────────────────
 # 13. LANDING PAGE HTML
 # ────────────────────────────────────────────────────────────
-# ────────────────────────────────────────────────────────────
-# 13. LANDING PAGE HTML
-# ────────────────────────────────────────────────────────────
 LANDING_HTML = """<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
@@ -871,7 +868,7 @@ LANDING_HTML = """<!DOCTYPE html>
       justify-content: center;
       overflow-x: hidden;
       position: relative;
-      padding: 20px 0 60px;
+      padding: 20px 0 130px;
     }
 
     /* ── Animated background ── */
@@ -1146,51 +1143,61 @@ LANDING_HTML = """<!DOCTYPE html>
       75%      { transform: rotate(8deg); }
     }
 
-    /* ── Stocks marquee section ── */
-    .stocks-section {
-      margin: 0 -48px 32px;
-      overflow: hidden;
-      position: relative;
+    /* ── Footer ── */
+    .footer {
+      margin-top: 28px;
+      font-size: 11.5px;
+      color: rgba(255,255,255,0.22);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
     }
+    .footer-dot { width: 3px; height: 3px; background: rgba(255,255,255,0.22); border-radius: 50%; }
 
-    .stocks-section-label {
-      font-size: 11px;
-      color: var(--text-mute);
-      font-weight: 700;
-      letter-spacing: 1.2px;
-      text-transform: uppercase;
-      margin-bottom: 12px;
-      text-align: center;
+    /* ── Bottom 3-bar stocks ticker ── */
+    .ticker-wrap {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 2;
+      overflow: hidden;
+      background: rgba(8,12,26,0.96);
+      border-top: 1px solid rgba(255,255,255,0.07);
+      padding: 8px 0 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
     }
 
     /* fade edges */
-    .stocks-section::before,
-    .stocks-section::after {
+    .ticker-wrap::before,
+    .ticker-wrap::after {
       content: '';
       position: absolute;
       top: 0; bottom: 0;
-      width: 60px;
-      z-index: 2;
+      width: 80px;
+      z-index: 3;
       pointer-events: none;
     }
-    .stocks-section::before {
+    .ticker-wrap::before {
       right: 0;
-      background: linear-gradient(to left, rgba(15,18,35,0.95), transparent);
+      background: linear-gradient(to left, rgba(8,12,26,0.98), transparent);
     }
-    .stocks-section::after {
+    .ticker-wrap::after {
       left: 0;
-      background: linear-gradient(to right, rgba(15,18,35,0.95), transparent);
+      background: linear-gradient(to right, rgba(8,12,26,0.98), transparent);
     }
 
     .marquee-track {
       display: flex;
       gap: 8px;
-      margin-bottom: 8px;
       width: max-content;
+      overflow: hidden;
     }
-    .marquee-track.row-1 { animation: marquee-rtl 400s linear infinite; }
-    .marquee-track.row-2 { animation: marquee-ltr 400s linear infinite; }
-    .marquee-track.row-3 { animation: marquee-rtl 400s linear infinite; }
+    .marquee-track.row-1 { animation: marquee-rtl 180s linear infinite; }
+    .marquee-track.row-2 { animation: marquee-ltr 200s linear infinite; }
+    .marquee-track.row-3 { animation: marquee-rtl 190s linear infinite; }
 
     @keyframes marquee-rtl {
       from { transform: translateX(0); }
@@ -1208,78 +1215,34 @@ LANDING_HTML = """<!DOCTYPE html>
       background: rgba(255,255,255,0.04);
       border: 1px solid rgba(255,255,255,0.07);
       border-radius: 50px;
-      padding: 5px 12px;
-      font-size: 12px;
+      padding: 4px 12px;
+      font-size: 12.5px;
       font-weight: 700;
-      color: rgba(255,255,255,0.65);
+      color: rgba(255,255,255,0.70);
       white-space: nowrap;
       flex-shrink: 0;
-      transition: background 0.2s;
       cursor: default;
       user-select: none;
+      transition: background 0.2s, color 0.2s;
     }
     .stock-chip:hover {
-      background: rgba(124,109,245,0.12);
-      border-color: rgba(124,109,245,0.25);
+      background: rgba(124,109,245,0.14);
+      border-color: rgba(124,109,245,0.28);
       color: var(--accent2);
     }
-    .stock-chip .chip-code {
+    .chip-code {
       font-size: 10px;
-      color: rgba(255,255,255,0.30);
+      color: rgba(255,255,255,0.28);
       font-weight: 500;
     }
-
-    /* ── Footer ── */
-    .footer {
-      margin-top: 28px;
-      font-size: 11.5px;
-      color: rgba(255,255,255,0.22);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .footer-dot { width: 3px; height: 3px; background: rgba(255,255,255,0.22); border-radius: 50%; }
-
-    /* ── Bottom ticker tape ── */
-    .ticker-wrap {
-      position: fixed;
-      bottom: 0; left: 0; right: 0;
-      z-index: 2;
-      overflow: hidden;
-      background: rgba(8,12,26,0.92);
-      border-top: 1px solid rgba(255,255,255,0.06);
-      padding: 8px 0;
-    }
-    .ticker-inner {
-      display: flex;
-      gap: 48px;
-      animation: ticker 135s linear infinite;
-      width: max-content;
-    }
-    @keyframes ticker {
-      from { transform: translateX(0); }
-      to   { transform: translateX(-50%); }
-    }
-    .ticker-item {
-      font-size: 12px;
-      font-weight: 700;
-      color: rgba(255,255,255,0.40);
-      white-space: nowrap;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .ticker-sep { color: rgba(255,255,255,0.15); }
 
     /* ── Responsive ── */
     @media (max-width: 480px) {
       .card { padding: 40px 20px 36px; border-radius: 24px; }
-      .stocks-section { margin: 0 -20px 28px; }
       h1 { font-size: 22px; }
       .stat-num { font-size: 24px; }
       .btn { padding: 14px 28px; font-size: 15px; }
+      body { padding-bottom: 140px; }
     }
   </style>
 </head>
@@ -1291,6 +1254,7 @@ LANDING_HTML = """<!DOCTYPE html>
   <div class="orb orb-2"></div>
   <div class="orb orb-3"></div>
 
+  <!-- Main card -->
   <div class="card" role="main">
 
     <!-- Logo -->
@@ -1317,7 +1281,7 @@ LANDING_HTML = """<!DOCTYPE html>
     <div class="stats">
       <div class="stat">
         <div class="stat-icon">🏦</div>
-        <div class="stat-num">260+</div>
+        <div class="stat-num">240+</div>
         <div class="stat-lbl">سهم مفحوص</div>
       </div>
       <div class="stat">
@@ -1332,23 +1296,12 @@ LANDING_HTML = """<!DOCTYPE html>
       </div>
     </div>
 
-    <!-- Scrolling stocks -->
-    <div class="stocks-section" aria-label="قائمة الأسهم المفحوصة">
-      <div class="stocks-section-label">الأسهم المفحوصة</div>
-
-      <!-- Row 1 -->
-      <div class="marquee-track row-1" id="row1"></div>
-      <!-- Row 2 -->
-      <div class="marquee-track row-2" id="row2"></div>
-      <!-- Row 3 -->
-      <div class="marquee-track row-3" id="row3"></div>
-    </div>
-
     <!-- Feature pills -->
     <div class="features">
       <span class="pill">⚡ فحص فوري</span>
-      <span class="pill">📊 تحليل فواصل متعددة</span>
+      <span class="pill">📊 تحليل متعدد الأطر</span>
       <span class="pill">🎯 دقة عالية</span>
+      <span class="pill">🔔 تنبيهات لحظية</span>
       <span class="pill">🇸🇦 سوق تداول</span>
     </div>
 
@@ -1372,14 +1325,16 @@ LANDING_HTML = """<!DOCTYPE html>
 
   </div>
 
-  <!-- Bottom ticker -->
+  <!-- Bottom 3-bar stocks -->
   <div class="ticker-wrap" aria-hidden="true">
-    <div class="ticker-inner" id="bottomTicker"></div>
+    <div class="marquee-track row-1" id="bottom1"></div>
+    <div class="marquee-track row-2" id="bottom2"></div>
+    <div class="marquee-track row-3" id="bottom3"></div>
   </div>
 
   <script>
     const STOCKS = [
-      ['TASI',  'تاسي'],
+      ['^TASI',  'تاسي'],
       ['1010',  'الرياض'],
       ['1020',  'الجزيرة'],
       ['1030',  'الإستثمار'],
@@ -1655,7 +1610,7 @@ LANDING_HTML = """<!DOCTYPE html>
       return `<div class="stock-chip"><span class="chip-code">${code}</span>${name}</div>`;
     }
 
-    // Split stocks into 3 roughly equal rows
+    // Split into 3 rows
     const third = Math.ceil(STOCKS.length / 3);
     const rows = [
       STOCKS.slice(0, third),
@@ -1663,21 +1618,14 @@ LANDING_HTML = """<!DOCTYPE html>
       STOCKS.slice(third * 2),
     ];
 
-    ['row1','row2','row3'].forEach((id, i) => {
+    // Fill bottom 3 bars — duplicate for seamless loop
+    ['bottom1', 'bottom2', 'bottom3'].forEach((id, i) => {
       const el = document.getElementById(id);
-      // Double for seamless loop
-      const html = [...rows[i], ...rows[i]].map(([c,n]) => makeChip(c,n)).join('');
-      el.innerHTML = html;
+      if (el) {
+        const html = [...rows[i], ...rows[i]].map(([c, n]) => makeChip(c, n)).join('');
+        el.innerHTML = html;
+      }
     });
-
-    // Bottom ticker — just show stock names separated by dots
-    (function() {
-      const el = document.getElementById('bottomTicker');
-      const items = [...STOCKS, ...STOCKS]
-        .map(([c, n]) => `<span class="ticker-item">${n} <span class="ticker-sep chip-code" style="font-size:10px;color:rgba(255,255,255,0.25)">${c}</span></span>`)
-        .join('<span class="ticker-sep" style="color:rgba(255,255,255,0.15)">•</span>');
-      el.innerHTML = items;
-    })();
   </script>
 
 </body>
