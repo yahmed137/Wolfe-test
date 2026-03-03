@@ -405,24 +405,13 @@ def resample_ohlc(df, rule):
 # ────────────────────────────────────────────────────────────
 # 5. WOLFE WAVE VALIDATORS
 # ────────────────────────────────────────────────────────────
-def validate_bullish(p1, p2, p3, p4, p5, p0=None, tol=0.03):
+def validate_bullish(p1, p2, p3, p4, p5, tol=0.03):
     v = [p['price'] for p in [p1, p2, p3, p4, p5]]
     b = [p['bar']   for p in [p1, p2, p3, p4, p5]]
 
     if not (p1['type'] == 'L' and p2['type'] == 'H' and
             p3['type'] == 'L' and p4['type'] == 'H' and p5['type'] == 'L'):
         return None
-    
-    # P0 Validation for Bullish Wave: P0 must be High and P0 > P2
-    if p0 is None or p0['type'] != 'H': 
-        return None
-    
-    v0_p0 = p0['price']
-    v2_p2 = v[1] # P2 price
-    
-    if v0_p0 <= v2_p2: # Requirement: P0 > P2
-        return None
-
     if v[2] >= v[0]:          return None
     if v[3] >= v[1]:          return None
     if v[3] <= v[0]:          return None
@@ -437,31 +426,17 @@ def validate_bullish(p1, p2, p3, p4, p5, p0=None, tol=0.03):
     if proj != 0 and (proj - v[4]) / abs(proj) < -tol:
         return None
 
-    result = {'direction': 'Bullish', 'points': [p1,p2,p3,p4,p5],
+    return {'direction': 'Bullish', 'points': [p1,p2,p3,p4,p5],
             'entry_price': v[4], 'p5_date': p5['date']}
-    if p0:
-        result['p0'] = p0
-    return result
 
 
-def validate_bearish(p1, p2, p3, p4, p5, p0=None, tol=0.03):
+def validate_bearish(p1, p2, p3, p4, p5, tol=0.03):
     v = [p['price'] for p in [p1, p2, p3, p4, p5]]
     b = [p['bar']   for p in [p1, p2, p3, p4, p5]]
 
     if not (p1['type'] == 'H' and p2['type'] == 'L' and
             p3['type'] == 'H' and p4['type'] == 'L' and p5['type'] == 'H'):
         return None
-    
-    # P0 Validation for Bearish Wave: P0 must be Low and P0 < P2
-    if p0 is None or p0['type'] != 'L': 
-        return None
-        
-    v0_p0 = p0['price']
-    v2_p2 = v[1] # P2 price
-    
-    if v0_p0 >= v2_p2: # Requirement: P0 < P2
-        return None
-
     if v[2] <= v[0]:          return None
     if v[3] <= v[1]:          return None
     if v[3] >= v[0]:          return None
@@ -476,11 +451,8 @@ def validate_bearish(p1, p2, p3, p4, p5, p0=None, tol=0.03):
     if proj != 0 and (v[4] - proj) / abs(proj) < -tol:
         return None
 
-    result = {'direction': 'Bearish', 'points': [p1,p2,p3,p4,p5],
+    return {'direction': 'Bearish', 'points': [p1,p2,p3,p4,p5],
             'entry_price': v[4], 'p5_date': p5['date']}
-    if p0:
-        result['p0'] = p0
-    return result
 
 # ────────────────────────────────────────────────────────────
 # 6. ACTIVE PATTERN FINDER
@@ -498,23 +470,14 @@ def find_active_wolfe(df, max_bars_since_p5=8):
             idx = len(piv) - 5 - offset
             if idx < 0:
                 break
-            
-            # P1 is piv[idx], P5 is piv[idx+4]
             combo = piv[idx: idx + 5]
-            
-            # P0 is the pivot immediately preceding P1 in the alternating list
-            p0 = None
-            if idx > 0:
-                p0 = piv[idx - 1]
-                
             if n - 1 - combo[4]['bar'] > max_bars_since_p5:
                 continue
-                
-            r = validate_bullish(*combo, p0)
+            r = validate_bullish(*combo)
             if r and (best_bull is None or
                       combo[4]['bar'] > best_bull['points'][4]['bar']):
                 best_bull = r
-            r = validate_bearish(*combo, p0)
+            r = validate_bearish(*combo)
             if r and (best_bear is None or
                       combo[4]['bar'] > best_bear['points'][4]['bar']):
                 best_bear = r
@@ -525,40 +488,25 @@ def find_active_wolfe(df, max_bars_since_p5=8):
 # 7. CHART → PNG bytes
 # ────────────────────────────────────────────────────────────
 def plot_wolfe_chart(ticker, df, result, tf_label):
-    pts_orig = result['points'] # P1 to P5 initially
+    pts          = result['points']
     direction    = result['direction']
     entry        = result['entry_price']
     target       = result['target_price']
     is_bull      = direction == 'Bullish'
     company      = get_name(ticker)
     ticker_code  = ticker.split('.')[0]
-    
-    has_p0 = 'p0' in result
-    
-    # pts_all holds [P0, P1, P2, P3, P4, P5] if P0 exists, else [P1, P2, P3, P4, P5]
-    if has_p0:
-        pts_all = [result['p0']] + pts_orig 
-    else:
-        pts_all = pts_orig # Should not happen if P0 checks in validation pass
 
-    b_all          = [p['bar']   for p in pts_all]
-    v_all          = [p['price'] for p in pts_all]
+    b          = [p['bar']   for p in pts]
+    v          = [p['price'] for p in pts]
     last_bar   = len(df) - 1
     last_close = float(df['Close'].iloc[-1])
     pct        = ((target - entry) / entry) * 100
 
-    # Determine indices based on P0 presence: P1 is index 1 if P0 exists (has_p0=True), else index 0
-    p1_idx = 1 if has_p0 else 0
-    p5_idx = len(b_all) - 1
-    
-    # P2, P3, P4 indices relative to pts_all
-    idx_p1, idx_p2, idx_p3, idx_p4 = p1_idx, p1_idx + 1, p1_idx + 2, p1_idx + 3
-    
-    pad_l = max(0, b_all[p1_idx] - 10)
-    pad_r = min(last_bar, b_all[p5_idx] + 30)
+    pad_l = max(0, b[0] - 10)
+    pad_r = min(last_bar, b[4] + 30)
     df_z  = df.iloc[pad_l: pad_r + 1].copy()
     off   = pad_l
-    zb    = [x - off for x in b_all]
+    zb    = [x - off for x in b]
     n_z   = len(df_z)
 
     C_W  = '#0D47A1' if is_bull else '#B71C1C'
@@ -583,31 +531,26 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     ax = axes[0]
     fig.subplots_adjust(left=0.04, right=0.96, top=0.92, bottom=0.06)
 
-    ax.plot(zb, v_all, color=C_W, lw=2.5, zorder=6, alpha=0.8)
-    ax.scatter(zb, v_all, s=120, c='white', edgecolors=C_W,
+    ax.plot(zb, v, color=C_W, lw=2.5, zorder=6, alpha=0.8)
+    ax.scatter(zb, v, s=120, c='white', edgecolors=C_W,
                linewidths=2.5, zorder=7)
 
-    ext = zb[idx_p4] + 8
-    
-    # Line 1-3 (P1 to P3)
-    ax.plot([zb[idx_p1], ext],
-            [v_all[idx_p1], line_at(ext+off, b_all[idx_p1], v_all[idx_p1], b_all[idx_p3], v_all[idx_p3])],
+    ext = zb[4] + 8
+    ax.plot([zb[0], ext],
+            [v[0], line_at(ext+off, b[0], v[0], b[2], v[2])],
             color=C_W, lw=1.0, ls='--', alpha=0.3)
-    
-    # Line 2-4 (P2 to P4)
-    ax.plot([zb[idx_p2], ext],
-            [v_all[idx_p2], line_at(ext+off, b_all[idx_p2], v_all[idx_p2], b_all[idx_p4], v_all[idx_p4])],
+    ax.plot([zb[1], ext],
+            [v[1], line_at(ext+off, b[1], v[1], b[3], v[3])],
             color=C_24, lw=1.0, ls='--', alpha=0.3)
 
-    fx = np.arange(zb[idx_p1], zb[idx_p4] + 1)
-    f1 = [line_at(x+off, b_all[idx_p1], v_all[idx_p1], b_all[idx_p3], v_all[idx_p3]) for x in fx]
-    f2 = [line_at(x+off, b_all[idx_p2], v_all[idx_p2], b_all[idx_p4], v_all[idx_p4]) for x in fx]
+    fx = np.arange(zb[0], zb[4] + 1)
+    f1 = [line_at(x+off, b[0], v[0], b[2], v[2]) for x in fx]
+    f2 = [line_at(x+off, b[1], v[1], b[3], v[3]) for x in fx]
     ax.fill_between(fx, f1, f2, alpha=0.04, color=C_W)
 
-    # Target Line (P1 to P4 extension)
     tgt_end_zb = n_z + 5
-    ax.plot([zb[idx_p1], tgt_end_zb],
-            [v_all[idx_p1], line_at(tgt_end_zb+off, b_all[idx_p1], v_all[idx_p1], b_all[idx_p4], v_all[idx_p4])],
+    ax.plot([zb[0], tgt_end_zb],
+            [v[0], line_at(tgt_end_zb+off, b[0], v[0], b[3], v[3])],
             color=C_T, lw=3.0, ls='-.', alpha=0.85, zorder=5)
 
     z_last = min(last_bar - off, n_z - 1)
@@ -616,13 +559,13 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     ax.axhline(y=target, color=C_T, lw=0.6, ls=':', alpha=0.25)
     ax.axhline(y=entry,  color=C_E, lw=0.6, ls=':', alpha=0.25)
 
-    arrow_land_zb    = min(zb[p5_idx] + 4, n_z+3)
-    arrow_land_price = line_at(arrow_land_zb+off, b_all[idx_p1], v_all[idx_p1], b_all[idx_p4], v_all[idx_p4])
+    arrow_land_zb    = min(zb[4] + max(4, (z_last-zb[4])//2), n_z+3)
+    arrow_land_price = line_at(arrow_land_zb+off, b[0], v[0], b[3], v[3])
 
     ax.annotate(
         '',
         xy=(arrow_land_zb, arrow_land_price),
-        xytext=(zb[p5_idx], entry),
+        xytext=(zb[4], entry),
         arrowprops=dict(
             arrowstyle='-|>', color=C_A, lw=3.0, mutation_scale=22,
             connectionstyle='arc3,rad=0.15' if is_bull else 'arc3,rad=-0.15',
@@ -630,7 +573,7 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
         zorder=8,
     )
 
-    price_range  = max(v_all) - min(v_all)
+    price_range  = max(v) - min(v)
     label_offset = price_range * 0.08
     pct_y = (arrow_land_price + label_offset if is_bull
              else arrow_land_price - label_offset)
@@ -644,15 +587,12 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
         zorder=10,
     )
 
-    for i in range(len(pts_all)):
-        p = pts_all[i]
-        is_low = p['type'] == 'L'
-        dt_str = p['date'].strftime('%b %d')
-        label = f'P{i}' 
-
+    for i in range(5):
+        is_low = pts[i]['type'] == 'L'
+        dt_str = pts[i]['date'].strftime('%b %d')
         ax.annotate(
-            f'{label}  {v_all[i]:.2f}\n{dt_str}',
-            xy=(zb[i], v_all[i]),
+            f'P{i+1}  {v[i]:.2f}\n{dt_str}',
+            xy=(zb[i], v[i]),
             xytext=(0, -28 if is_low else 28),
             textcoords='offset points',
             ha='center', va='top' if is_low else 'bottom',
@@ -665,21 +605,9 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     # ── Title ────────────────────────────────────────────────
     emoji        = '📈' if is_bull else '📉'
     direction_ar = ar('ولفي صاعد') if is_bull else ar('ولفي هابط')
-    
-    p0_status = ""
-    if has_p0:
-        p0_price = result['p0']['price']
-        p2_price = pts_orig[1]['price'] # P2 price (index 1 in P1-P5 list)
-        
-        if is_bull:
-            cond = "P0 > P2" if p0_price > p2_price else f"P0 <= P2 ({p0_price:.2f}/{p2_price:.2f})"
-        else: # Bearish
-            cond = "P0 < P2" if p0_price < p2_price else f"P0 >= P2 ({p0_price:.2f}/{p2_price:.2f})"
-        p0_status = f" | {cond}"
-
     ax.set_title(
         f'{emoji}  {ticker_code}  |  {ar(company)}  |  '
-        f'{direction_ar}  |  {ar(tf_label)}{p0_status}',
+        f'{direction_ar}  |  {ar(tf_label)}',
         fontsize=15, fontweight='bold', pad=16,
         color='#212121', fontfamily=ARABIC_FONT,
     )
@@ -698,13 +626,6 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
         f"  {pct:+.1f}%        :  {ar('النسبة')}",
         f"  {ar(tf_label)}     :  {ar('الفاصل')}",
     ]
-    
-    if has_p0:
-        p0_price = result['p0']['price']
-        p2_price = pts_orig[1]['price']
-        info_lines.append(f"  {p0_price:.2f}        :  {ar('القاع/القمة 0')}")
-        info_lines.append(f"  {p2_price:.2f}        :  {ar('القاع/القمة 2')}")
-
     info = '\n'.join(info_lines)
 
     ax.text(
@@ -867,8 +788,7 @@ WELCOME_MSG = (
     "اختر الفاصل الزمني للفحص:\n\n"
     "⚠️ تنبيه: هذا بحث عن موجات الولفي ويف فقط، "
     "لا يجب الاعتماد عليه وقد يكون خطأ. "
-    "يجب متابعة الحركة السعرية.\n\n"
-    "ملاحظة: الفحص الآن يتطلب وجود نقطة البداية (P0) كشرط إضافي."
+    "يجب متابعة الحركة السعرية."
 )
 
 # ────────────────────────────────────────────────────────────
@@ -880,118 +800,419 @@ LANDING_HTML = """<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>فاحص الولفي ويف — السوق السعودي</title>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --accent:    #7c6df5;
+      --accent2:   #a78bfa;
+      --green:     #10d97e;
+      --blue:      #60a5fa;
+      --card-bg:   rgba(15, 18, 35, 0.82);
+      --border:    rgba(255,255,255,0.08);
+      --text-mute: rgba(255,255,255,0.45);
+    }
+
     body {
-      font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
-      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      font-family: 'Tajawal', 'Segoe UI', Tahoma, Arial, sans-serif;
+      background: #080c1a;
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
+      overflow: hidden;
+      position: relative;
     }
+
+    /* ── Animated background ── */
+    .bg-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 10%,  rgba(124,109,245,0.18) 0%, transparent 60%),
+        radial-gradient(ellipse 70% 50% at 80% 90%,  rgba(16,217,126,0.12) 0%, transparent 55%),
+        radial-gradient(ellipse 60% 70% at 75% 15%,  rgba(96,165,250,0.10) 0%, transparent 50%),
+        linear-gradient(160deg, #080c1a 0%, #0d1224 50%, #080c1a 100%);
+    }
+
+    .bg-grid {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%);
+    }
+
+    /* Floating orbs */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(70px);
+      opacity: 0.25;
+      animation: drift 18s ease-in-out infinite alternate;
+      z-index: 0;
+      pointer-events: none;
+    }
+    .orb-1 { width: 380px; height: 380px; background: #7c6df5; top: -80px;  left: -80px;  animation-duration: 20s; }
+    .orb-2 { width: 300px; height: 300px; background: #10d97e; bottom: -60px; right: -60px; animation-duration: 25s; animation-delay: -8s; }
+    .orb-3 { width: 220px; height: 220px; background: #60a5fa; top: 40%;   right: 10%;   animation-duration: 22s; animation-delay: -4s; }
+
+    @keyframes drift {
+      from { transform: translate(0, 0)   scale(1); }
+      to   { transform: translate(40px, 30px) scale(1.12); }
+    }
+
+    /* ── Floating candlestick chart (decorative) ── */
+    .chart-deco {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      z-index: 0;
+      opacity: 0.06;
+    }
+    .candle { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+    .candle-wick { width: 2px; background: white; border-radius: 2px; }
+    .candle-body { width: 10px; border-radius: 2px; }
+    .candle.bull .candle-body { background: #10d97e; }
+    .candle.bear .candle-body { background: #f87171; }
+
+    /* ── Main card ── */
     .card {
-      background: rgba(255,255,255,0.07);
-      backdrop-filter: blur(14px);
-      border: 1px solid rgba(255,255,255,0.13);
-      border-radius: 28px;
-      padding: 56px 44px;
+      position: relative;
+      z-index: 1;
+      background: var(--card-bg);
+      backdrop-filter: blur(28px) saturate(1.4);
+      -webkit-backdrop-filter: blur(28px) saturate(1.4);
+      border: 1px solid var(--border);
+      border-radius: 32px;
+      padding: 52px 48px 44px;
       text-align: center;
-      max-width: 500px;
-      width: 92%;
-      box-shadow: 0 24px 70px rgba(0,0,0,0.45);
+      max-width: 520px;
+      width: 93%;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.04) inset,
+        0 32px 80px rgba(0,0,0,0.65),
+        0 0 60px rgba(124,109,245,0.08);
       color: white;
+      animation: cardIn 0.7s cubic-bezier(0.22,1,0.36,1) both;
     }
-    .logo { font-size: 76px; margin-bottom: 18px; }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(32px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0)    scale(1); }
+    }
+
+    /* Subtle top highlight */
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 10%; right: 10%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+      border-radius: 50%;
+    }
+
+    /* ── Logo ring ── */
+    .logo-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 24px;
+    }
+    .logo-ring {
+      width: 90px; height: 90px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, rgba(124,109,245,0.25), rgba(16,217,126,0.15));
+      border: 1.5px solid rgba(124,109,245,0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 42px;
+      box-shadow: 0 0 32px rgba(124,109,245,0.25), 0 0 0 8px rgba(124,109,245,0.06);
+      animation: pulse-ring 3s ease-in-out infinite;
+    }
+    @keyframes pulse-ring {
+      0%,100% { box-shadow: 0 0 32px rgba(124,109,245,0.25), 0 0 0 8px  rgba(124,109,245,0.06); }
+      50%      { box-shadow: 0 0 48px rgba(124,109,245,0.40), 0 0 0 14px rgba(124,109,245,0.10); }
+    }
+
+    /* ── Typography ── */
     h1 {
-      font-size: 26px;
-      font-weight: 800;
+      font-size: 27px;
+      font-weight: 900;
       margin-bottom: 10px;
-      letter-spacing: 0.5px;
+      background: linear-gradient(120deg, #fff 30%, var(--accent2) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.3;
     }
     .subtitle {
-      font-size: 15px;
-      color: rgba(255,255,255,0.6);
-      line-height: 1.7;
-      margin-bottom: 32px;
+      font-size: 14.5px;
+      color: rgba(255,255,255,0.52);
+      line-height: 1.85;
+      margin-bottom: 28px;
     }
+    .subtitle strong {
+      color: rgba(255,255,255,0.80);
+      font-weight: 700;
+    }
+
+    /* ── Status badge ── */
     .badge {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      background: rgba(46,213,115,0.12);
-      border: 1px solid rgba(46,213,115,0.35);
-      color: #2ed573;
-      padding: 9px 22px;
+      background: rgba(16,217,126,0.10);
+      border: 1px solid rgba(16,217,126,0.30);
+      color: var(--green);
+      padding: 8px 20px;
       border-radius: 50px;
       font-size: 13px;
       font-weight: 700;
-      margin-bottom: 36px;
+      margin-bottom: 32px;
+      letter-spacing: 0.3px;
     }
     .dot {
-      width: 9px; height: 9px;
-      background: #2ed573;
+      width: 8px; height: 8px;
+      background: var(--green);
       border-radius: 50%;
-      animation: blink 1.4s ease-in-out infinite;
+      flex-shrink: 0;
+      box-shadow: 0 0 6px var(--green);
+      animation: blink 1.6s ease-in-out infinite;
     }
     @keyframes blink {
-      0%,100% { opacity:1; transform:scale(1); }
-      50%      { opacity:0.25; transform:scale(0.8); }
+      0%,100% { opacity: 1;    transform: scale(1); }
+      50%      { opacity: 0.2; transform: scale(0.75); }
     }
+
+    /* ── Divider ── */
     .divider {
       border: none;
-      border-top: 1px solid rgba(255,255,255,0.1);
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.09), transparent);
       margin: 28px 0;
     }
+
+    /* ── Stats ── */
     .stats {
       display: flex;
       justify-content: center;
-      gap: 28px;
-      margin-bottom: 32px;
+      gap: 0;
+      margin-bottom: 34px;
     }
-    .stat { text-align: center; }
+    .stat {
+      flex: 1;
+      text-align: center;
+      padding: 16px 8px;
+      border-radius: 16px;
+      transition: background 0.2s;
+    }
+    .stat:hover { background: rgba(255,255,255,0.04); }
+
+    /* vertical separators between stats */
+    .stat + .stat {
+      border-right: 1px solid rgba(255,255,255,0.08);
+    }
+
     .stat-num {
-      font-size: 28px;
-      font-weight: 800;
-      color: #74b9ff;
+      font-size: 30px;
+      font-weight: 900;
+      background: linear-gradient(120deg, var(--blue), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.1;
     }
     .stat-lbl {
       font-size: 12px;
-      color: rgba(255,255,255,0.45);
-      margin-top: 2px;
+      color: var(--text-mute);
+      margin-top: 5px;
+      font-weight: 500;
     }
+    .stat-icon { font-size: 18px; margin-bottom: 4px; }
+
+    /* ── Feature pills ── */
+    .features {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 32px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.09);
+      color: rgba(255,255,255,0.70);
+      padding: 6px 14px;
+      border-radius: 50px;
+      font-size: 12.5px;
+      font-weight: 500;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .pill:hover {
+      background: rgba(124,109,245,0.12);
+      border-color: rgba(124,109,245,0.30);
+      color: var(--accent2);
+    }
+
+    /* ── CTA Button ── */
+    .btn-wrap { position: relative; display: inline-block; }
+
+    .btn-glow {
+      position: absolute;
+      inset: -3px;
+      border-radius: 54px;
+      background: linear-gradient(135deg, var(--accent), var(--green));
+      filter: blur(14px);
+      opacity: 0.45;
+      animation: glow-pulse 2.4s ease-in-out infinite;
+      z-index: -1;
+    }
+    @keyframes glow-pulse {
+      0%,100% { opacity: 0.35; transform: scale(0.98); }
+      50%      { opacity: 0.60; transform: scale(1.02); }
+    }
+
     .btn {
-      display: inline-block;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: linear-gradient(135deg, #7c6df5 0%, #5b4fe0 50%, #4338ca 100%);
       color: white;
       text-decoration: none;
-      padding: 15px 36px;
+      padding: 16px 42px;
       border-radius: 50px;
       font-size: 16px;
-      font-weight: 700;
-      box-shadow: 0 6px 24px rgba(102,126,234,0.45);
-      transition: transform .2s, box-shadow .2s;
+      font-weight: 800;
+      font-family: 'Tajawal', sans-serif;
+      box-shadow:
+        0 8px 28px rgba(124,109,245,0.40),
+        0 0 0 1px rgba(255,255,255,0.10) inset;
+      transition: transform 0.22s cubic-bezier(0.22,1,0.36,1), box-shadow 0.22s;
+      letter-spacing: 0.3px;
     }
     .btn:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 10px 32px rgba(102,126,234,0.65);
+      transform: translateY(-4px) scale(1.03);
+      box-shadow:
+        0 16px 40px rgba(124,109,245,0.55),
+        0 0 0 1px rgba(255,255,255,0.15) inset;
     }
+    .btn:active { transform: translateY(-1px) scale(1.01); }
+
+    .btn-icon { font-size: 20px; animation: wave-icon 2s ease-in-out infinite; }
+    @keyframes wave-icon {
+      0%,100% { transform: rotate(0deg); }
+      25%      { transform: rotate(-8deg); }
+      75%      { transform: rotate(8deg); }
+    }
+
+    /* ── Footer ── */
     .footer {
-      margin-top: 32px;
-      font-size: 11px;
-      color: rgba(255,255,255,0.28);
+      margin-top: 28px;
+      font-size: 11.5px;
+      color: rgba(255,255,255,0.22);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .footer-dot { width: 3px; height: 3px; background: rgba(255,255,255,0.22); border-radius: 50%; }
+
+    /* ── Ticker tape ── */
+    .ticker-wrap {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 2;
+      overflow: hidden;
+      background: rgba(8,12,26,0.90);
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding: 8px 0;
+    }
+    .ticker-inner {
+      display: flex;
+      gap: 48px;
+      animation: ticker 28s linear infinite;
+      width: max-content;
+    }
+    @keyframes ticker {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+    .ticker-item {
+      font-size: 12px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.45);
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .ticker-item.up   { color: var(--green); }
+    .ticker-item.down { color: #f87171; }
+
+    /* ── Responsive ── */
+    @media (max-width: 480px) {
+      .card { padding: 40px 26px 36px; border-radius: 24px; }
+      h1 { font-size: 22px; }
+      .stats { gap: 0; }
+      .stat-num { font-size: 24px; }
+      .btn { padding: 14px 32px; font-size: 15px; }
     }
   </style>
 </head>
 <body>
-  <div class="card">
-    <div class="logo">📈</div>
+
+  <!-- Background layers -->
+  <div class="bg-canvas"></div>
+  <div class="bg-grid"></div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <!-- Decorative candlestick chart -->
+  <div class="chart-deco" aria-hidden="true">
+    <div class="candle bull"><div class="candle-wick" style="height:18px"></div><div class="candle-body" style="height:22px"></div><div class="candle-wick" style="height:8px"></div></div>
+    <div class="candle bear"><div class="candle-wick" style="height:12px"></div><div class="candle-body" style="height:30px"></div><div class="candle-wick" style="height:10px"></div></div>
+    <div class="candle bull"><div class="candle-wick" style="height:20px"></div><div class="candle-body" style="height:40px"></div><div class="candle-wick" style="height:6px"></div></div>
+    <div class="candle bear"><div class="candle-wick" style="height:8px"></div><div class="candle-body" style="height:18px"></div><div class="candle-wick" style="height:14px"></div></div>
+    <div class="candle bull"><div class="candle-wick" style="height:14px"></div><div class="candle-body" style="height:50px"></div><div class="candle-wick" style="height:8px"></div></div>
+    <div class="candle bull"><div class="candle-wick" style="height:10px"></div><div class="candle-body" style="height:34px"></div><div class="candle-wick" style="height:12px"></div></div>
+    <div class="candle bear"><div class="candle-wick" style="height:16px"></div><div class="candle-body" style="height:24px"></div><div class="candle-wick" style="height:6px"></div></div>
+    <div class="candle bull"><div class="candle-wick" style="height:12px"></div><div class="candle-body" style="height:44px"></div><div class="candle-wick" style="height:10px"></div></div>
+  </div>
+
+  <!-- Main card -->
+  <div class="card" role="main">
+
+    <!-- Logo -->
+    <div class="logo-wrap">
+      <div class="logo-ring">📈</div>
+    </div>
+
+    <!-- Heading -->
     <h1>فاحص موجات الولفي ويف</h1>
     <p class="subtitle">
-      بوت تيليغرام ذكي لفحص موجات الولفي ويف<br>
-      على جميع أسهم السوق السعودي — تداول
+      بوت تيليغرام ذكي لرصد موجات الولفي ويف<br>
+      على <strong>جميع أسهم تداول السعودي</strong> بدقة عالية
     </p>
 
+    <!-- Status -->
     <div class="badge">
       <div class="dot"></div>
       البوت يعمل الآن
@@ -999,29 +1220,82 @@ LANDING_HTML = """<!DOCTYPE html>
 
     <hr class="divider">
 
+    <!-- Stats -->
     <div class="stats">
       <div class="stat">
+        <div class="stat-icon">🏦</div>
         <div class="stat-num">240+</div>
         <div class="stat-lbl">سهم مفحوص</div>
       </div>
       <div class="stat">
+        <div class="stat-icon">🕐</div>
         <div class="stat-num">6</div>
         <div class="stat-lbl">أطر زمنية</div>
       </div>
       <div class="stat">
+        <div class="stat-icon">〽️</div>
         <div class="stat-num">2</div>
         <div class="stat-lbl">نوع موجة</div>
       </div>
     </div>
 
-    <a class="btn" href="https://t.me/BOT_USERNAME" target="_blank">
-      🤖 &nbsp; فتح البوت في تيليغرام
-    </a>
+    <!-- Feature pills -->
+    <div class="features">
+      <span class="pill">⚡ فحص فوري</span>
+      <span class="pill">📊 تحليل متعدد الأطر</span>
+      <span class="pill">🎯 دقة عالية</span>
+      <span class="pill">🔔 تنبيهات لحظية</span>
+      <span class="pill">🇸🇦 سوق تداول</span>
+    </div>
 
+    <!-- CTA -->
+    <div class="btn-wrap">
+      <div class="btn-glow"></div>
+      <a class="btn" href="https://t.me/BOT_USERNAME" target="_blank" rel="noopener">
+        <span class="btn-icon">🤖</span>
+        فتح البوت في تيليغرام
+      </a>
+    </div>
+
+    <!-- Footer -->
     <div class="footer">
-      Wolfe Wave Scanner &nbsp;•&nbsp; Saudi Market (Tadawul) &nbsp;•&nbsp; 2026
+      <span>Wolfe Wave Scanner</span>
+      <div class="footer-dot"></div>
+      <span>Saudi Market — Tadawul</span>
+      <div class="footer-dot"></div>
+      <span>2026</span>
+    </div>
+
+  </div>
+
+  <!-- Ticker tape -->
+  <div class="ticker-wrap" aria-hidden="true">
+    <div class="ticker-inner">
+      <!-- First set -->
+      <span class="ticker-item up">2222 أرامكو ▲ 2.34%</span>
+      <span class="ticker-item down">1120 الراجحي ▼ 0.87%</span>
+      <span class="ticker-item up">2010 سابك ▲ 1.12%</span>
+      <span class="ticker-item up">1180 الأهلي ▲ 0.55%</span>
+      <span class="ticker-item down">2350 بايونير ▼ 1.40%</span>
+      <span class="ticker-item up">4200 موبايلي ▲ 0.78%</span>
+      <span class="ticker-item down">7010 STC ▼ 0.33%</span>
+      <span class="ticker-item up">4030 بنك الجزيرة ▲ 1.95%</span>
+      <span class="ticker-item up">8010 سلامة ▲ 0.62%</span>
+      <span class="ticker-item down">2150 تداول ▼ 0.47%</span>
+      <!-- Duplicate for seamless loop -->
+      <span class="ticker-item up">2222 أرامكو ▲ 2.34%</span>
+      <span class="ticker-item down">1120 الراجحي ▼ 0.87%</span>
+      <span class="ticker-item up">2010 سابك ▲ 1.12%</span>
+      <span class="ticker-item up">1180 الأهلي ▲ 0.55%</span>
+      <span class="ticker-item down">2350 بايونير ▼ 1.40%</span>
+      <span class="ticker-item up">4200 موبايلي ▲ 0.78%</span>
+      <span class="ticker-item down">7010 STC ▼ 0.33%</span>
+      <span class="ticker-item up">4030 بنك الجزيرة ▲ 1.95%</span>
+      <span class="ticker-item up">8010 سلامة ▲ 0.62%</span>
+      <span class="ticker-item down">2150 تداول ▼ 0.47%</span>
     </div>
   </div>
+
 </body>
 </html>"""
 # ────────────────────────────────────────────────────────────
@@ -1094,11 +1368,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         for tk, patterns in results.items():
             for r in patterns:
-                # P1 is r['points'][0], P4 is r['points'][3]
-                b1 = r['points'][0]['bar'];  v1 = r['points'][0]['price']
-                b4 = r['points'][3]['bar'];  v4 = r['points'][3]['price']
-                r['target_price'] = round(line_at(ohlc_data[tk].index[-1], b1, v1, b4, v4), 2)
-
                 pct  = ((r['target_price'] - r['entry_price'])
                         / r['entry_price']) * 100
                 item = {
@@ -1129,11 +1398,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         summary = f"✅ *اكتمل الفحص — {tf_label}*\n\n"
         if show_bull:
-            summary += f"📈 ولفي صاعد (مع P0): *{len(bullish_list)}*\n"
+            summary += f"📈 ولفي صاعد: *{len(bullish_list)}*\n"
         if show_bear:
-            summary += f"📉 ولفي هابط (مع P0): *{len(bearish_list)}*\n"
+            summary += f"📉 ولفي هابط: *{len(bearish_list)}*\n"
         if not bullish_list and not bearish_list:
-            summary += "\nلا توجد نتائج لهذا الفلتر أو للشروط الجديدة."
+            summary += "\nلا توجد نتائج لهذا الفلتر."
 
         await context.bot.send_message(
             chat_id=chat_id, text=summary, parse_mode="Markdown"
@@ -1143,7 +1412,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if show_bull and bullish_list:
             await context.bot.send_message(
                 chat_id=chat_id,
-                text="📈 *— نتائج الولفي الصاعد (P0 > P2) —*",
+                text="📈 *— نتائج الولفي الصاعد —*",
                 parse_mode="Markdown",
             )
             for item in bullish_list:
@@ -1155,7 +1424,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception as e:
                     logger.error(f"Chart error {item['ticker']}: {e}")
                 msg = (
-                    f"رمز السهم: *{item['ticker'].split('.')[0]}*\n"
+                    f"رمز السهم: `{item['ticker'].split('.')[0]}`\n"
+                    #f"رمز السهم: *{item['ticker'].split('.')[0]}*\n"#
                     f"الاسم       : `{item['name']}`\n"
                     f"الفاصل       : `{tf_label}`\n"
                     f"آخر إغلاق : `{item['last_close']}`\n"
@@ -1172,7 +1442,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if show_bear and bearish_list:
             await context.bot.send_message(
                 chat_id=chat_id,
-                text="📉 *— نتائج الولفي الهابط (P0 < P2) —*",
+                text="📉 *— نتائج الولفي الهابط —*",
                 parse_mode="Markdown",
             )
             for item in bearish_list:
