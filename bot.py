@@ -31,6 +31,33 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
+ADMIN_CHAT_ID = int(os.environ.get("ADMIN_CHAT_ID", "0"))  # Set your admin Telegram user ID
+
+# ────────────────────────────────────────────────────────────
+# ADMIN REPORT HELPER (silent, no logs)
+# ────────────────────────────────────────────────────────────
+async def report_to_admin(context, user, action: str):
+    """Send a silent report to admin about user activity. No logging."""
+    if not ADMIN_CHAT_ID:
+        return
+    try:
+        first_name = user.first_name or ""
+        last_name = user.last_name or ""
+        user_id = user.id
+        username = f"@{user.username}" if user.username else "N/A"
+        report = (
+            f"📋 User Activity Report\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"First Name: {first_name}\n"
+            f"Last Name: {last_name}\n"
+            f"User ID: {user_id}\n"
+            f"Username: {username}\n"
+            f"Action: {action}\n"
+            f"━━━━━━━━━━━━━━━━━━━━"
+        )
+        await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=report)
+    except Exception:
+        pass  # Silently fail, no logs
 
 # ────────────────────────────────────────────────────────────
 # 1. ARABIC FONT + TEXT SUPPORT
@@ -647,7 +674,7 @@ def plot_wolfe_chart(ticker, df, result, tf_label):
     return buf
 
 # ────────────────────────────────────────────────────────────
-# 8. TICKER PROCESSING
+# 8. TICKER PROCESSING (with p0 filter)
 # ────────────────────────────────────────────────────────────
 def process_ticker(ticker, period, interval, resample_rule=None):
     try:
@@ -660,12 +687,23 @@ def process_ticker(ticker, period, interval, resample_rule=None):
                 return ticker, [], None
         found    = find_active_wolfe(df, max_bars_since_p5=8)
         last_bar = len(df) - 1
+        last_close = float(df['Close'].iloc[-1])  # p0
+        filtered = []
         for r in found:
             b1 = r['points'][0]['bar'];  v1 = r['points'][0]['price']
             b4 = r['points'][3]['bar'];  v4 = r['points'][3]['price']
             r['target_price'] = round(line_at(last_bar, b1, v1, b4, v4), 2)
-            r['last_close']   = round(float(df['Close'].iloc[-1]), 2)
-        return ticker, found, df
+            r['last_close']   = round(last_close, 2)
+
+            # p0 filter: p0 (last close) vs p2 (point 2 price, index 1)
+            p2_price = r['points'][1]['price']
+            if r['direction'] == 'Bullish' and last_close <= p2_price:
+                continue  # Bullish requires p0 > p2
+            if r['direction'] == 'Bearish' and last_close >= p2_price:
+                continue  # Bearish requires p0 < p2
+            filtered.append(r)
+
+        return ticker, filtered, df
     except Exception:
         return ticker, [], None
 
@@ -792,163 +830,11 @@ WELCOME_MSG = (
 )
 
 # ────────────────────────────────────────────────────────────
-# 13. LANDING PAGE HTML
-# ────────────────────────────────────────────────────────────
-LANDING_HTML = """<!DOCTYPE html>
-<html dir="rtl" lang="ar">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>فاحص الولفي ويف — السوق السعودي</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
-      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .card {
-      background: rgba(255,255,255,0.07);
-      backdrop-filter: blur(14px);
-      border: 1px solid rgba(255,255,255,0.13);
-      border-radius: 28px;
-      padding: 56px 44px;
-      text-align: center;
-      max-width: 500px;
-      width: 92%;
-      box-shadow: 0 24px 70px rgba(0,0,0,0.45);
-      color: white;
-    }
-    .logo { font-size: 76px; margin-bottom: 18px; }
-    h1 {
-      font-size: 26px;
-      font-weight: 800;
-      margin-bottom: 10px;
-      letter-spacing: 0.5px;
-    }
-    .subtitle {
-      font-size: 15px;
-      color: rgba(255,255,255,0.6);
-      line-height: 1.7;
-      margin-bottom: 32px;
-    }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(46,213,115,0.12);
-      border: 1px solid rgba(46,213,115,0.35);
-      color: #2ed573;
-      padding: 9px 22px;
-      border-radius: 50px;
-      font-size: 13px;
-      font-weight: 700;
-      margin-bottom: 36px;
-    }
-    .dot {
-      width: 9px; height: 9px;
-      background: #2ed573;
-      border-radius: 50%;
-      animation: blink 1.4s ease-in-out infinite;
-    }
-    @keyframes blink {
-      0%,100% { opacity:1; transform:scale(1); }
-      50%      { opacity:0.25; transform:scale(0.8); }
-    }
-    .divider {
-      border: none;
-      border-top: 1px solid rgba(255,255,255,0.1);
-      margin: 28px 0;
-    }
-    .stats {
-      display: flex;
-      justify-content: center;
-      gap: 28px;
-      margin-bottom: 32px;
-    }
-    .stat { text-align: center; }
-    .stat-num {
-      font-size: 28px;
-      font-weight: 800;
-      color: #74b9ff;
-    }
-    .stat-lbl {
-      font-size: 12px;
-      color: rgba(255,255,255,0.45);
-      margin-top: 2px;
-    }
-    .btn {
-      display: inline-block;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      text-decoration: none;
-      padding: 15px 36px;
-      border-radius: 50px;
-      font-size: 16px;
-      font-weight: 700;
-      box-shadow: 0 6px 24px rgba(102,126,234,0.45);
-      transition: transform .2s, box-shadow .2s;
-    }
-    .btn:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 10px 32px rgba(102,126,234,0.65);
-    }
-    .footer {
-      margin-top: 32px;
-      font-size: 11px;
-      color: rgba(255,255,255,0.28);
-    }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="logo">📈</div>
-    <h1>فاحص موجات الولفي ويف</h1>
-    <p class="subtitle">
-      بوت تيليغرام ذكي لفحص موجات الولفي ويف<br>
-      على جميع أسهم السوق السعودي — تداول
-    </p>
-
-    <div class="badge">
-      <div class="dot"></div>
-      البوت يعمل الآن
-    </div>
-
-    <hr class="divider">
-
-    <div class="stats">
-      <div class="stat">
-        <div class="stat-num">240+</div>
-        <div class="stat-lbl">سهم مفحوص</div>
-      </div>
-      <div class="stat">
-        <div class="stat-num">6</div>
-        <div class="stat-lbl">أطر زمنية</div>
-      </div>
-      <div class="stat">
-        <div class="stat-num">2</div>
-        <div class="stat-lbl">نوع موجة</div>
-      </div>
-    </div>
-
-    <a class="btn" href="https://t.me/BOT_USERNAME" target="_blank">
-      🤖 &nbsp; فتح البوت في تيليغرام
-    </a>
-
-    <div class="footer">
-      Wolfe Wave Scanner &nbsp;•&nbsp; Saudi Market (Tadawul) &nbsp;•&nbsp; 2026
-    </div>
-  </div>
-</body>
-</html>"""
-
-# ────────────────────────────────────────────────────────────
 # 14. HANDLERS
 # ────────────────────────────────────────────────────────────
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    await report_to_admin(context, user, "/start command")
     await update.message.reply_text(
         WELCOME_MSG, parse_mode="Markdown",
         reply_markup=build_tf_keyboard(),
@@ -956,6 +842,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def scan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    await report_to_admin(context, user, "/scan command")
     await update.message.reply_text(
         "اختر الفاصل الزمني للفحص:",
         reply_markup=build_tf_keyboard(),
@@ -966,8 +854,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data  = query.data
+    user  = update.effective_user
 
     if data == "back_to_start":
+        await report_to_admin(context, user, "🔙 Back to start")
         await query.edit_message_text(
             WELCOME_MSG, parse_mode="Markdown",
             reply_markup=build_tf_keyboard(),
@@ -979,6 +869,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if tf_key not in TF_MAP:
             await query.edit_message_text("فاصل زمني غير معروف.")
             return
+        await report_to_admin(context, user, f"Selected timeframe: {TF_MAP[tf_key][0]} ({tf_key})")
         await query.edit_message_text(
             f"⏱ الفاصل: *{TF_MAP[tf_key][0]}*\n\nاختر الفلتر:",
             parse_mode="Markdown",
@@ -995,6 +886,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if tf_key not in TF_MAP:
             await query.edit_message_text("فاصل زمني غير معروف.")
             return
+
+        direction_label = {"bullish": "📈 Bullish", "bearish": "📉 Bearish", "both": "📊 Both"}.get(direction, direction)
+        await report_to_admin(
+            context, user,
+            f"Started scan: TF={TF_MAP[tf_key][0]} ({tf_key}), Filter={direction_label}"
+        )
 
         tf_label, interval, period, resample_rule = TF_MAP[tf_key]
         chat_id = query.message.chat_id
@@ -1139,7 +1036,7 @@ def main():
         # ── aiohttp route: landing page ───────────────────────
         async def home(_request):
             return aio_web.Response(
-                text=LANDING_HTML, content_type='text/html'
+                text="Bot is running", content_type='text/html'
             )
 
         # ── aiohttp route: telegram webhook ──────────────────
@@ -1150,11 +1047,9 @@ def main():
             return aio_web.Response(text='OK')
 
         async def run_all():
-            # Register webhook with Telegram
             await app.bot.set_webhook(webhook_url)
             logger.info(f"Webhook set → {webhook_url}")
 
-            # Build aiohttp server with both routes
             web_app = aio_web.Application()
             web_app.router.add_get('/',         home)
             web_app.router.add_post('/webhook', webhook_route)
@@ -1164,10 +1059,9 @@ def main():
             await aio_web.TCPSite(runner, '0.0.0.0', PORT).start()
             logger.info(f"Server listening on port {PORT}")
 
-            # Start PTB application
             async with app:
                 await app.start()
-                await asyncio.Event().wait()   # run forever
+                await asyncio.Event().wait()
                 await app.stop()
 
         asyncio.run(run_all())
