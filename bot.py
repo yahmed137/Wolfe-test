@@ -1224,13 +1224,13 @@ LANDING_HTML = """<!DOCTYPE html>
     <div class="stats">
       <div class="stat">
         <div class="stat-icon">🏦</div>
-        <div class="stat-num">240+</div>
+        <div class="stat-num">260+</div>
         <div class="stat-lbl">سهم مفحوص</div>
       </div>
       <div class="stat">
         <div class="stat-icon">🕐</div>
         <div class="stat-num">6</div>
-        <div class="stat-lbl">أطر زمنية</div>
+        <div class="stat-lbl">فواصل زمنية</div>
       </div>
       <div class="stat">
         <div class="stat-icon">〽️</div>
@@ -1242,9 +1242,8 @@ LANDING_HTML = """<!DOCTYPE html>
     <!-- Feature pills -->
     <div class="features">
       <span class="pill">⚡ فحص فوري</span>
-      <span class="pill">📊 تحليل متعدد الأطر</span>
+      <span class="pill">📊 تحليل فواصل متعددة</span>
       <span class="pill">🎯 دقة عالية</span>
-      <span class="pill">🔔 تنبيهات لحظية</span>
       <span class="pill">🇸🇦 سوق تداول</span>
     </div>
 
