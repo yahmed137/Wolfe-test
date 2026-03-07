@@ -8,4 +8,4 @@ mplfinance
 arabic-reshaper
 python-bidi
 aiohttp==3.9.5
-reportlab
+reportlab>=4.2.0
