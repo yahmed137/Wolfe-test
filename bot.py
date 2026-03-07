@@ -1267,7 +1267,7 @@ class Report:
 
     def signal_page(self, gauge_img, sig, score, sup, res, d):
         self._bar('الإشارات والتحليل'); self._foot()
-        c=self.c; y=PAGE_H-44*mm; y=self._stitle(y,'مؤشر التوصية'); y=self._img(y,gauge_img,50*mm)
+        c=self.c; y=PAGE_H-44*mm; y=self._stitle(y,'مؤشر التحليل'); y=self._img(y,gauge_img,50*mm)
         c.setFillColor(TXTDARK); self._font(False,9); c.drawRightString(PAGE_W-MG, y-2, rtl(f'النتيجة الكلية: {score}/20')); y-=14
         y=self._stitle(y,'ملخص الإشارات الفنية')
         rows=[['التحليل','الإشارة','المؤشر']]
