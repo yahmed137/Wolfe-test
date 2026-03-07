@@ -561,7 +561,7 @@ def recommendation(score):
     elif score >= 12: return 'إيجابي', '#66BB6A'
     elif score <= 4: return 'سلبي +', RED_HEX
     elif score <= 8: return 'سلبي', '#EF5350'
-    return 'حياد / احتفاظ', ORANGE_HEX
+    return 'حياد', ORANGE_HEX
 
 
 def decision_text(v):
@@ -1266,7 +1266,7 @@ class Report:
         self._table(y,div_rows,[CW*0.40,CW*0.60]); self.c.showPage()
 
     def signal_page(self, gauge_img, sig, score, sup, res, d):
-        self._bar('الإشارات والتوصية'); self._foot()
+        self._bar('الإشارات والتحليل'); self._foot()
         c=self.c; y=PAGE_H-44*mm; y=self._stitle(y,'مؤشر التوصية'); y=self._img(y,gauge_img,50*mm)
         c.setFillColor(TXTDARK); self._font(False,9); c.drawRightString(PAGE_W-MG, y-2, rtl(f'النتيجة الكلية: {score}/20')); y-=14
         y=self._stitle(y,'ملخص الإشارات الفنية')
@@ -1404,7 +1404,7 @@ def _build_report_sync(ticker_input: str):
         f"السعر الحالي   : `{price:.2f}`\n"
         f"التغير اليومي  : `{chg:+.2f}%`\n"
         f"النتيجة        : `{score}/20`\n"
-        f"التوصية        : `{rec_txt}`\n"
+        f"التحليل        : `{rec_txt}`\n"
         f"الصفحات        : `{rpt.pn}`"
     )
     return pdf_buf, summary, display_ticker
