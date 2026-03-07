@@ -324,6 +324,151 @@ def fetch_data(ticker):
             info = stk.info or {}
         except Exception:
             info = {}
+
+        # ── Supplement missing fields from fast_info ──────────────────────
+        try:
+            fi = stk.fast_info
+            fi_map = {
+                'marketCap':        'market_cap',
+                'sharesOutstanding':'shares',
+                'floatShares':      'shares',
+                'fiftyTwoWeekHigh': 'fifty_two_week_high',
+                'fiftyTwoWeekLow':  'fifty_two_week_low',
+                'currency':         'currency',
+                'exchange':         'exchange',
+            }
+            for info_key, fi_attr in fi_map.items():
+                if not info.get(info_key):
+                    try:
+                        val = getattr(fi, fi_attr, None)
+                        if val is not None:
+                            info[info_key] = val
+                    except Exception:
+                        pass
+            # averageVolume from history
+            if not info.get('averageVolume') and not df.empty:
+                try:
+                    info['averageVolume'] = int(df['Volume'].mean())
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # ── Compute EPS / PE from financials if still missing ─────────────
+        price_now = float(df['Close'].iloc[-1]) if not df.empty else None
+        if price_now and (not info.get('trailingEps') or not info.get('trailingPE')):
+            try:
+                fin = stk.financials
+                bs  = stk.balance_sheet
+                if not fin.empty and not bs.empty:
+                    ni_keys = [k for k in fin.index if 'Net Income' in str(k)]
+                    sh_keys = [k for k in bs.index if any(x in str(k) for x in
+                                ('Ordinary Shares Number', 'Share Issued', 'Common Stock'))]
+                    if ni_keys and sh_keys:
+                        ni = float(fin.loc[ni_keys[0]].iloc[0])
+                        sh = float(bs.loc[sh_keys[0]].iloc[0])
+                        if sh > 0:
+                            eps = ni / sh
+                            if not info.get('trailingEps'):
+                                info['trailingEps'] = eps
+                            if price_now and eps != 0 and not info.get('trailingPE'):
+                                info['trailingPE'] = price_now / eps
+            except Exception:
+                pass
+
+        # ── Compute dividendYield from dividendRate if missing ────────────
+        if price_now and not info.get('dividendYield') and info.get('dividendRate'):
+            try:
+                info['dividendYield'] = float(info['dividendRate']) / price_now
+            except Exception:
+                pass
+
+        # ── Try to get priceToBook / returnOnEquity from balance sheet ─────
+        if not info.get('priceToBook') or not info.get('returnOnEquity'):
+            try:
+                bs  = stk.balance_sheet
+                fin = stk.financials
+                sh_keys = [k for k in bs.index if any(x in str(k) for x in
+                            ('Stockholders Equity', 'Total Equity', 'Common Stock Equity'))]
+                bv_keys = [k for k in bs.index if 'Ordinary Shares Number' in str(k) or 'Share Issued' in str(k)]
+                ni_keys = [k for k in fin.index if 'Net Income' in str(k)]
+                if sh_keys:
+                    total_equity = float(bs.loc[sh_keys[0]].iloc[0])
+                    shares_out   = info.get('sharesOutstanding') or info.get('shares')
+                    if shares_out and shares_out > 0 and price_now and not info.get('priceToBook'):
+                        book_per_share = total_equity / float(shares_out)
+                        if book_per_share > 0:
+                            info['priceToBook'] = price_now / book_per_share
+                    if ni_keys and total_equity and total_equity != 0 and not info.get('returnOnEquity'):
+                        ni = float(fin.loc[ni_keys[0]].iloc[0])
+                        info['returnOnEquity'] = ni / abs(total_equity)
+            except Exception:
+                pass
+
+        # ── Try totalRevenue / netIncomeToCommon / ebitda / margins ────────
+        try:
+            fin = stk.financials
+            if not fin.empty:
+                for info_key, candidates in [
+                    ('totalRevenue',      ['Total Revenue']),
+                    ('netIncomeToCommon', ['Net Income', 'Net Income Common Stockholders']),
+                    ('ebitda',            ['EBITDA', 'Normalized EBITDA']),
+                ]:
+                    if not info.get(info_key):
+                        for cand in candidates:
+                            keys = [k for k in fin.index if cand in str(k)]
+                            if keys:
+                                info[info_key] = float(fin.loc[keys[0]].iloc[0])
+                                break
+                rev_keys = [k for k in fin.index if 'Total Revenue' in str(k)]
+                rev = float(fin.loc[rev_keys[0]].iloc[0]) if rev_keys else None
+                if rev and rev != 0:
+                    for info_key, candidates in [
+                        ('grossMargins',     ['Gross Profit']),
+                        ('operatingMargins', ['Operating Income', 'Operating Revenue']),
+                        ('profitMargins',    ['Net Income', 'Net Income Common Stockholders']),
+                    ]:
+                        if not info.get(info_key):
+                            for cand in candidates:
+                                keys = [k for k in fin.index if cand in str(k)]
+                                if keys:
+                                    info[info_key] = float(fin.loc[keys[0]].iloc[0]) / rev
+                                    break
+        except Exception:
+            pass
+
+        # ── Return on Assets from balance sheet ────────────────────────────
+        if not info.get('returnOnAssets'):
+            try:
+                bs  = stk.balance_sheet
+                fin = stk.financials
+                ni_keys     = [k for k in fin.index if 'Net Income' in str(k)]
+                asset_keys  = [k for k in bs.index  if 'Total Assets' in str(k)]
+                if ni_keys and asset_keys:
+                    ni     = float(fin.loc[ni_keys[0]].iloc[0])
+                    assets = float(bs.loc[asset_keys[0]].iloc[0])
+                    if assets != 0:
+                        info['returnOnAssets'] = ni / abs(assets)
+            except Exception:
+                pass
+
+        # ── Try totalCash / totalDebt from balance sheet ──────────────────
+        try:
+            bs = stk.balance_sheet
+            if not bs.empty:
+                for info_key, candidates in [
+                    ('totalCash', ['Cash And Cash Equivalents', 'Cash Cash Equivalents And Short Term Investments']),
+                    ('totalDebt', ['Total Debt', 'Long Term Debt']),
+                ]:
+                    if not info.get(info_key):
+                        for cand in candidates:
+                            keys = [k for k in bs.index if cand in str(k)]
+                            if keys:
+                                info[info_key] = float(bs.loc[keys[0]].iloc[0])
+                                break
+        except Exception:
+            pass
+
         return df, df2, info
     except Exception as e:
         logger.error(f"fetch_data error: {e}")
@@ -1158,9 +1303,14 @@ class Report:
         c=self.c; self.pn+=1
         c.setFillColor(NAVY); c.rect(0, PAGE_H-78*mm, PAGE_W, 78*mm, fill=1, stroke=0)
         c.setFillColor(TEAL); c.rect(0, PAGE_H-80*mm, PAGE_W, 2*mm, fill=1, stroke=0)
-        company_name=safe(info,'longName',safe(info,'shortName',self.tk)) or self.tk
+        # Use Arabic name from COMPANY_NAMES dict; fall back to longName/shortName
+        ar_name = COMPANY_NAMES.get(self.tk)
+        if ar_name:
+            company_name = ar_name
+        else:
+            company_name = safe(info,'longName',safe(info,'shortName',self.tk)) or self.tk
         company_name=short_text(company_name, 42)
-        c.setFillColor(WHITE); self._font(True,23); c.drawRightString(PAGE_W-MG, PAGE_H-22*mm, rtl('تقرير تحليل السهم'))
+        c.setFillColor(WHITE); self._font(True,23); c.drawRightString(PAGE_W-MG, PAGE_H-22*mm, rtl('تقرير تحليل سهم'))
         self._font(True,18); c.drawRightString(PAGE_W-MG, PAGE_H-39*mm, tx(company_name))
         self._font(False,11); c.drawRightString(PAGE_W-MG, PAGE_H-52*mm, tx(f'{self.display_tk} | {safe(info,"exchange","-")}'))
         self._font(False,9); c.drawString(MG, PAGE_H-18*mm, datetime.now().strftime('%Y-%m-%d'))
