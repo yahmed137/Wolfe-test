@@ -1270,7 +1270,7 @@ class Report:
         c=self.c; y=PAGE_H-44*mm; y=self._stitle(y,'مؤشر التوصية'); y=self._img(y,gauge_img,50*mm)
         c.setFillColor(TXTDARK); self._font(False,9); c.drawRightString(PAGE_W-MG, y-2, rtl(f'النتيجة الكلية: {score}/20')); y-=14
         y=self._stitle(y,'ملخص الإشارات الفنية')
-        rows=[['القرار','الإشارة','المؤشر']]
+        rows=[['التحليل','الإشارة','المؤشر']]
         for ind_name,(txt_signal,direction) in sig.items(): rows.append([decision_text(direction),txt_signal,ind_name])
         y=self._table(y,rows,[CW*0.18,CW*0.38,CW*0.44],sig_mode=True); y=self._stitle(y,'الدعم والمقاومة')
         sup_txt=' | '.join(f'{s:.2f}' for s in sup) if sup else 'N/A'; res_txt=' | '.join(f'{r:.2f}' for r in res) if res else 'N/A'
@@ -1302,7 +1302,7 @@ class Report:
             c.setFillColor(DGRAY); self._font(False,8.5); c.drawRightString(PAGE_W-MG, y, rtl('لا يوجد تباعد مرصود.')); y-=16
         y=self._stitle(y,'نماذج الشموع اليابانية المرصودة')
         if patterns:
-            pat_rows=[['التوجه','النموذج (عربي)','التاريخ']]
+            pat_rows=[['التوجه','النموذج','التاريخ']]
             for date_lbl,ar_name,en_name,bullish in patterns:
                 direction='صعودي' if bullish is True else ('هبوطي' if bullish is False else 'محايد'); pat_rows.append([direction,ar_name,date_lbl])
             y=self._table(y,pat_rows,[CW*0.20,CW*0.45,CW*0.35],sig_mode=True)
