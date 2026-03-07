@@ -325,149 +325,148 @@ def fetch_data(ticker):
         except Exception:
             info = {}
 
-        # ── Supplement missing fields from fast_info ──────────────────────
+        # ── 1. fast_info supplement (single call, correct attribute names) ──
         try:
             fi = stk.fast_info
-            fi_map = {
+            _fi_map = {
                 'marketCap':        'market_cap',
                 'sharesOutstanding':'shares',
-                'floatShares':      'shares',
                 'fiftyTwoWeekHigh': 'fifty_two_week_high',
                 'fiftyTwoWeekLow':  'fifty_two_week_low',
                 'currency':         'currency',
                 'exchange':         'exchange',
             }
-            for info_key, fi_attr in fi_map.items():
-                if not info.get(info_key):
+            for ikey, attr in _fi_map.items():
+                if not info.get(ikey):
                     try:
-                        val = getattr(fi, fi_attr, None)
-                        if val is not None:
-                            info[info_key] = val
+                        v = getattr(fi, attr, None)
+                        if v is not None:
+                            info[ikey] = v
                     except Exception:
                         pass
-            # averageVolume from history
-            if not info.get('averageVolume') and not df.empty:
+            # float_shares is separate from shares
+            if not info.get('floatShares'):
                 try:
-                    info['averageVolume'] = int(df['Volume'].mean())
+                    v = getattr(fi, 'float_shares', None)
+                    if v is not None:
+                        info['floatShares'] = v
                 except Exception:
                     pass
         except Exception:
             pass
 
-        # ── Compute EPS / PE from financials if still missing ─────────────
+        # averageVolume from price history
+        if not info.get('averageVolume') and not df.empty:
+            try:
+                info['averageVolume'] = int(df['Volume'].mean())
+            except Exception:
+                pass
+
+        # ── 2. Single-pass: load financials + balance_sheet once ──────────
         price_now = float(df['Close'].iloc[-1]) if not df.empty else None
-        if price_now and (not info.get('trailingEps') or not info.get('trailingPE')):
-            try:
-                fin = stk.financials
-                bs  = stk.balance_sheet
-                if not fin.empty and not bs.empty:
-                    ni_keys = [k for k in fin.index if 'Net Income' in str(k)]
-                    sh_keys = [k for k in bs.index if any(x in str(k) for x in
-                                ('Ordinary Shares Number', 'Share Issued', 'Common Stock'))]
-                    if ni_keys and sh_keys:
-                        ni = float(fin.loc[ni_keys[0]].iloc[0])
-                        sh = float(bs.loc[sh_keys[0]].iloc[0])
-                        if sh > 0:
-                            eps = ni / sh
-                            if not info.get('trailingEps'):
-                                info['trailingEps'] = eps
-                            if price_now and eps != 0 and not info.get('trailingPE'):
-                                info['trailingPE'] = price_now / eps
-            except Exception:
-                pass
-
-        # ── Compute dividendYield from dividendRate if missing ────────────
-        if price_now and not info.get('dividendYield') and info.get('dividendRate'):
-            try:
-                info['dividendYield'] = float(info['dividendRate']) / price_now
-            except Exception:
-                pass
-
-        # ── Try to get priceToBook / returnOnEquity from balance sheet ─────
-        if not info.get('priceToBook') or not info.get('returnOnEquity'):
-            try:
-                bs  = stk.balance_sheet
-                fin = stk.financials
-                sh_keys = [k for k in bs.index if any(x in str(k) for x in
-                            ('Stockholders Equity', 'Total Equity', 'Common Stock Equity'))]
-                bv_keys = [k for k in bs.index if 'Ordinary Shares Number' in str(k) or 'Share Issued' in str(k)]
-                ni_keys = [k for k in fin.index if 'Net Income' in str(k)]
-                if sh_keys:
-                    total_equity = float(bs.loc[sh_keys[0]].iloc[0])
-                    shares_out   = info.get('sharesOutstanding') or info.get('shares')
-                    if shares_out and shares_out > 0 and price_now and not info.get('priceToBook'):
-                        book_per_share = total_equity / float(shares_out)
-                        if book_per_share > 0:
-                            info['priceToBook'] = price_now / book_per_share
-                    if ni_keys and total_equity and total_equity != 0 and not info.get('returnOnEquity'):
-                        ni = float(fin.loc[ni_keys[0]].iloc[0])
-                        info['returnOnEquity'] = ni / abs(total_equity)
-            except Exception:
-                pass
-
-        # ── Try totalRevenue / netIncomeToCommon / ebitda / margins ────────
         try:
-            fin = stk.financials
-            if not fin.empty:
-                for info_key, candidates in [
-                    ('totalRevenue',      ['Total Revenue']),
-                    ('netIncomeToCommon', ['Net Income', 'Net Income Common Stockholders']),
-                    ('ebitda',            ['EBITDA', 'Normalized EBITDA']),
-                ]:
-                    if not info.get(info_key):
-                        for cand in candidates:
-                            keys = [k for k in fin.index if cand in str(k)]
-                            if keys:
-                                info[info_key] = float(fin.loc[keys[0]].iloc[0])
-                                break
-                rev_keys = [k for k in fin.index if 'Total Revenue' in str(k)]
-                rev = float(fin.loc[rev_keys[0]].iloc[0]) if rev_keys else None
+            fin = stk.financials          # income statement (annual)
+            bs  = stk.balance_sheet       # balance sheet (annual)
+            fin_ok = not fin.empty
+            bs_ok  = not bs.empty
+
+            # Helper: first matching row value
+            def _fv(frame, *candidates):
+                for cand in candidates:
+                    keys = [k for k in frame.index if cand.lower() in str(k).lower()]
+                    if keys:
+                        try:
+                            return float(frame.loc[keys[0]].iloc[0])
+                        except Exception:
+                            continue
+                return None
+
+            # ── Income statement fields ───────────────────────────────────
+            if fin_ok:
+                rev = _fv(fin, 'Total Revenue')
+                ni  = _fv(fin, 'Net Income Common Stockholders', 'Net Income')
+
+                if not info.get('totalRevenue')      and rev is not None: info['totalRevenue']      = rev
+                if not info.get('netIncomeToCommon') and ni  is not None: info['netIncomeToCommon'] = ni
+                if not info.get('ebitda'):
+                    v = _fv(fin, 'EBITDA', 'Normalized EBITDA')
+                    if v is not None: info['ebitda'] = v
+
                 if rev and rev != 0:
-                    for info_key, candidates in [
-                        ('grossMargins',     ['Gross Profit']),
-                        ('operatingMargins', ['Operating Income', 'Operating Revenue']),
-                        ('profitMargins',    ['Net Income', 'Net Income Common Stockholders']),
-                    ]:
-                        if not info.get(info_key):
-                            for cand in candidates:
-                                keys = [k for k in fin.index if cand in str(k)]
-                                if keys:
-                                    info[info_key] = float(fin.loc[keys[0]].iloc[0]) / rev
-                                    break
-        except Exception:
-            pass
+                    if not info.get('grossMargins'):
+                        v = _fv(fin, 'Gross Profit')
+                        if v is not None: info['grossMargins'] = v / rev
+                    if not info.get('operatingMargins'):
+                        v = _fv(fin, 'Operating Income')
+                        if v is not None: info['operatingMargins'] = v / rev
+                    if not info.get('profitMargins') and ni is not None:
+                        info['profitMargins'] = ni / rev
 
-        # ── Return on Assets from balance sheet ────────────────────────────
-        if not info.get('returnOnAssets'):
-            try:
-                bs  = stk.balance_sheet
-                fin = stk.financials
-                ni_keys     = [k for k in fin.index if 'Net Income' in str(k)]
-                asset_keys  = [k for k in bs.index  if 'Total Assets' in str(k)]
-                if ni_keys and asset_keys:
-                    ni     = float(fin.loc[ni_keys[0]].iloc[0])
-                    assets = float(bs.loc[asset_keys[0]].iloc[0])
-                    if assets != 0:
-                        info['returnOnAssets'] = ni / abs(assets)
-            except Exception:
-                pass
+            # ── Balance sheet fields ──────────────────────────────────────
+            if bs_ok:
+                shares_out = info.get('sharesOutstanding')
+                equity = _fv(bs, 'Stockholders Equity', 'Common Stock Equity', 'Total Equity Gross Minority Interest')
 
-        # ── Try totalCash / totalDebt from balance sheet ──────────────────
-        try:
-            bs = stk.balance_sheet
-            if not bs.empty:
-                for info_key, candidates in [
-                    ('totalCash', ['Cash And Cash Equivalents', 'Cash Cash Equivalents And Short Term Investments']),
-                    ('totalDebt', ['Total Debt', 'Long Term Debt']),
-                ]:
-                    if not info.get(info_key):
-                        for cand in candidates:
-                            keys = [k for k in bs.index if cand in str(k)]
-                            if keys:
-                                info[info_key] = float(bs.loc[keys[0]].iloc[0])
-                                break
-        except Exception:
-            pass
+                if not info.get('totalCash'):
+                    v = _fv(bs, 'Cash Cash Equivalents And Short Term Investments', 'Cash And Cash Equivalents')
+                    if v is not None: info['totalCash'] = v
+                if not info.get('totalDebt'):
+                    v = _fv(bs, 'Total Debt', 'Long Term Debt And Capital Lease Obligation', 'Long Term Debt')
+                    if v is not None: info['totalDebt'] = v
+
+                total_assets = _fv(bs, 'Total Assets')
+
+                # priceToBook
+                if not info.get('priceToBook') and equity and shares_out and price_now:
+                    try:
+                        bps = equity / float(shares_out)
+                        if bps > 0:
+                            info['priceToBook'] = price_now / bps
+                    except Exception:
+                        pass
+
+                # bookValue per share
+                if not info.get('bookValue') and equity and shares_out:
+                    try:
+                        info['bookValue'] = equity / float(shares_out)
+                    except Exception:
+                        pass
+
+                # ROE
+                if not info.get('returnOnEquity') and equity and ni is not None and equity != 0:
+                    info['returnOnEquity'] = ni / abs(equity)
+
+                # ROA
+                if not info.get('returnOnAssets') and total_assets and ni is not None and total_assets != 0:
+                    info['returnOnAssets'] = ni / abs(total_assets)
+
+            # ── EPS / PE ──────────────────────────────────────────────────
+            shares_out = info.get('sharesOutstanding')
+            if fin_ok and shares_out and price_now:
+                ni = _fv(fin, 'Net Income Common Stockholders', 'Net Income')
+                if ni is not None and float(shares_out) > 0:
+                    eps = ni / float(shares_out)
+                    if not info.get('trailingEps'):
+                        info['trailingEps'] = eps
+                    if not info.get('trailingPE') and eps != 0:
+                        info['trailingPE'] = price_now / eps
+
+            # ── dividendYield from dividendRate ───────────────────────────
+            if not info.get('dividendYield') and info.get('dividendRate') and price_now:
+                try:
+                    info['dividendYield'] = float(info['dividendRate']) / price_now
+                except Exception:
+                    pass
+
+            # ── debtToEquity ──────────────────────────────────────────────
+            if not info.get('debtToEquity') and bs_ok:
+                d_val  = info.get('totalDebt')
+                eq_val = equity if 'equity' in dir() else None
+                if d_val and eq_val and eq_val != 0:
+                    info['debtToEquity'] = (d_val / abs(eq_val)) * 100
+
+        except Exception as e:
+            logger.warning(f"fetch_data supplement error: {e}")
 
         return df, df2, info
     except Exception as e:
@@ -1303,13 +1302,11 @@ class Report:
         c=self.c; self.pn+=1
         c.setFillColor(NAVY); c.rect(0, PAGE_H-78*mm, PAGE_W, 78*mm, fill=1, stroke=0)
         c.setFillColor(TEAL); c.rect(0, PAGE_H-80*mm, PAGE_W, 2*mm, fill=1, stroke=0)
-        # Use Arabic name from COMPANY_NAMES dict; fall back to longName/shortName
-        ar_name = COMPANY_NAMES.get(self.tk)
-        if ar_name:
-            company_name = ar_name
-        else:
-            company_name = safe(info,'longName',safe(info,'shortName',self.tk)) or self.tk
-        company_name=short_text(company_name, 42)
+        # Prefer Arabic name from COMPANY_NAMES, fall back to yfinance longName/shortName
+        company_name = (COMPANY_NAMES.get(self.tk)
+                        or safe(info, 'longName', safe(info, 'shortName', self.display_tk))
+                        or self.display_tk)
+        company_name = short_text(str(company_name), 42)
         c.setFillColor(WHITE); self._font(True,23); c.drawRightString(PAGE_W-MG, PAGE_H-22*mm, rtl('تقرير تحليل سهم'))
         self._font(True,18); c.drawRightString(PAGE_W-MG, PAGE_H-39*mm, tx(company_name))
         self._font(False,11); c.drawRightString(PAGE_W-MG, PAGE_H-52*mm, tx(f'{self.display_tk} | {safe(info,"exchange","-")}'))
@@ -1461,27 +1458,103 @@ class Report:
         self.c.showPage()
 
     def review_page(self, review_sections, score):
-        self._bar('المراجعة الفنية الشاملة'); self._foot()
-        c=self.c; y=PAGE_H-44*mm; line_h=13; para_gap=8; section_gap=6; font_size_body=9; max_text_width=CW-4*mm
-        strip_h=10*mm; strip_y=y-strip_h
-        if score>=14:   strip_fill=HexColor('#1B5E20')
-        elif score>=10: strip_fill=HexColor('#1B2A4A')
-        elif score>=7:  strip_fill=HexColor('#E65100')
-        else:           strip_fill=HexColor('#B71C1C')
-        c.setFillColor(strip_fill); c.roundRect(MG, strip_y, CW, strip_h, 5, fill=1, stroke=0)
-        c.setFillColor(WHITE); self._font(True,9); c.drawCentredString(PAGE_W/2, strip_y+3, rtl(f'نتيجة التحليل الفني: {score} من أصل 20 نقطة')); y=strip_y-10*mm
-        for section_title,paragraph in review_sections:
-            if y<40*mm: c.showPage(); self._bar('المراجعة الفنية الشاملة (تابع)'); self._foot(); y=PAGE_H-44*mm
-            y=self._stitle(y,section_title); y+=4
-            lines=self._wrap_arabic_text(paragraph,max_text_width,font_size_body)
-            c.setFillColor(TXTDARK); self._font(False,font_size_body)
+        # ── Section icon & accent colour mapping ────────────────────────
+        _SECTION_META = {
+            'الاتجاه العام':                     ('#0D47A1', '📈'),
+            'تحليل الزخم':                       ('#6A1B9A', '⚡'),
+            'تحليل الحجم':                       ('#00695C', '📊'),
+            'مؤشرات متقدمة':                    ('#E65100', '🔭'),
+            'مستويات الدعم والمقاومة':          ('#B71C1C', '🔒'),
+            'الخلاصة الفنية':                   ('#1B5E20', '✅'),
+            'التباعد بين السعر':                ('#4E342E', '↔'),
+            'مؤشرات CCI':                        ('#37474F', '📉'),
+        }
+        def _section_color(title):
+            for k, (clr, _) in _SECTION_META.items():
+                if k in title:
+                    return HexColor(clr)
+            return NAVY
+
+        font_size_body = 8.8
+        line_h = 13
+        card_pad = 5 * mm
+        max_text_width = CW - 2 * card_pad - 2
+
+        def _new_page(is_first=False):
+            if not is_first:
+                self.c.showPage()
+            lbl = 'المراجعة الفنية الشاملة' if is_first else 'المراجعة الفنية الشاملة (تابع)'
+            self._bar(lbl); self._foot()
+            return PAGE_H - 44*mm
+
+        c = self.c
+        y = _new_page(is_first=True)
+
+        # ── Score banner ─────────────────────────────────────────────────
+        if score >= 14:   banner_fill = HexColor('#1B5E20'); verdict = 'إيجابي +'
+        elif score >= 10: banner_fill = NAVY;                verdict = 'إيجابي'
+        elif score >= 7:  banner_fill = HexColor('#E65100'); verdict = 'حياد'
+        else:             banner_fill = HexColor('#B71C1C'); verdict = 'سلبي'
+
+        banner_h = 14 * mm
+        c.setFillColor(banner_fill)
+        c.roundRect(MG, y - banner_h, CW, banner_h, 6, fill=1, stroke=0)
+        # left badge
+        badge_w = 38 * mm
+        c.setFillColor(WHITE if score >= 7 else HexColor('#FFCDD2'))
+        c.roundRect(MG + 4, y - banner_h + 3, badge_w, banner_h - 6, 4, fill=1, stroke=0)
+        c.setFillColor(banner_fill); self._font(True, 9)
+        c.drawCentredString(MG + 4 + badge_w / 2, y - banner_h + 6, rtl(f'{verdict}  •  {score}/20'))
+        # centre text
+        c.setFillColor(WHITE); self._font(True, 10)
+        c.drawCentredString(PAGE_W / 2, y - banner_h + 5, rtl('نتيجة التحليل الفني الشاملة'))
+        # date right
+        c.setFillColor(HexColor('#B2DFDB')); self._font(False, 7.5)
+        c.drawRightString(PAGE_W - MG - 6, y - banner_h + 8, datetime.now().strftime('%Y-%m-%d'))
+        y -= banner_h + 7 * mm
+
+        # ── Sections ─────────────────────────────────────────────────────
+        for section_title, paragraph in review_sections:
+            lines = self._wrap_arabic_text(paragraph, max_text_width, font_size_body)
+            card_h = card_pad + len(lines) * line_h + card_pad + 2
+
+            # page break if card won't fit (keep ≥30 mm margin for footer)
+            if y - card_h < 30 * mm:
+                y = _new_page()
+
+            accent = _section_color(section_title)
+
+            # Card background
+            c.setFillColor(HexColor('#F8F9FA'))
+            c.roundRect(MG, y - card_h, CW, card_h, 5, fill=1, stroke=0)
+            # Left accent bar
+            c.setFillColor(accent)
+            c.roundRect(MG, y - card_h, 3.5, card_h, 2, fill=1, stroke=0)
+            # Section title inside card
+            c.setFillColor(accent); self._font(True, 9.5)
+            c.drawRightString(PAGE_W - MG - 6, y - card_pad - 1, rtl(section_title))
+            # Thin divider
+            c.setStrokeColor(accent); c.setLineWidth(0.6)
+            c.line(MG + 6, y - card_pad - 6, PAGE_W - MG - 6, y - card_pad - 6)
+            # Paragraph lines
+            ty = y - card_pad - line_h - 2
+            c.setFillColor(TXTDARK); self._font(False, font_size_body)
             for line in lines:
-                if y<25*mm: c.showPage(); self._bar('المراجعة الفنية الشاملة (تابع)'); self._foot(); y=PAGE_H-44*mm
-                c.drawRightString(PAGE_W-MG, y, line); y-=line_h
-            y-=para_gap+section_gap
-        c.setFillColor(DGRAY); self._font(False,6.5)
-        c.drawCentredString(PAGE_W/2, 16*mm, rtl('هذا التقرير آلي لأغراض معلوماتية فقط وليس نصيحة استثمارية.'))
-        c.drawCentredString(PAGE_W/2, 12*mm, rtl('الأداء السابق لا يضمن النتائج المستقبلية. قم دائماً ببحثك الخاص.')); c.showPage()
+                c.drawRightString(PAGE_W - MG - 6, ty, line)
+                ty -= line_h
+
+            y -= card_h + 4 * mm
+
+        # ── Disclaimer footer ────────────────────────────────────────────
+        disc_y = max(y - 6, 24 * mm)
+        c.setFillColor(HexColor('#ECEFF1'))
+        c.roundRect(MG, disc_y - 10 * mm, CW, 10 * mm, 4, fill=1, stroke=0)
+        c.setFillColor(DGRAY); self._font(False, 6.8)
+        c.drawCentredString(PAGE_W/2, disc_y - 5*mm + 3,
+                            rtl('هذا التقرير آلي لأغراض معلوماتية فقط وليس نصيحة استثمارية.'))
+        c.drawCentredString(PAGE_W/2, disc_y - 5*mm - 5,
+                            rtl('الأداء السابق لا يضمن النتائج المستقبلية. قم دائماً ببحثك الخاص قبل اتخاذ أي قرار.'))
+        c.showPage()
 
     def save(self):
         self.c.save()
