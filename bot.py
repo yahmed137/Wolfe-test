@@ -179,6 +179,7 @@ def safe(info, key, default=None):
 # ─────────────────────────────────────────────────────────────
 # 3. COMPANY NAMES
 # ─────────────────────────────────────────────────────────────
+
 COMPANY_NAMES = {
     '^TASI.SR':'تاسي','1010.SR':'الرياض','1020.SR':'الجزيرة','1030.SR':'الإستثمار',
     '1050.SR':'بي اس اف','1060.SR':'الأول','1080.SR':'العربي','1111.SR':'مجموعة تداول',
@@ -261,7 +262,51 @@ COMPANY_NAMES = {
 
 def get_name(ticker: str) -> str:
     return COMPANY_NAMES.get(ticker, ticker)
+#############################
+def find_ticker(query):
+    """
+    Search by:
+      - Full ticker:    "^TASI.SR" or "1120.SR"
+      - Ticker number:  "1120" or "TASI"
+      - Arabic name:    "تاسي" or "الراجحي"
+    Returns the full ticker symbol (e.g. '^TASI.SR') or None
+    """
+    query = query.strip()
 
+    # ─── 1) Direct match: user typed the exact ticker key ───
+    if query in COMPANY_NAMES:
+        return query
+
+    # ─── 2) Partial ticker match (without .SR) ───
+    #        e.g. "1120" → "1120.SR"  |  "TASI" → "^TASI.SR"
+    query_upper = query.upper()
+    for ticker in COMPANY_NAMES:
+        # strip .SR from ticker to get the "code" part
+        code = ticker.replace('.SR', '')          # "^TASI" or "1120"
+        code_clean = code.lstrip('^')             # "TASI"  or "1120"
+
+        if query_upper in (code, code_clean, code.upper(), code_clean.upper()):
+            return ticker
+
+    # ─── 3) Arabic / name search (exact or partial) ───
+    for ticker, name in COMPANY_NAMES.items():
+        if query == name:            # exact Arabic match first
+            return ticker
+
+    for ticker, name in COMPANY_NAMES.items():
+        if query in name:            # partial Arabic match
+            return ticker
+
+    return None
+
+
+# ───────────────────── TEST ─────────────────────
+tests = ["tasi", "TASI", "^TASI.SR", "تاسي"]
+
+for t in tests:
+    result = find_ticker(t)
+    print(f"  '{t}'  →  {result}  ({COMPANY_NAMES.get(result, '?')})")
+##############################
 SECTOR_MAP = {
     '1010.SR':('المالية','البنوك'),'1020.SR':('المالية','البنوك'),'1030.SR':('المالية','البنوك'),
     '1050.SR':('المالية','البنوك'),'1060.SR':('المالية','البنوك'),'1080.SR':('المالية','البنوك'),
@@ -379,117 +424,290 @@ def get_sector_industry(ticker):
 
 # Argaam company ID → Tadawul ticker mapping
 ARGAAM_COMPANY_MAPPING = {
-    "68":    {"ticker": "1120", "name": "الراجحي"},
-    "58":    {"ticker": "1180", "name": "الأهلي السعودي"},
-    "273":   {"ticker": "1150", "name": "الإنماء"},
-    "67":    {"ticker": "1010", "name": "الرياض"},
-    "60":    {"ticker": "1050", "name": "السعودي الفرنسي"},
-    "59":    {"ticker": "1060", "name": "ساب"},
-    "154":   {"ticker": "1140", "name": "البلاد"},
-    "61":    {"ticker": "1080", "name": "العربي الوطني"},
-    "57":    {"ticker": "1020", "name": "الجزيرة"},
-    "62":    {"ticker": "1030", "name": "السعودي للاستثمار"},
-    "11564": {"ticker": "2222", "name": "أرامكو"},
-    "66":    {"ticker": "2010", "name": "سابك"},
-    "95":    {"ticker": "2020", "name": "سابك للمغذيات"},
-    "84":    {"ticker": "2060", "name": "التصنيع"},
-    "199":   {"ticker": "2290", "name": "ينساب"},
-    "257":   {"ticker": "2350", "name": "كيان"},
-    "220":   {"ticker": "2380", "name": "بترو رابغ"},
-    "126":   {"ticker": "2330", "name": "المتقدمة"},
-    "155":   {"ticker": "2310", "name": "سبكيم"},
-    "85":    {"ticker": "2230", "name": "الكيميائية"},
-    "152":   {"ticker": "2210", "name": "نماء للكيماويات"},
-    "297":   {"ticker": "2340", "name": "كيمانول"},
-    "156":   {"ticker": "2260", "name": "الصحراء"},
-    "12129": {"ticker": "2223", "name": "لوبريف"},
-    "134":   {"ticker": "2280", "name": "المراعي"},
-    "258":   {"ticker": "1211", "name": "معادن"},
-    "69":    {"ticker": "3010", "name": "أسمنت السعودية"},
-    "70":    {"ticker": "3020", "name": "أسمنت اليمامة"},
-    "73":    {"ticker": "3050", "name": "أسمنت الجنوبية"},
-    "71":    {"ticker": "3030", "name": "أسمنت القصيم"},
-    "72":    {"ticker": "3040", "name": "أسمنت العربية"},
-    "74":    {"ticker": "3060", "name": "أسمنت ينبع"},
-    "75":    {"ticker": "3080", "name": "أسمنت الشرقية"},
-    "76":    {"ticker": "3090", "name": "أسمنت تبوك"},
-    "250":   {"ticker": "3091", "name": "أسمنت الجوف"},
-    "272":   {"ticker": "3002", "name": "أسمنت نجران"},
-    "271":   {"ticker": "3003", "name": "أسمنت المدينة"},
-    "270":   {"ticker": "3004", "name": "أسمنت الشمالية"},
-    "309":   {"ticker": "3001", "name": "أسمنت حائل"},
-    "312":   {"ticker": "3005", "name": "أم القرى"},
-    "88":    {"ticker": "2240", "name": "الزامل"},
-    "221":   {"ticker": "2320", "name": "البابطين"},
-    "82":    {"ticker": "2200", "name": "الأنابيب السعودية"},
-    "11827": {"ticker": "2370", "name": "أنابيب الشرق"},
-    "86":    {"ticker": "2040", "name": "الخزف"},
-    "87":    {"ticker": "2180", "name": "فيبكو"},
-    "83":    {"ticker": "2160", "name": "أميانتيت"},
-    "127":   {"ticker": "2250", "name": "بي سي آي"},
-    "128":   {"ticker": "2150", "name": "زجاج"},
-    "153":   {"ticker": "2220", "name": "معدنية"},
-    "89":    {"ticker": "2110", "name": "الصناعات الكهربائية"},
-    "63":    {"ticker": "7010", "name": "stc"},
-    "148":   {"ticker": "7020", "name": "موبايلي"},
-    "233":   {"ticker": "7030", "name": "زين السعودية"},
-    "11828": {"ticker": "7203", "name": "علم"},
-    "11821": {"ticker": "7202", "name": "الحلول"},
-    "316":   {"ticker": "4007", "name": "الحمادي"},
-    "306":   {"ticker": "4004", "name": "دله الصحية"},
-    "131":   {"ticker": "4002", "name": "المواساة"},
-    "11561": {"ticker": "4013", "name": "سليمان الحبيب"},
-    "130":   {"ticker": "4001", "name": "رعاية"},
-    "160":   {"ticker": "8010", "name": "التعاونية"},
-    "234":   {"ticker": "8210", "name": "بوبا العربية"},
-    "229":   {"ticker": "4300", "name": "دار الأركان"},
-    "260":   {"ticker": "4250", "name": "جبل عمر"},
-    "201":   {"ticker": "4220", "name": "إعمار"},
-    "97":    {"ticker": "4090", "name": "طيبة"},
-    "96":    {"ticker": "4100", "name": "مكة"},
-    "99":    {"ticker": "4150", "name": "الرياض للتعمير"},
-    "100":   {"ticker": "4020", "name": "العقارية"},
-    "118":   {"ticker": "4240", "name": "الحكير"},
-    "305":   {"ticker": "4321", "name": "سينومي سنترز"},
-    "125":   {"ticker": "4190", "name": "جرير"},
-    "298":   {"ticker": "4003", "name": "إكسترا"},
-    "200":   {"ticker": "4001", "name": "العثيم"},
-    "11593": {"ticker": "4161", "name": "بن داود"},
-    "315":   {"ticker": "4011", "name": "لازوردي"},
-    "123":   {"ticker": "4180", "name": "فتيحي"},
-    "91":    {"ticker": "2050", "name": "صافولا"},
-    "93":    {"ticker": "6010", "name": "نادك"},
-    "92":    {"ticker": "6060", "name": "حائل الزراعية"},
-    "94":    {"ticker": "6040", "name": "تبوك الزراعية"},
-    "157":   {"ticker": "6020", "name": "القصيم الزراعية"},
-    "158":   {"ticker": "6070", "name": "الجوف الزراعية"},
-    "159":   {"ticker": "6090", "name": "الشرقية للتنمية"},
-    "151":   {"ticker": "6050", "name": "أنعام القابضة"},
-    "300":   {"ticker": "6002", "name": "هرفي"},
-    "64":    {"ticker": "5110", "name": "الكهرباء"},
-    "11810": {"ticker": "2082", "name": "أكوا باور"},
-    "80":    {"ticker": "2080", "name": "الغاز"},
-    "304":   {"ticker": "6004", "name": "التموين"},
-    "105":   {"ticker": "4260", "name": "بدجت"},
-    "104":   {"ticker": "4040", "name": "النقل الجماعي"},
-    "103":   {"ticker": "4030", "name": "البحري"},
-    "106":   {"ticker": "4280", "name": "المملكة القابضة"},
-    "81":    {"ticker": "2190", "name": "سيسكو"},
-    "124":   {"ticker": "4200", "name": "الدريس"},
-    "107":   {"ticker": "4210", "name": "الأبحاث والإعلام"},
-    "108":   {"ticker": "4070", "name": "تهامة"},
-    "90":    {"ticker": "4130", "name": "الكابلات السعودية"},
-    "11950": {"ticker": "1111", "name": "مجموعة تداول"},
-    "162":   {"ticker": "8020", "name": "ملاذ"},
-    "237":   {"ticker": "8230", "name": "الراجحي تكافل"},
-    "161":   {"ticker": "8030", "name": "ميدغلف"},
-    "163":   {"ticker": "8050", "name": "سلامة"},
-    "235":   {"ticker": "8270", "name": "ساب تكافل"},
-    "232":   {"ticker": "8012", "name": "الأهلي تكافل"},
-    "236":   {"ticker": "8040", "name": "أمانة"},
-    "238":   {"ticker": "8150", "name": "أسيج"},
-    "244":   {"ticker": "8060", "name": "ولاء"},
-    "264":   {"ticker": "8200", "name": "الإعادة السعودية"},
+    "3509":    {"ticker":"2222", "name":"أرامكو السعودية"},
+    "4434":    {"ticker":"2381", "name":"الحفر العربية"},
+    "14629":    {"ticker":"2382", "name":"أديس"},
+    "600":    {"ticker":"2380", "name":"بترو رابغ "},
+    "104":    {"ticker":"4030", "name":"البحري"},
+    "81":    {"ticker":"2030", "name":"المصافي"},
+    "4319":    {"ticker":"1202", "name":"مبكو"},
+    "4749":    {"ticker":"3007", "name":"الواحة"},
+    "1994":    {"ticker":"1201", "name":"تكوين "},
+    "13986":    {"ticker":"1322", "name":"أماك"},
+    "16491":    {"ticker":"4143", "name":"تالكو"},
+    "70":    {"ticker":"2150", "name":"زجاج"},
+    "67":    {"ticker":"2180", "name":"فيبكو"},
+    "73":    {"ticker":"2220", "name":"معدنية "},
+    "5154":    {"ticker":"1323", "name":"يو سي آي سي"},
+    "632":    {"ticker":"2300", "name":"صناعة الورق"},
+    "4726":    {"ticker":"3008", "name":"الكثيري"},
+    "855":    {"ticker":"1301", "name":"أسلاك"},
+    "1526":    {"ticker":"1320", "name":"أنابيب السعودية"},
+    "71":    {"ticker":"2090", "name":"جبسكو"},
+    "76":    {"ticker":"2200", "name":"أنابيب"},
+    "89":    {"ticker":"2240", "name":"صناعات"},
+    "1044":    {"ticker":"2360", "name":"الفخارية "},
+    "968":    {"ticker":"1210", "name":"بي سي آي"},
+    "836":    {"ticker":"1211", "name":"معادن"},
+    "4515":    {"ticker":"1304", "name":"اليمامة للحديد"},
+    "13749":    {"ticker":"1321", "name":"أنابيب الشرق"},
+    "4537":    {"ticker":"2223", "name":"لوبريف"},
+    "599":    {"ticker":"2001", "name":"كيمانول "},
+    "77":    {"ticker":"2010", "name":"سابك"},
+    "79":    {"ticker":"2020", "name":"سابك للمغذيات الزراعية"},
+    "72":    {"ticker":"2060", "name":"التصنيع"},
+    "63":    {"ticker":"2170", "name":"اللجين"},
+    "74":    {"ticker":"2210", "name":"نماء للكيماويات"},
+    "86":    {"ticker":"2250", "name":"المجموعة السعودية"},
+    "88":    {"ticker":"2290", "name":"ينساب"},
+    "585":    {"ticker":"2310", "name":"سبكيم العالمية"},
+    "1007":    {"ticker":"2330", "name":"المتقدمة"},
+    "598":    {"ticker":"2350", "name":"كيان السعودية "},
+    "1022":    {"ticker":"3002", "name":"أسمنت نجران"},
+    "1055":    {"ticker":"3003", "name":"أسمنت المدينة"},
+    "886":    {"ticker":"3004", "name":"أسمنت الشمالية"},
+    "53":    {"ticker":"3010", "name":"أسمنت العربية"},
+    "59":    {"ticker":"3020", "name":"أسمنت اليمامة"},
+    "56":    {"ticker":"3030", "name":"أسمنت السعودية"},
+    "55":    {"ticker":"3040", "name":"أسمنت القصيم"},
+    "57":    {"ticker":"3050", "name":"أسمنت الجنوب"},
+    "60":    {"ticker":"3060", "name":"أسمنت ينبع"},
+    "54":    {"ticker":"3080", "name":"أسمنت الشرقية"},
+    "58":    {"ticker":"3090", "name":"أسمنت تبوك"},
+    "885":    {"ticker":"3091", "name":"أسمنت الجوف"},
+    "3408":    {"ticker":"3005", "name":"أسمنت ام القرى"},
+    "4451":    {"ticker":"3092", "name":"أسمنت الرياض"},
+    "4391":    {"ticker":"4142", "name":"كابلات الرياض"},
+    "1880":    {"ticker":"1214", "name":"شاكر"},
+    "1086":    {"ticker":"1212", "name":"أسترا الصناعية"},
+    "1992":    {"ticker":"1302", "name":"بوان"},
+    "915":    {"ticker":"2370", "name":"مسك"},
+    "3829":    {"ticker":"1303", "name":"الصناعات الكهربائية"},
+    "907":    {"ticker":"2320", "name":"البابطين"},
+    "64":    {"ticker":"2160", "name":"أميانتيت"},
+    "65":    {"ticker":"2110", "name":"الكابلات السعودية "},
+    "66":    {"ticker":"2040", "name":"الخزف السعودي"},
+    "97":    {"ticker":"4110", "name":"باتك"},
+    "101":    {"ticker":"4140", "name":"صادرات "},
+    "3574":    {"ticker":"4147", "name":"سي جي إس"},
+    "3106":    {"ticker":"4145", "name":"أو جي سي"},
+    "13934":    {"ticker":"4146", "name":"جاز"},
+    "13883":    {"ticker":"4148", "name":"الوسائل الصناعية"},
+    "4624":    {"ticker":"4141", "name":"العمران"},
+    "4747":    {"ticker":"4144", "name":"رؤوم"},
+    "994":    {"ticker":"4270", "name":"طباعة وتغليف "},
+    "5268":    {"ticker":"1831", "name":"مهارة"},
+    "4627":    {"ticker":"1832", "name":"صدر"},
+    "1897":    {"ticker":"6004", "name":"كاتريون"},
+    "14277":    {"ticker":"1835", "name":"تمكين"},
+    "15170":    {"ticker":"1833", "name":"الموارد"},
+    "16903":    {"ticker":"1834", "name":"سماسكو"},
+    "843":    {"ticker":"4260", "name":"بدجت السعودية"},
+    "3433":    {"ticker":"4031", "name":"الخدمات الأرضية"},
+    "5122":    {"ticker":"4261", "name":"ذيب"},
+    "3069":    {"ticker":"4262", "name":"لومي"},
+    "11071":    {"ticker":"4263", "name":"سال"},
+    "17877":    {"ticker":"4265", "name":"شري"},
+    "4298":    {"ticker":"4264", "name":"طيران ناس"},
+    "99":    {"ticker":"4040", "name":"سابتكو "},
+    "87":    {"ticker":"2190", "name":"سيسكو القابضة"},
+    "4664":    {"ticker":"4012", "name":"الأصيل"},
+    "4508":    {"ticker":"4011", "name":"لازوردي"},
+    "909":    {"ticker":"2340", "name":"ارتيكس"},
+    "93":    {"ticker":"4180", "name":"مجموعة فتيحي"},
+    "84":    {"ticker":"2130", "name":"صدق "},
+    "1061":    {"ticker":"1213", "name":"نسيج "},
+    "1109":    {"ticker":"6002", "name":"هرفي للأغذية"},
+    "883":    {"ticker":"1810", "name":"سيرا"},
+    "103":    {"ticker":"4170", "name":"شمس"},
+    "3412":    {"ticker":"1820", "name":"بان "},
+    "12964":    {"ticker":"6016", "name":"برغرايززر"},
+    "16303":    {"ticker":"6018", "name":"الأندية للرياضة"},
+    "18814":    {"ticker":"6019", "name":"المسار الشامل"},
+    "5000":    {"ticker":"4292", "name":"عطاء"},
+    "1087":    {"ticker":"4290", "name":"الخليج للتدريب"},
+    "5004":    {"ticker":"4291", "name":"الوطنية للتعليم"},
+    "13502":    {"ticker":"6017", "name":"جاهز"},
+    "4625":    {"ticker":"6013", "name":"التطويرية الغذائية "},
+    "4516":    {"ticker":"1830", "name":"لجام للرياضة"},
+    "4538":    {"ticker":"6012", "name":"ريدان "},
+    "13805":    {"ticker":"6014", "name":"الآمار"},
+    "15023":    {"ticker":"6015", "name":"أمريكانا"},
+    "4367":    {"ticker":"4071", "name":"العربية"},
+    "14806":    {"ticker":"4072", "name":"مجموعة إم بي سي"},
+    "107":    {"ticker":"4070", "name":"تهامة "},
+    "578":    {"ticker":"4210", "name":"الأبحاث والإعلام"},
+    "17978":    {"ticker":"4194", "name":"محطة البناء"},
+    "14891":    {"ticker":"4192", "name":"السيف غاليري"},
+    "16515":    {"ticker":"4193", "name":"نايس ون"},
+    "4606":    {"ticker":"4051", "name":"باعظيم"},
+    "4626":    {"ticker":"4191", "name":"أبو معطي"},
+    "4337":    {"ticker":"4008", "name":"ساكو"},
+    "95":    {"ticker":"4190", "name":"جرير"},
+    "577":    {"ticker":"4200", "name":"الدريس"},
+    "917":    {"ticker":"4240", "name":"سينومي ريتيل "},
+    "1907":    {"ticker":"4003", "name":"إكسترا"},
+    "100":    {"ticker":"4050", "name":"ساسكو"},
+    "106":    {"ticker":"4160", "name":"ثمار "},
+    "2500":    {"ticker":"4006", "name":"أسواق المزرعة"},
+    "5131":    {"ticker":"4161", "name":"بن داود"},
+    "911":    {"ticker":"4001", "name":"أسواق ع العثيم"},
+    "5135":    {"ticker":"4162", "name":"المنجم"},
+    "12760":    {"ticker":"4164", "name":"النهدي"},
+    "3815":    {"ticker":"4163", "name":"الدواء"},
+    "102":    {"ticker":"4061", "name":"أنعام القابضة"},
+    "918":    {"ticker":"6001", "name":"حلواني إخوان"},
+    "14432":    {"ticker":"2282", "name":"نقي"},
+    "15705":    {"ticker":"2283", "name":"المطاحن الأولى"},
+    "16485":    {"ticker":"2284", "name":"المطاحن الحديثة"},
+    "13453":    {"ticker":"2285", "name":"المطاحن العربية"},
+    "13454":    {"ticker":"2286", "name":"المطاحن الرابعة"},
+    "34":    {"ticker":"6010", "name":"نادك"},
+    "35":    {"ticker":"6020", "name":"جاكو"},
+    "37":    {"ticker":"6040", "name":"تبوك الزراعية "},
+    "38":    {"ticker":"6050", "name":"الأسماك "},
+    "39":    {"ticker":"6060", "name":"الشرقية للتنمية"},
+    "40":    {"ticker":"6070", "name":"الجوف"},
+    "42":    {"ticker":"6090", "name":"جازادكو "},
+    "13515":    {"ticker":"2281", "name":"تنمية"},
+    "85":    {"ticker":"2050", "name":"مجموعة صافولا"},
+    "68":    {"ticker":"2100", "name":"وفرة"},
+    "78":    {"ticker":"2270", "name":"سدافكو"},
+    "62":    {"ticker":"2280", "name":"المراعي"},
+    "17417":    {"ticker":"2287", "name":"إنتاج"},
+    "14965":    {"ticker":"2288", "name":"نفوذ"},
+    "92":    {"ticker":"4080", "name":"سناد القابضة"},
+    "83":    {"ticker":"2230", "name":"الكيميائية"},
+    "13881":    {"ticker":"4014", "name":"دار المعدات"},
+    "61":    {"ticker":"2140", "name":"أيان"},
+    "4286":    {"ticker":"4017", "name":"فقيه الطبية"},
+    "4433":    {"ticker":"4013", "name":"سليمان الحبيب"},
+    "2298":    {"ticker":"4005", "name":"رعاية"},
+    "1524":    {"ticker":"4002", "name":"المواساة"},
+    "1181":    {"ticker":"4004", "name":"دله الصحية"},
+    "3438":    {"ticker":"4007", "name":"الحمادي"},
+    "4475":    {"ticker":"4009", "name":"السعودي الألماني الصحية"},
+    "16511":    {"ticker":"4018", "name":"الموسى"},
+    "17867":    {"ticker":"4019", "name":"اس ام سي للرعاية الصحية"},
+    "13574":    {"ticker":"4021", "name":"المركز الكندي الطبي"},
+    "75":    {"ticker":"2070", "name":"الدوائية"},
+    "15187":    {"ticker":"4015", "name":"جمجوم فارما"},
+    "16437":    {"ticker":"4016", "name":"أفالون فارما"},
+    "47":    {"ticker":"1010", "name":"الرياض"},
+    "46":    {"ticker":"1020", "name":"الجزيرة"},
+    "52":    {"ticker":"1030", "name":"الإستثمار"},
+    "50":    {"ticker":"1050", "name":"بي اس اف"},
+    "48":    {"ticker":"1060", "name":"الأول"},
+    "45":    {"ticker":"1080", "name":"العربي"},
+    "43":    {"ticker":"1120", "name":"الراجحي"},
+    "44":    {"ticker":"1140", "name":"البلاد"},
+    "826":    {"ticker":"1150", "name":"الإنماء"},
+    "3413":    {"ticker":"1180", "name":"الأهلي"},
+    "15432":    {"ticker":"4083", "name":"تسهيل"},
+    "2727":    {"ticker":"1183", "name":"سهل"},
+    "2707":    {"ticker":"1182", "name":"أملاك"},
+    "5269":    {"ticker":"4081", "name":"النايفات"},
+    "4067":    {"ticker":"1111", "name":"مجموعة تداول"},
+    "4696":    {"ticker":"4082", "name":"مرنة"},
+    "4370":    {"ticker":"4084", "name":"دراية"},
+    "90":    {"ticker":"4130", "name":"درب السعودية"},
+    "82":    {"ticker":"2120", "name":"متطورة"},
+    "856":    {"ticker":"4280", "name":"المملكة"},
+    "15706":    {"ticker":"8313", "name":"رسن"},
+    "33":    {"ticker":"8010", "name":"التعاونية"},
+    "970":    {"ticker":"8020", "name":"ملاذ للتأمين"},
+    "1015":    {"ticker":"8030", "name":"ميدغلف للتأمين"},
+    "1012":    {"ticker":"8060", "name":"ولاء"},
+    "1013":    {"ticker":"8040", "name":"متكاملة"},
+    "879":    {"ticker":"8070", "name":"الدرع العربي"},
+    "823":    {"ticker":"8050", "name":"سلامة "},
+    "1018":    {"ticker":"8100", "name":"سايكو"},
+    "2352":    {"ticker":"8012", "name":"جزيرة تكافل"},
+    "1057":    {"ticker":"8120", "name":"إتحاد الخليج الأهلية"},
+    "876":    {"ticker":"8150", "name":"أسيج "},
+    "1183":    {"ticker":"8160", "name":"التأمين العربية"},
+    "1010":    {"ticker":"8170", "name":"الاتحاد"},
+    "963":    {"ticker":"8180", "name":"الصقر للتأمين"},
+    "829":    {"ticker":"8190", "name":"المتحدة للتأمين "},
+    "1129":    {"ticker":"8200", "name":"الإعادة السعودية"},
+    "878":    {"ticker":"8210", "name":"بوبا العربية"},
+    "870":    {"ticker":"8230", "name":"تكافل الراجحي"},
+    "1515":    {"ticker":"8240", "name":"تْشب"},
+    "1513":    {"ticker":"8250", "name":"جي آي جي"},
+    "1527":    {"ticker":"8260", "name":"الخليجية العامة "},
+    "871":    {"ticker":"8280", "name":"ليفا"},
+    "1891":    {"ticker":"8300", "name":"الوطنية"},
+    "1892":    {"ticker":"8310", "name":"أمانة للتأمين "},
+    "1928":    {"ticker":"8311", "name":"عناية "},
+    "30":    {"ticker":"7010", "name":"اس تي سي"},
+    "31":    {"ticker":"7020", "name":"إتحاد إتصالات"},
+    "1058":    {"ticker":"7030", "name":"زين السعودية"},
+    "1404":    {"ticker":"7040", "name":"قو للإتصالات"},
+    "69":    {"ticker":"2080", "name":"الغاز"},
+    "32":    {"ticker":"5110", "name":"السعودية للطاقة"},
+    "13068":    {"ticker":"2081", "name":"الخريف"},
+    "4269":    {"ticker":"2082", "name":"أكوا"},
+    "4307":    {"ticker":"2083", "name":"مرافق"},
+    "16275":    {"ticker":"2084", "name":"مياهنا"},
+    "4604":    {"ticker":"4330", "name":"الرياض ريت"},
+    "4620":    {"ticker":"4331", "name":"الجزيرة ريت"},
+    "4690":    {"ticker":"4332", "name":"جدوى ريت الحرمين"},
+    "4718":    {"ticker":"4333", "name":"تعليم ريت"},
+    "4746":    {"ticker":"4334", "name":"المعذر ريت"},
+    "4760":    {"ticker":"4335", "name":"مشاركة ريت"},
+    "4771":    {"ticker":"4336", "name":"ملكية ريت"},
+    "4830":    {"ticker":"4337", "name":"العزيزية ريت"},
+    "4855":    {"ticker":"4338", "name":"الأهلي ريت 1"},
+    "4869":    {"ticker":"4344", "name":"سدكو كابيتال ريت"},
+    "4871":    {"ticker":"4339", "name":"دراية ريت"},
+    "4880":    {"ticker":"4340", "name":"الراجحي ريت"},
+    "4883":    {"ticker":"4345", "name":"الإنماء ريت للتجزئة"},
+    "4884":    {"ticker":"4342", "name":"جدوى ريت السعودية"},
+    "4926":    {"ticker":"4346", "name":"ميفك ريت"},
+    "4934":    {"ticker":"4347", "name":"بنيان ريت"},
+    "5026":    {"ticker":"4348", "name":"الخبير ريت"},
+    "14889":    {"ticker":"4349", "name":"الإنماء ريت الفندقي"},
+    "16599":    {"ticker":"4350", "name":"الاستثمار ريت"},
+    "3376":    {"ticker":"4325", "name":"مسار"},
+    "14966":    {"ticker":"4327", "name":"الرمز"},
+    "98":    {"ticker":"4020", "name":"العقارية"},
+    "105":    {"ticker":"4090", "name":"طيبة"},
+    "96":    {"ticker":"4100", "name":"مكة"},
+    "91":    {"ticker":"4150", "name":"التعمير"},
+    "832":    {"ticker":"4220", "name":"إعمار"},
+    "922":    {"ticker":"4250", "name":"جبل عمر"},
+    "920":    {"ticker":"4300", "name":"دار الأركان"},
+    "867":    {"ticker":"4310", "name":"مدينة المعرفة"},
+    "4461":    {"ticker":"4320", "name":"الأندلس"},
+    "4638":    {"ticker":"4321", "name":"سينومي سنترز"},
+    "10201":    {"ticker":"4322", "name":"رتال"},
+    "14169":    {"ticker":"4326", "name":"الماجدية"},
+    "11043":    {"ticker":"4323", "name":"سمو"},
+    "13573":    {"ticker":"4324", "name":"بنان"},
+    "833":    {"ticker":"4230", "name":"البحر الأحمر"},
+    "5192":    {"ticker":"7200", "name":"ام آي اس"},
+    "4610":    {"ticker":"7201", "name":"بحر العرب"},
+    "2983":    {"ticker":"7202", "name":"سلوشنز"},
+    "11828":    {"ticker":"7203", "name":"علم"},
+    "14801":    {"ticker":"7204", "name":"توبي"},
+    "13995":    {"ticker":"7211", "name":"عزم"},
+    "17152":    {"ticker":"4165", "name":"الماجد للعود"},
+    "14273":    {"ticker":"9406", "name":"صندوق البلاد الأمريكي"},
+    "12946":    {"ticker":"9402", "name":"صندوق الأول للاستثمار الكمي المتداول"},
+    "12947":    {"ticker":"9403", "name":"صندوق البلاد للصكوك السيادية"},
+    "14118":    {"ticker":"4701", "name":"الخبير للنمو والدخل"},
+    "14355":    {"ticker":"9400", "name":"صندوق يقين 30"},
+    "14356":    {"ticker":"9401", "name":"صندوق يقين للبتروكيماويات"},
+    "12948":    {"ticker":"9404", "name":"صندوق الإنماء للصكوك الحكومية"},
+    "12949":    {"ticker":"9405", "name":"صندوق البلاد للذهب"},
+    "13034":    {"ticker":"4700", "name":"الخبير للدخل"},
+    "15211":    {"ticker":"9407", "name":"صندوق البلاد التقني الأمريكي"},
+    "16523":    {"ticker":"9408", "name":"صندوق البلاد للنمو السعودي"},
+    "16995":    {"ticker":"4702", "name":"الخبير للدخل 2030"},
+    "17095":    {"ticker":"4703", "name":"سدكو متعدد الأصول"},
+    "17450":    {"ticker":"9410", "name":"صندوق البلاد هونج كونج الصين"},
+    "17451":    {"ticker":"9411", "name":"صندوق الأول للاستثمار هونج كونج"},
+    "17828":    {"ticker":"9409", "name":"صندوق يقين إي إس جي"},
 }
 
 # Reverse map: Tadawul ticker (without .SR) → Argaam ID
@@ -751,11 +969,27 @@ def _enrich_with_argaam(ticker: str, info: dict) -> None:
                 pass
 
         # Average 3-month volume
+# Avg Vol
         avg_vol = _argaam_parse_num(raw.get("م. حجم التداول (3 أشهر)"))
         if avg_vol is not None:
             info["averageVolume"] = int(avg_vol)
 
+        # Added fields
+        vol = _argaam_parse_num(raw.get("حجم التداول"))
+        if vol is not None:
+            info["volume"] = int(vol)
+
+        val = _argaam_parse_num(raw.get("قيمة التداول"))
+        if val is not None:
+            info["tradingValue"] = val
+
+        trades = _argaam_parse_num(raw.get("عدد الصفقات"))
+        if trades is not None:
+            info["tradesCount"] = int(trades)
+
         # Currency / exchange defaults for Saudi stocks
+        if not info.get("volume") and "Volume" in df.columns and not df["Volume"].empty:
+            info["volume"] = float(df["Volume"].iloc[-1])
         if not info.get("currency"):
             info["currency"] = "SAR"
         if not info.get("exchange"):
@@ -1719,6 +1953,17 @@ def _get_pivots(d, order=5):
     return {'highs':[(int(i),round(h[i],4)) for i in ph],'lows':[(int(i),round(l[i],4)) for i in pl]}
 
 
+def make_main_chart(d, sup=None, res=None):
+    sup=sup or []; res=res or []; d=d.tail(180).copy()
+    p=d[['Open','High','Low','Close','Volume']].copy()
+    mc=mpf.make_marketcolors(up='#26a69a',down='#ef5350',edge='inherit',wick='inherit',volume={'up':'#80cbc4','down':'#ef9a9a'})
+    st=mpf.make_mpf_style(marketcolors=mc,gridstyle=':',gridcolor='#dddddd',rc={'axes.facecolor':'#FAFAFA'})
+    plot_kwargs=dict(type='candle',style=st,volume=True,figsize=(14,7),returnfig=True,warn_too_much_data=9999)
+    fig,ax=mpf.plot(p,**plot_kwargs); main_ax=ax[0]
+    xmax=len(d); pivots=_get_pivots(d,order=5)
+    _draw_sr_lines(main_ax,sup,res,xmax,d_ind=d,pivots=pivots)
+    fig.subplots_adjust(right=0.80); return chart_bytes(fig)
+
 def make_price_chart(d, sup=None, res=None):
     sup=sup or []; res=res or []; d=d.tail(180).copy()
     p=d[['Open','High','Low','Close','Volume']].copy()
@@ -1733,8 +1978,7 @@ def make_price_chart(d, sup=None, res=None):
     fig,ax=mpf.plot(p,**plot_kwargs); main_ax=ax[0]
     if labels: main_ax.legend(labels,loc='upper left',fontsize=8,prop=MPL_FONT_PROP)
     xmax=len(d); pivots=_get_pivots(d,order=5)
-    _draw_sr_lines(main_ax,sup,res,xmax,d_ind=d,pivots=pivots)
-    fig.subplots_adjust(right=0.80); return chart_bytes(fig)
+    fig.subplots_adjust(right=0.95, left=0.05); return chart_bytes(fig)
 
 
 def make_ema_chart(d, sup=None, res=None):
@@ -1751,8 +1995,7 @@ def make_ema_chart(d, sup=None, res=None):
     fig,ax=mpf.plot(p,**plot_kwargs); main_ax=ax[0]
     if labels: main_ax.legend(labels,loc='upper left',fontsize=8,prop=MPL_FONT_PROP)
     xmax=len(d); pivots=_get_pivots(d,order=5)
-    _draw_sr_lines(main_ax,sup,res,xmax,d_ind=d,pivots=pivots)
-    fig.subplots_adjust(right=0.80); return chart_bytes(fig)
+    fig.subplots_adjust(right=0.95, left=0.05); return chart_bytes(fig)
 
 
 def make_tech_chart(d):
@@ -2007,9 +2250,9 @@ class Report:
         c.setFillColor(HexColor(rec_color)); c.roundRect(MG, PAGE_H-58*mm, 60*mm, 14*mm, 8, fill=1, stroke=0)
         c.setFillColor(WHITE); self._font(True,11); c.drawCentredString(MG+30*mm, PAGE_H-53*mm, rtl(rec_txt))
         self._font(False,8); c.drawCentredString(MG+30*mm, PAGE_H-57*mm, rtl(f'النتيجة {score}/20'))
-        col_bw=CW/3-4*mm; col_bh=20*mm; col_gap=6*mm
+        col_bw=CW/3-4*mm; col_bh=18*mm; col_gap=4*mm
         x1=MG; x2=MG+col_bw+col_gap; x3=MG+2*(col_bw+col_gap)
-        y1=PAGE_H-112*mm; y2=y1-col_bh-col_gap; y3=y2-col_bh-col_gap
+        y1=PAGE_H-110*mm; y2=y1-col_bh-col_gap; y3=y2-col_bh-col_gap; y4=y3-col_bh-col_gap
         self._box(x1,y1,col_bw,col_bh,'السعر الحالي',price)
         self._box(x2,y1,col_bw,col_bh,'التغير اليومي',f'{chg:+.2f}%',clr=GREEN_HEX if chg>=0 else RED_HEX)
         self._box(x3,y1,col_bw,col_bh,'القيمة السوقية',fmt_n(safe(info,'marketCap'))[0])
@@ -2023,18 +2266,24 @@ class Report:
         self._box(x1,y3,col_bw,col_bh,'مضاعف القيمة الدفترية',f'{float(pb):.2f}' if pb else '-')
         self._box(x2,y3,col_bw,col_bh,'العائد على حقوق المساهمين',fmt_p(roe)[0] if roe else '-')
         self._box(x3,y3,col_bw,col_bh,'بيتا',f'{float(beta):.2f}' if beta else '-')
+
+        self._box(x1,y4,col_bw,col_bh,'حجم التداول',fmt_n(safe(info,'volume'),d=0)[0])
+        val_str = fmt_n(safe(info,'tradingValue'),d=0)[0] if safe(info,'tradingValue') else '-'
+        self._box(x2,y4,col_bw,col_bh,'قيمة التداول',val_str)
+        trades_str = fmt_n(safe(info,'tradesCount'),d=0)[0] if safe(info,'tradesCount') else '-'
+        self._box(x3,y4,col_bw,col_bh,'عدد الصفقات',trades_str)
         w52h=safe(info,'fiftyTwoWeekHigh'); w52l=safe(info,'fiftyTwoWeekLow')
         if w52h and w52l and float(w52h)!=float(w52l):
-            bar_y=y3-14*mm; c.setFillColor(NAVY); self._font(True,8); c.drawRightString(PAGE_W-MG, bar_y+2, rtl('نطاق 52 أسبوع'))
+            bar_y=y4-12*mm; c.setFillColor(NAVY); self._font(True,8); c.drawRightString(PAGE_W-MG, bar_y+2, rtl('نطاق 52 أسبوع'))
             bar_x=MG; bar_w=CW; bar_h=5*mm; bar_y2=bar_y-bar_h-2
             c.setFillColor(HexColor('#ECEFF1')); c.roundRect(bar_x, bar_y2, bar_w, bar_h, 3, fill=1, stroke=0)
             pos=(price-float(w52l))/(float(w52h)-float(w52l)); pos=max(0.0,min(1.0,pos)); fill_w=bar_w*pos
             fill_c=HexColor(RED_HEX) if pos<0.35 else (HexColor(GREEN_HEX) if pos>0.65 else HexColor(ORANGE_HEX))
             c.setFillColor(fill_c); c.roundRect(bar_x, bar_y2, max(fill_w,4), bar_h, 3, fill=1, stroke=0)
             c.setFillColor(DGRAY); self._font(False,7); c.drawString(bar_x, bar_y2-9, f'{float(w52l):.2f}'); c.drawRightString(bar_x+bar_w, bar_y2-9, f'{float(w52h):.2f}')
-            c.setFillColor(NAVY); self._font(True,7); c.drawCentredString(bar_x+bar_w/2, bar_y2-9, f'{pos*100:.0f}%'); y3=bar_y2-14*mm
-        else: y3=y3-8*mm
-        y=y3-6*mm; y=self._stitle(y,'معلومات الشركة')
+            c.setFillColor(NAVY); self._font(True,7); c.drawCentredString(bar_x+bar_w/2, bar_y2-9, f'{pos*100:.0f}%'); y_after=bar_y2-12*mm
+        else: y_after=y4-6*mm
+        y=y_after; y=self._stitle(y,'معلومات الشركة')
         sector=short_text(safe(info,'sector','-') or '-',26); industry=short_text(safe(info,'industry','-') or '-',26)
         items=[('القطاع',sector),('الصناعة',industry),('العملة',safe(info,'currency','SAR') or '-'),('متوسط الحجم',fmt_n(safe(info,'averageVolume'),d=0)[0]),('أعلى 52 أسبوع',fmt_n(safe(info,'fiftyTwoWeekHigh'))[0]),('أدنى 52 أسبوع',fmt_n(safe(info,'fiftyTwoWeekLow'))[0]),('الأسهم القائمة',fmt_n(safe(info,'sharesOutstanding'),d=0)[0]),('الأسهم الحرة',fmt_n(safe(info,'floatShares'),d=0)[0])]
         half=CW/2
@@ -2045,13 +2294,42 @@ class Report:
         c.setFillColor(DGRAY); self._font(False,7); c.drawCentredString(PAGE_W/2, 14*mm, rtl('هذا التقرير لأغراض معلوماتية فقط وليس توصية استثمارية.'))
         self._foot(); c.showPage()
 
-    def price_page(self, img):
-        self._bar('حركة السعر والمتوسطات المتحركة'); self._foot()
-        y=PAGE_H-44*mm; y=self._stitle(y,'الرسم الشمعي مع SMA 20 / 50 / 200 وحجم التداول'); self._img(y, img, 178*mm)
 
-    def ema_page(self, img):
-        self._bar('حركة السعر والمتوسطات المتحركة (EMA)'); self._foot()
-        y=PAGE_H-160*mm; y=self._stitle(y,'الرسم الشمعي مع EMA 20 / 50 / 200 وحجم التداول'); self._img(y, img, 178*mm); self.c.showPage()
+    def main_charts_page(self, main_img, sma_img, ema_img):
+        self._bar('الرسم البياني')
+        self._foot()
+        c = self.c
+        y = PAGE_H - 44*mm
+        y = self._stitle(y, 'الرسم البياني الرئيسي مع الدعم والمقاومة')
+        y = self._img(y, main_img, 100*mm)
+        y = self._stitle(y, 'المتوسطات المتحركة (SMA يمين - EMA يسار)')
+
+        sma_img.seek(0); img1 = ImageReader(sma_img)
+        ema_img.seek(0); img2 = ImageReader(ema_img)
+
+        dw = (CW / 2) - 2*mm
+        ratio1 = img1.getSize()[1] / img1.getSize()[0]
+        dh1 = dw * ratio1
+        ratio2 = img2.getSize()[1] / img2.getSize()[0]
+        dh2 = dw * ratio2
+
+        maxh = 75*mm
+        if dh1 > maxh:
+            dh1 = maxh
+            dw = dh1 / ratio1
+            dh2 = dw * ratio2
+        if dh2 > maxh:
+            dh2 = maxh
+            dw = dh2 / ratio2
+            dh1 = dw * ratio1
+
+        x1 = PAGE_W - MG - dw
+        x2 = MG
+
+        c.drawImage(img1, x1, y - dh1 - 2, dw, dh1)
+        c.drawImage(img2, x2, y - dh2 - 2, dw, dh2)
+
+        self.c.showPage()
 
     def tech_page(self, tech_img, bb_img):
         self._bar('المؤشرات الفنية'); self._foot()
@@ -2213,6 +2491,7 @@ def _build_report_sync(ticker_input: str):
     divergences = detect_divergences(d)
     review_sections = gen_technical_review(d, sig, score, sup, res, info, patterns=patterns, divergences=divergences)
 
+    main_img = make_main_chart(d, sup=sup, res=res)
     p_img    = make_price_chart(d, sup=sup, res=res)
     ema_img  = make_ema_chart(d, sup=sup, res=res)
     t_img    = make_tech_chart(d)
@@ -2231,13 +2510,12 @@ def _build_report_sync(ticker_input: str):
     pdf_buf = BytesIO()
     rpt = Report(pdf_buf, ticker, info, display_ticker)
     rpt.cover(price, chg, info, rec_txt, rec_color, score)
-    rpt.price_page(p_img)
-    rpt.ema_page(ema_img)
+    rpt.main_charts_page(main_img, p_img, ema_img)
     rpt.tech_page(t_img, bb_img)
+    rpt.ichimoku_page(ichi_img, cpat_img)
     rpt.perf_page(pers, risk, dd_img, v_img, score_criteria, score)
     rpt.fund_page(info)
     rpt.signal_page(g_img, sig, score, sup, res, d)
-    rpt.ichimoku_page(ichi_img, cpat_img)
     rpt.cci_willr_page(cci_img, patterns, divergences, d)
     rpt.review_page(review_sections, score)
     rpt.save()
