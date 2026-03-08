@@ -1234,7 +1234,14 @@ def fetch_data(ticker):
                 pass
 
         return df, df2, info
+    except Exception as e:
+        logger.error(f"fetch_data error: {e}")
+        return None, None, {}
 
+# ^^^ fetch_data ENDS HERE ^^^
+# ─────────────────────────────────────────────────────────────
+# SUPERTREND HELPER (must be OUTSIDE fetch_data, at module level)
+# ─────────────────────────────────────────────────────────────
 def _compute_supertrend(df, period=10, multiplier=3.0):
     """Compute Supertrend indicator. Returns (supertrend_series, direction_series).
        direction: 1 = bullish, -1 = bearish."""
@@ -1284,7 +1291,8 @@ def _compute_supertrend(df, period=10, multiplier=3.0):
                 supertrend[i] = lower_band[i]; direction[i] = 1
     return (pd.Series(supertrend, index=df.index),
             pd.Series(direction, index=df.index))
-    
+
+
 def compute_indicators(df):
     d = df.copy()
     c, h, l, v = d['Close'], d['High'], d['Low'], d['Volume']
