@@ -2905,7 +2905,7 @@ def make_gauge_chart(score):
     ax_button.axis('off'); ax_button.set_xlim(0,1); ax_button.set_ylim(0,1)
     rec,rec_color=recommendation(score)
     circle=mpatches.Circle((0.5,0.5),0.35,facecolor=rec_color,edgecolor='#333333',linewidth=2,transform=ax_button.transAxes)
-    ax_button.add_patch(circle); ax_button.text(0.5,0.5,rtl(rec),ha='center',va='center',fontsize=20,fontproperties=MPL_FONT_PROP_BOLD,color='white',transform=ax_button.transAxes)
+    ax_button.add_patch(circle); ax_button.text(0.5,0.5,rtl(rec),ha='center',va='center',fontsize=25,fontproperties=MPL_FONT_PROP_BOLD,color='white',transform=ax_button.transAxes)
     ax_button.text(0.5,0.12,f'{score}/20',ha='center',va='center',fontsize=10,fontproperties=MPL_FONT_PROP,transform=ax_button.transAxes)
     plt.tight_layout(); return chart_bytes(fig)
 
