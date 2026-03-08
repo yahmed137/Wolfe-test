@@ -860,7 +860,7 @@ def recommendation(score):
     elif score >= 12: return 'إيجابي', '#66BB6A'
     elif score <= 4: return 'سلبي +', RED_HEX
     elif score <= 8: return 'سلبي', '#EF5350'
-    return 'حياد / احتفاظ', ORANGE_HEX
+    return 'حياد', ORANGE_HEX
 
 
 def decision_text(v):
