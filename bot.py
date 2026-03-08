@@ -76,12 +76,10 @@ def _download_font(url, path):
 def _init_fonts():
     global MPL_FONT_PROP, MPL_FONT_PROP_BOLD, ARABIC_FONT
 
-    # Cairo for wolfe charts
     _download_font(
         'https://github.com/google/fonts/raw/main/ofl/cairo/static/Cairo-Regular.ttf',
         CAIRO_PATH,
     )
-    # Amiri for PDF reports
     _download_font(
         'https://github.com/google/fonts/raw/refs/heads/main/ofl/amiri/Amiri-Regular.ttf',
         AMIRI_REG_PATH,
@@ -91,7 +89,6 @@ def _init_fonts():
         AMIRI_BOLD_PATH,
     )
 
-    # Register Amiri with ReportLab
     if os.path.exists(AMIRI_REG_PATH):
         try:
             pdfmetrics.registerFont(TTFont(AR_FONT, AMIRI_REG_PATH))
@@ -103,7 +100,6 @@ def _init_fonts():
         except Exception:
             pass
 
-    # Matplotlib fonts
     for fp in [AMIRI_REG_PATH, AMIRI_BOLD_PATH, CAIRO_PATH]:
         if os.path.exists(fp):
             fm.fontManager.addfont(fp)
@@ -115,7 +111,6 @@ def _init_fonts():
         MPL_FONT_PROP_BOLD = fm.FontProperties(fname=AMIRI_BOLD_PATH)
     plt.rcParams['axes.unicode_minus'] = False
 
-    # Cairo for wolfe charts title
     if os.path.exists(CAIRO_PATH):
         prop = fm.FontProperties(fname=CAIRO_PATH)
         ARABIC_FONT = prop.get_name()
@@ -437,7 +432,6 @@ def fetch_data(ticker):
 
         price_now = float(df['Close'].iloc[-1])
 
-        # ── A. fast_info ─────────────────────────────────────────────────────
         try:
             fi = stk.fast_info
             for ikey, attr in [
@@ -458,7 +452,6 @@ def fetch_data(ticker):
                 except Exception: pass
         except Exception: pass
 
-        # ── B. Always compute 52-week high/low from actual price history ──────
         try:
             tail252 = df2['High'].tail(252) if len(df2) >= 252 else df['High']
             tail252l = df2['Low'].tail(252) if len(df2) >= 252 else df['Low']
@@ -466,22 +459,18 @@ def fetch_data(ticker):
             info['fiftyTwoWeekLow']  = float(tail252l.min())
         except Exception: pass
 
-        # ── C. Currency / exchange hardcoded for Saudi stocks ─────────────────
         if ticker.endswith('.SR'):
             if not info.get('currency'): info['currency'] = 'SAR'
             if not info.get('exchange'): info['exchange'] = 'Tadawul'
 
-        # ── D. Sector / Industry from local mapping ───────────────────────────
         sec, ind = get_sector_industry(ticker)
         if sec and not info.get('sector'):   info['sector']   = sec
         if ind and not info.get('industry'): info['industry'] = ind
 
-        # ── E. averageVolume ──────────────────────────────────────────────────
         if not info.get('averageVolume'):
             try: info['averageVolume'] = int(df['Volume'].mean())
             except Exception: pass
 
-        # ── F. Beta — compute from price returns vs TASI ─────────────────────
         if not info.get('beta'):
             try:
                 mkt = yf.Ticker('^TASI.SR').history(period='1y')['Close']
@@ -494,11 +483,9 @@ def fetch_data(ticker):
                     if var > 0: info['beta'] = round(cov / var, 3)
             except Exception: pass
 
-        # ── G. Dividends — from actual dividend history ───────────────────────
         try:
             divs = stk.dividends
             if divs is not None and len(divs) > 0:
-                # last 12 months
                 cutoff = pd.Timestamp.now(tz=divs.index.tz) - pd.DateOffset(years=1)
                 annual_div = float(divs[divs.index >= cutoff].sum())
                 if annual_div > 0:
@@ -506,7 +493,6 @@ def fetch_data(ticker):
                     if not info.get('dividendYield'): info['dividendYield'] = annual_div / price_now
         except Exception: pass
 
-        # ── H. Single-pass: financials + balance sheet ────────────────────────
         fin_ok = bs_ok = False
         rev = ni = equity = total_assets = curr_assets = curr_liab = inventory = None
         try:
@@ -523,7 +509,6 @@ def fetch_data(ticker):
                         except Exception: continue
                 return None
 
-            # Income statement
             if fin_ok:
                 rev = _fv(fin, 'Total Revenue')
                 ni  = _fv(fin, 'Net Income Common Stockholders', 'Net Income')
@@ -539,7 +524,6 @@ def fetch_data(ticker):
                     if op_inc  and not info.get('operatingMargins'): info['operatingMargins'] = op_inc / rev
                     if ni      and not info.get('profitMargins'):    info['profitMargins']    = ni / rev
 
-            # Balance sheet
             if bs_ok:
                 equity      = _fv(bs, 'Stockholders Equity', 'Common Stock Equity',
                                       'Total Equity Gross Minority Interest')
@@ -556,25 +540,21 @@ def fetch_data(ticker):
 
                 shares_out = info.get('sharesOutstanding')
 
-                # bookValue per share
                 if equity and shares_out and not info.get('bookValue'):
                     try: info['bookValue'] = equity / float(shares_out)
                     except Exception: pass
 
-                # priceToBook
                 if equity and shares_out and not info.get('priceToBook'):
                     try:
                         bps = equity / float(shares_out)
                         if bps > 0: info['priceToBook'] = price_now / bps
                     except Exception: pass
 
-                # ROE / ROA
                 if equity and ni is not None and equity != 0 and not info.get('returnOnEquity'):
                     info['returnOnEquity'] = ni / abs(equity)
                 if total_assets and ni is not None and total_assets != 0 and not info.get('returnOnAssets'):
                     info['returnOnAssets'] = ni / abs(total_assets)
 
-                # Current Ratio / Quick Ratio
                 if curr_assets and curr_liab and curr_liab != 0:
                     if not info.get('currentRatio'):
                         info['currentRatio'] = round(curr_assets / curr_liab, 2)
@@ -582,11 +562,9 @@ def fetch_data(ticker):
                         num = curr_assets - (inventory or 0)
                         info['quickRatio'] = round(num / curr_liab, 2)
 
-                # debtToEquity
                 if debt_val and equity and equity != 0 and not info.get('debtToEquity'):
                     info['debtToEquity'] = round((debt_val / abs(equity)) * 100, 2)
 
-            # EPS / Trailing PE
             shares_out = info.get('sharesOutstanding')
             if fin_ok and ni is not None and shares_out and float(shares_out) > 0:
                 eps = ni / float(shares_out)
@@ -594,7 +572,6 @@ def fetch_data(ticker):
                 if not info.get('trailingPE') and eps != 0:
                     info['trailingPE'] = price_now / eps
 
-            # Enterprise Value based ratios
             mktcap   = info.get('marketCap', 0) or 0
             tot_debt = info.get('totalDebt', 0) or 0
             tot_cash = info.get('totalCash', 0) or 0
@@ -610,13 +587,11 @@ def fetch_data(ticker):
                     if not info.get('priceToSalesTrailing12Months') and mktcap > 0:
                         info['priceToSalesTrailing12Months'] = mktcap / rev_v
 
-            # Payout ratio
             div_rate = info.get('dividendRate')
             eps_v    = info.get('trailingEps')
             if div_rate and eps_v and eps_v > 0 and not info.get('payoutRatio'):
                 info['payoutRatio'] = div_rate / eps_v
 
-            # floatShares fallback = sharesOutstanding
             if not info.get('floatShares') and info.get('sharesOutstanding'):
                 info['floatShares'] = info['sharesOutstanding']
 
@@ -1005,15 +980,10 @@ def find_sr(df, d_ind=None, n_levels=8):
 
 
 def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, divergences=None):
-    """
-    Generate a structured Arabic technical review narrative from all indicators.
-    Returns a list of (section_title, paragraph_text) tuples.
-    """
     last = d.iloc[-1]
     c_price = float(last['Close'])
     sections = []
 
-    # ── 1. General Trend ─────────────────────────────────────────────────────
     ema7   = float(last['EMA7'])   if pd.notna(last['EMA7'])   else None
     ema20  = float(last['EMA20'])  if pd.notna(last['EMA20'])  else None
     ema50  = float(last['EMA50'])  if pd.notna(last['EMA50'])  else None
@@ -1045,7 +1015,6 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
         trend_parts.append(f'يُشير مؤشر ADX إلى اتجاه {direction} {strength} بقيمة {adx:.1f}.')
     sections.append(('الاتجاه العام', ' '.join(trend_parts) if trend_parts else 'لا تتوفر بيانات كافية لتحليل الاتجاه.'))
 
-    # ── 2. Momentum Indicators ───────────────────────────────────────────────
     rsi      = float(last['RSI'])      if pd.notna(last['RSI'])      else None
     macd     = float(last['MACD'])     if pd.notna(last['MACD'])     else None
     macd_sig = float(last['MACD_Sig']) if pd.notna(last['MACD_Sig']) else None
@@ -1082,7 +1051,6 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
             mom_parts.append(f'مؤشر ROC 12 عند {roc12:.2f}% يُشير إلى زخم هبوطي قوي على المدى المتوسط.')
     sections.append(('مؤشرات الزخم', ' '.join(mom_parts) if mom_parts else 'لا تتوفر بيانات كافية.'))
 
-    # ── 3. Volatility & Bollinger Bands ──────────────────────────────────────
     bb_u = float(last['BB_U']) if pd.notna(last['BB_U']) else None
     bb_m = float(last['BB_M']) if pd.notna(last['BB_M']) else None
     bb_l = float(last['BB_L']) if pd.notna(last['BB_L']) else None
@@ -1113,7 +1081,6 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
             vol_parts.append(f'مؤشر ATR عند {atr:.2f} ({atr_pct:.1f}% من السعر) يُشير إلى تذبذب يومي معتدل.')
     sections.append(('التذبذب ونطاق بولنجر', ' '.join(vol_parts) if vol_parts else 'لا تتوفر بيانات كافية.'))
 
-    # ── 4. Volume Analysis ───────────────────────────────────────────────────
     obv      = float(last['OBV'])         if pd.notna(last['OBV'])         else None
     bull_vol = float(last['Bull_Volume']) if pd.notna(last['Bull_Volume']) else None
     bear_vol = float(last['Bear_Volume']) if pd.notna(last['Bear_Volume']) else None
@@ -1152,7 +1119,6 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
                 volume_parts.append('OBV: المؤشر في اتجاه تراجعي خلال الأسبوع الأخير، مما يُلمح إلى ضعف خفي رغم الحركة السعرية.')
     sections.append(('تحليل الحجم', ' '.join(volume_parts) if volume_parts else 'لا تتوفر بيانات كافية.'))
 
-    # ── 5. Ichimoku & Advanced ───────────────────────────────────────────────
     tenkan = float(last['Tenkan'])   if pd.notna(last['Tenkan'])   else None
     kijun  = float(last['Kijun'])    if pd.notna(last['Kijun'])    else None
     senk_a = float(last['Senkou_A']) if pd.notna(last['Senkou_A']) else None
@@ -1181,7 +1147,6 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
             adv_parts.append(f'مؤشر بارابوليك SAR عند {sar:.2f} يعلو السعر الحالي، مما يشير إلى ضعف الزخم الصعودي.')
     sections.append(('مؤشرات متقدمة (إيشيموكو / SAR)', ' '.join(adv_parts) if adv_parts else 'لا تتوفر بيانات كافية.'))
 
-    # ── 6. Support / Resistance + ATR Price Targets ──────────────────────────
     atr_val = float(last['ATR']) if pd.notna(last['ATR']) else None
     sr_parts = []
     if sup:
@@ -1218,7 +1183,6 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
         sr_parts.append('لم يتم رصد مستويات دعم أو مقاومة واضحة في الفترة المحللة.')
     sections.append(('مستويات الدعم والمقاومة والأهداف السعرية', ' '.join(sr_parts)))
 
-    # ── 7. Overall Conclusion ────────────────────────────────────────────────
     rec_txt, _ = recommendation(score)
     if score >= 16:
         outlook = (f'الصورة الفنية الشاملة إيجابية بدرجة عالية وفق نتيجة {score}/20، '
@@ -1242,7 +1206,6 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
                    f'متابعة كسر مستويات الدعم أو المقاومة القريبة سيُحدد مسار الاتجاه القادم.')
     sections.append(('الخلاصة الفنية', outlook))
 
-    # ── 8. Divergences ───────────────────────────────────────────────────────
     if divergences:
         div_parts = [f'{ind}: {ar_type} — يُشير إلى احتمال تغيير في الزخم الحالي.' for ind, ar_type, en_type in divergences]
         sections.append(('التباعد بين السعر والمؤشرات', ' '.join(div_parts)))
@@ -1250,7 +1213,6 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
         sections.append(('التباعد بين السعر والمؤشرات',
                           'لا يُلاحَظ تباعد واضح بين السعر ومؤشري RSI وMACD في الفترة الأخيرة، مما يُشير إلى انسجام الزخم مع حركة السعر.'))
 
-    # ── 9. 52-Week Position ──────────────────────────────────────────────────
     w52_high = info.get('fiftyTwoWeekHigh') if info else None
     w52_low  = info.get('fiftyTwoWeekLow')  if info else None
     if w52_high and w52_low and float(w52_high) != float(w52_low):
@@ -1262,7 +1224,6 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
                           f'(أدنى 52 أسبوع: {float(w52_low):.2f} — أعلى 52 أسبوع: {float(w52_high):.2f}). '
                           f'المسافة من القمة: {dist_high:.1f}%. المسافة من القاع: {dist_low:.1f}%.'))
 
-    # ── 10. CCI & Williams %R ────────────────────────────────────────────────
     cci_val   = float(last['CCI'])   if pd.notna(last['CCI'])   else None
     willr     = float(last['WILLR']) if pd.notna(last['WILLR']) else None
     osc_parts = []
@@ -1409,8 +1370,7 @@ def make_volume_chart(d):
     ax.set_ylabel(rtl('الحجم'),fontproperties=MPL_FONT_PROP_BOLD); ax.legend(prop=MPL_FONT_PROP,fontsize=8); ax.grid(True,alpha=.3); ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %y'))
     plt.tight_layout(); return chart_bytes(fig)
 
-## GAUGE AMETER##
-###########
+
 def make_gauge_chart(score):
     fig,(ax_gauge,ax_button)=plt.subplots(1,2,figsize=(12,5),gridspec_kw={'width_ratios':[3,1]})
     ax_gauge.set_xlim(-1.6,1.6); ax_gauge.set_ylim(-0.45,1.45); ax_gauge.set_aspect('equal'); ax_gauge.axis('off')
@@ -1610,7 +1570,6 @@ class Report:
         c=self.c; self.pn+=1
         c.setFillColor(NAVY); c.rect(0, PAGE_H-78*mm, PAGE_W, 78*mm, fill=1, stroke=0)
         c.setFillColor(TEAL); c.rect(0, PAGE_H-80*mm, PAGE_W, 2*mm, fill=1, stroke=0)
-        # Prefer Arabic name from COMPANY_NAMES, fall back to yfinance longName/shortName
         company_name = (COMPANY_NAMES.get(self.tk)
                         or safe(info, 'longName', safe(info, 'shortName', self.display_tk))
                         or self.display_tk)
@@ -1689,15 +1648,19 @@ class Report:
             y_table=self._stitle(y_table,f'جدول نقاط النتيجة ({total_score}/20)')
             rows_score=[['النقاط','الحالة','البند']]
             for lbl,(symbol,pt) in score_criteria.items():
-                status=rtl('✅ نعم') if pt==1 else rtl('❌ لا'); rows_score.append([str(pt),status,rtl(short_text(lbl,35))]) #ياسر
-            rows_score.append([str(total_score),rtl('من 20'),rtl('الإجمالي')]); self._table(y_table,rows_score,[CW*0.15,CW*0.30,CW*0.55],score_mode=True)
+                status=rtl('نعم ✓') if pt==1 else rtl('لا ✗')
+                rows_score.append([str(pt),status,rtl(short_text(lbl,35))])
+            rows_score.append([str(total_score),rtl('من 20'),rtl('الإجمالي')])
+            self._table(y_table,rows_score,[CW*0.15,CW*0.30,CW*0.55],score_mode=True)
         else:
             self.c.showPage(); self._bar('جدول نقاط النتيجة'); self._foot()
             y_table=PAGE_H-44*mm; y_table=self._stitle(y_table,f'جدول نقاط النتيجة ({total_score}/20)')
             rows_score=[['النقاط','الحالة','البند']]
             for lbl,(symbol,pt) in score_criteria.items():
-                status=rtl('✅ نعم') if pt==1 else rtl('❌ لا'); rows_score.append([str(pt),status,rtl(short_text(lbl,35))])
-            rows_score.append([str(total_score),rtl('من 20'),rtl('الإجمالي')]); self._table(y_table,rows_score,[CW*0.15,CW*0.30,CW*0.55],score_mode=True)
+                status=rtl('نعم ✓') if pt==1 else rtl('لا ✗')
+                rows_score.append([str(pt),status,rtl(short_text(lbl,35))])
+            rows_score.append([str(total_score),rtl('من 20'),rtl('الإجمالي')])
+            self._table(y_table,rows_score,[CW*0.15,CW*0.30,CW*0.55],score_mode=True)
         self.c.showPage()
 
     def fund_page(self, info):
@@ -2123,7 +2086,7 @@ ANALYZER_MSG = (
 )
 
 # ─────────────────────────────────────────────────────────────
-# 14. LANDING HTML (unchanged from original)
+# 14. LANDING HTML
 # ─────────────────────────────────────────────────────────────
 LANDING_HTML = """<!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -2151,7 +2114,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     data = query.data
 
-    # ── Main menu ────────────────────────────────────────
     if data == "back_to_main":
         context.user_data.pop('waiting_ticker', None)
         await query.edit_message_text(
@@ -2176,7 +2138,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # ── Wolfe: back to wolfe menu ────────────────────────
     if data == "back_to_wolfe":
         await query.edit_message_text(
             WOLFE_WELCOME_MSG, parse_mode="Markdown",
@@ -2184,7 +2145,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # ── Wolfe: timeframe selected ────────────────────────
     if data.startswith("scan_"):
         tf_key = data[5:]
         if tf_key not in TF_MAP:
@@ -2197,7 +2157,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # ── Wolfe: filter selected → run scan ───────────────
     if data.startswith("filter_"):
         parts = data.split("_", 2)
         if len(parts) != 3:
@@ -2289,12 +2248,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle text messages — used for analyzer bot ticker input."""
     if not context.user_data.get('waiting_ticker'):
-        return  # ignore text if not in analyzer mode
+        return
 
     ticker_input = update.message.text.strip()
     chat_id = update.effective_chat.id
 
-    # Show processing message
     proc_msg = await update.message.reply_text(
         f"⏳ جاري تحميل وتحليل بيانات *{ticker_input}*...\n"
         "قد يستغرق ذلك حتى دقيقتين، يرجى الانتظار 🔄",
