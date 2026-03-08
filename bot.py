@@ -1,3 +1,5 @@
+python
+
 import os
 import io
 import re
@@ -377,22 +379,21 @@ def get_sector_industry(ticker):
 # Falls back to yfinance if Argaam is unavailable or scraping fails.
 # ─────────────────────────────────────────────────────────────
 
-# Argaam company ID → Tadawul ticker mapping
 ARGAAM_COMPANY_MAPPING = {
     "3509":    {"ticker":"2222", "name":"أرامكو السعودية"},
     "4434":    {"ticker":"2381", "name":"الحفر العربية"},
     "14629":    {"ticker":"2382", "name":"أديس"},
-    "600":    {"ticker":"2380", "name":"بترو رابغ "},
+    "600":    {"ticker":"2380", "name":"بترو رابغ "},
     "104":    {"ticker":"4030", "name":"البحري"},
     "81":    {"ticker":"2030", "name":"المصافي"},
     "4319":    {"ticker":"1202", "name":"مبكو"},
     "4749":    {"ticker":"3007", "name":"الواحة"},
-    "1994":    {"ticker":"1201", "name":"تكوين "},
+    "1994":    {"ticker":"1201", "name":"تكوين "},
     "13986":    {"ticker":"1322", "name":"أماك"},
     "16491":    {"ticker":"4143", "name":"تالكو"},
     "70":    {"ticker":"2150", "name":"زجاج"},
     "67":    {"ticker":"2180", "name":"فيبكو"},
-    "73":    {"ticker":"2220", "name":"معدنية "},
+    "73":    {"ticker":"2220", "name":"معدنية "},
     "5154":    {"ticker":"1323", "name":"يو سي آي سي"},
     "632":    {"ticker":"2300", "name":"صناعة الورق"},
     "4726":    {"ticker":"3008", "name":"الكثيري"},
@@ -401,13 +402,13 @@ ARGAAM_COMPANY_MAPPING = {
     "71":    {"ticker":"2090", "name":"جبسكو"},
     "76":    {"ticker":"2200", "name":"أنابيب"},
     "89":    {"ticker":"2240", "name":"صناعات"},
-    "1044":    {"ticker":"2360", "name":"الفخارية "},
+    "1044":    {"ticker":"2360", "name":"الفخارية "},
     "968":    {"ticker":"1210", "name":"بي سي آي"},
     "836":    {"ticker":"1211", "name":"معادن"},
     "4515":    {"ticker":"1304", "name":"اليمامة للحديد"},
     "13749":    {"ticker":"1321", "name":"أنابيب الشرق"},
     "4537":    {"ticker":"2223", "name":"لوبريف"},
-    "599":    {"ticker":"2001", "name":"كيمانول "},
+    "599":    {"ticker":"2001", "name":"كيمانول "},
     "77":    {"ticker":"2010", "name":"سابك"},
     "79":    {"ticker":"2020", "name":"سابك للمغذيات الزراعية"},
     "72":    {"ticker":"2060", "name":"التصنيع"},
@@ -417,7 +418,7 @@ ARGAAM_COMPANY_MAPPING = {
     "88":    {"ticker":"2290", "name":"ينساب"},
     "585":    {"ticker":"2310", "name":"سبكيم العالمية"},
     "1007":    {"ticker":"2330", "name":"المتقدمة"},
-    "598":    {"ticker":"2350", "name":"كيان السعودية "},
+    "598":    {"ticker":"2350", "name":"كيان السعودية "},
     "1022":    {"ticker":"3002", "name":"أسمنت نجران"},
     "1055":    {"ticker":"3003", "name":"أسمنت المدينة"},
     "886":    {"ticker":"3004", "name":"أسمنت الشمالية"},
@@ -440,17 +441,17 @@ ARGAAM_COMPANY_MAPPING = {
     "3829":    {"ticker":"1303", "name":"الصناعات الكهربائية"},
     "907":    {"ticker":"2320", "name":"البابطين"},
     "64":    {"ticker":"2160", "name":"أميانتيت"},
-    "65":    {"ticker":"2110", "name":"الكابلات السعودية "},
+    "65":    {"ticker":"2110", "name":"الكابلات السعودية "},
     "66":    {"ticker":"2040", "name":"الخزف السعودي"},
     "97":    {"ticker":"4110", "name":"باتك"},
-    "101":    {"ticker":"4140", "name":"صادرات "},
+    "101":    {"ticker":"4140", "name":"صادرات "},
     "3574":    {"ticker":"4147", "name":"سي جي إس"},
     "3106":    {"ticker":"4145", "name":"أو جي سي"},
     "13934":    {"ticker":"4146", "name":"جاز"},
     "13883":    {"ticker":"4148", "name":"الوسائل الصناعية"},
     "4624":    {"ticker":"4141", "name":"العمران"},
     "4747":    {"ticker":"4144", "name":"رؤوم"},
-    "994":    {"ticker":"4270", "name":"طباعة وتغليف "},
+    "994":    {"ticker":"4270", "name":"طباعة وتغليف "},
     "5268":    {"ticker":"1831", "name":"مهارة"},
     "4627":    {"ticker":"1832", "name":"صدر"},
     "1897":    {"ticker":"6004", "name":"كاتريون"},
@@ -464,18 +465,18 @@ ARGAAM_COMPANY_MAPPING = {
     "11071":    {"ticker":"4263", "name":"سال"},
     "17877":    {"ticker":"4265", "name":"شري"},
     "4298":    {"ticker":"4264", "name":"طيران ناس"},
-    "99":    {"ticker":"4040", "name":"سابتكو "},
+    "99":    {"ticker":"4040", "name":"سابتكو "},
     "87":    {"ticker":"2190", "name":"سيسكو القابضة"},
     "4664":    {"ticker":"4012", "name":"الأصيل"},
     "4508":    {"ticker":"4011", "name":"لازوردي"},
     "909":    {"ticker":"2340", "name":"ارتيكس"},
     "93":    {"ticker":"4180", "name":"مجموعة فتيحي"},
-    "84":    {"ticker":"2130", "name":"صدق "},
-    "1061":    {"ticker":"1213", "name":"نسيج "},
+    "84":    {"ticker":"2130", "name":"صدق "},
+    "1061":    {"ticker":"1213", "name":"نسيج "},
     "1109":    {"ticker":"6002", "name":"هرفي للأغذية"},
     "883":    {"ticker":"1810", "name":"سيرا"},
     "103":    {"ticker":"4170", "name":"شمس"},
-    "3412":    {"ticker":"1820", "name":"بان "},
+    "3412":    {"ticker":"1820", "name":"بان "},
     "12964":    {"ticker":"6016", "name":"برغرايززر"},
     "16303":    {"ticker":"6018", "name":"الأندية للرياضة"},
     "18814":    {"ticker":"6019", "name":"المسار الشامل"},
@@ -483,14 +484,14 @@ ARGAAM_COMPANY_MAPPING = {
     "1087":    {"ticker":"4290", "name":"الخليج للتدريب"},
     "5004":    {"ticker":"4291", "name":"الوطنية للتعليم"},
     "13502":    {"ticker":"6017", "name":"جاهز"},
-    "4625":    {"ticker":"6013", "name":"التطويرية الغذائية "},
+    "4625":    {"ticker":"6013", "name":"التطويرية الغذائية "},
     "4516":    {"ticker":"1830", "name":"لجام للرياضة"},
-    "4538":    {"ticker":"6012", "name":"ريدان "},
+    "4538":    {"ticker":"6012", "name":"ريدان "},
     "13805":    {"ticker":"6014", "name":"الآمار"},
     "15023":    {"ticker":"6015", "name":"أمريكانا"},
     "4367":    {"ticker":"4071", "name":"العربية"},
     "14806":    {"ticker":"4072", "name":"مجموعة إم بي سي"},
-    "107":    {"ticker":"4070", "name":"تهامة "},
+    "107":    {"ticker":"4070", "name":"تهامة "},
     "578":    {"ticker":"4210", "name":"الأبحاث والإعلام"},
     "17978":    {"ticker":"4194", "name":"محطة البناء"},
     "14891":    {"ticker":"4192", "name":"السيف غاليري"},
@@ -500,10 +501,10 @@ ARGAAM_COMPANY_MAPPING = {
     "4337":    {"ticker":"4008", "name":"ساكو"},
     "95":    {"ticker":"4190", "name":"جرير"},
     "577":    {"ticker":"4200", "name":"الدريس"},
-    "917":    {"ticker":"4240", "name":"سينومي ريتيل "},
+    "917":    {"ticker":"4240", "name":"سينومي ريتيل "},
     "1907":    {"ticker":"4003", "name":"إكسترا"},
     "100":    {"ticker":"4050", "name":"ساسكو"},
-    "106":    {"ticker":"4160", "name":"ثمار "},
+    "106":    {"ticker":"4160", "name":"ثمار "},
     "2500":    {"ticker":"4006", "name":"أسواق المزرعة"},
     "5131":    {"ticker":"4161", "name":"بن داود"},
     "911":    {"ticker":"4001", "name":"أسواق ع العثيم"},
@@ -519,11 +520,11 @@ ARGAAM_COMPANY_MAPPING = {
     "13454":    {"ticker":"2286", "name":"المطاحن الرابعة"},
     "34":    {"ticker":"6010", "name":"نادك"},
     "35":    {"ticker":"6020", "name":"جاكو"},
-    "37":    {"ticker":"6040", "name":"تبوك الزراعية "},
-    "38":    {"ticker":"6050", "name":"الأسماك "},
+    "37":    {"ticker":"6040", "name":"تبوك الزراعية "},
+    "38":    {"ticker":"6050", "name":"الأسماك "},
     "39":    {"ticker":"6060", "name":"الشرقية للتنمية"},
     "40":    {"ticker":"6070", "name":"الجوف"},
-    "42":    {"ticker":"6090", "name":"جازادكو "},
+    "42":    {"ticker":"6090", "name":"جازادكو "},
     "13515":    {"ticker":"2281", "name":"تنمية"},
     "85":    {"ticker":"2050", "name":"مجموعة صافولا"},
     "68":    {"ticker":"2100", "name":"وفرة"},
@@ -575,25 +576,25 @@ ARGAAM_COMPANY_MAPPING = {
     "1012":    {"ticker":"8060", "name":"ولاء"},
     "1013":    {"ticker":"8040", "name":"متكاملة"},
     "879":    {"ticker":"8070", "name":"الدرع العربي"},
-    "823":    {"ticker":"8050", "name":"سلامة "},
+    "823":    {"ticker":"8050", "name":"سلامة "},
     "1018":    {"ticker":"8100", "name":"سايكو"},
     "2352":    {"ticker":"8012", "name":"جزيرة تكافل"},
     "1057":    {"ticker":"8120", "name":"إتحاد الخليج الأهلية"},
-    "876":    {"ticker":"8150", "name":"أسيج "},
+    "876":    {"ticker":"8150", "name":"أسيج "},
     "1183":    {"ticker":"8160", "name":"التأمين العربية"},
     "1010":    {"ticker":"8170", "name":"الاتحاد"},
     "963":    {"ticker":"8180", "name":"الصقر للتأمين"},
-    "829":    {"ticker":"8190", "name":"المتحدة للتأمين "},
+    "829":    {"ticker":"8190", "name":"المتحدة للتأمين "},
     "1129":    {"ticker":"8200", "name":"الإعادة السعودية"},
     "878":    {"ticker":"8210", "name":"بوبا العربية"},
     "870":    {"ticker":"8230", "name":"تكافل الراجحي"},
     "1515":    {"ticker":"8240", "name":"تْشب"},
     "1513":    {"ticker":"8250", "name":"جي آي جي"},
-    "1527":    {"ticker":"8260", "name":"الخليجية العامة "},
+    "1527":    {"ticker":"8260", "name":"الخليجية العامة "},
     "871":    {"ticker":"8280", "name":"ليفا"},
     "1891":    {"ticker":"8300", "name":"الوطنية"},
-    "1892":    {"ticker":"8310", "name":"أمانة للتأمين "},
-    "1928":    {"ticker":"8311", "name":"عناية "},
+    "1892":    {"ticker":"8310", "name":"أمانة للتأمين "},
+    "1928":    {"ticker":"8311", "name":"عناية "},
     "30":    {"ticker":"7010", "name":"اس تي سي"},
     "31":    {"ticker":"7020", "name":"إتحاد إتصالات"},
     "1058":    {"ticker":"7030", "name":"زين السعودية"},
@@ -741,7 +742,6 @@ def _argaam_setup_driver():
         raise RuntimeError(f"Could not start Chrome for Argaam scraping: {exc2}") from exc2
 
 
-# ── Page extraction helpers ───────────────────────────────────
 def _argaam_normalise(text: str) -> str:
     return re.sub(r"\s+", " ", text.replace("\u00a0", " ")).strip()
 
@@ -861,14 +861,13 @@ def _argaam_scrape(company_id: str, driver) -> dict:
 
 def _enrich_with_argaam(ticker: str, info: dict) -> None:
     """
-    Fetch fundamental data from Argaam and update `info` in-place.
-    Argaam values take priority over yfinance for the fields it covers.
+    Fetch fundamental + trading data from Argaam and update `info` in-place.
+    Argaam values take PRIORITY over yfinance for all fields it covers.
     Silently skips if Chrome / network unavailable.
     """
     if not ARGAAM_AVAILABLE:
         return
 
-    # Normalise ticker: strip .SR suffix
     code = ticker.replace(".SR", "").strip()
     company_id = ARGAAM_TICKER_TO_ID.get(code)
     if not company_id:
@@ -882,7 +881,7 @@ def _enrich_with_argaam(ticker: str, info: dict) -> None:
         if not raw:
             return
 
-        # ── Map Argaam fields → yfinance info keys ────────────
+        # ── Fundamental fields (Argaam overrides yfinance) ───────────────
         # Market cap (Argaam gives millions of SAR)
         mc = _argaam_parse_num(raw.get("القيمة السوقية (مليون ريال)"))
         if mc is not None:
@@ -892,7 +891,7 @@ def _enrich_with_argaam(ticker: str, info: dict) -> None:
         sh = _argaam_parse_num(raw.get("عدد الأسهم (مليون)"))
         if sh is not None:
             info["sharesOutstanding"] = sh * 1_000_000
-            info["floatShares"]       = sh * 1_000_000   # approximation
+            info["floatShares"]       = sh * 1_000_000
 
         # EPS trailing twelve months
         eps = _argaam_parse_num(raw.get("ربح السهم ( ريال) (أخر 12 شهر)"))
@@ -914,7 +913,7 @@ def _enrich_with_argaam(ticker: str, info: dict) -> None:
         if pb is not None and pb > 0:
             info["priceToBook"] = pb
 
-        # Recalculate price-to-book if we now have bookValue but no priceToBook
+        # Recalculate P/B if we now have bookValue but no priceToBook
         if not info.get("priceToBook") and info.get("bookValue") and info.get("bookValue") > 0:
             try:
                 price_now = float(info.get("currentPrice") or info.get("regularMarketPrice", 0))
@@ -927,6 +926,27 @@ def _enrich_with_argaam(ticker: str, info: dict) -> None:
         avg_vol = _argaam_parse_num(raw.get("م. حجم التداول (3 أشهر)"))
         if avg_vol is not None:
             info["averageVolume"] = int(avg_vol)
+
+        # ── Trading / daily market data (Argaam overrides yfinance) ──────
+        # Daily trading volume
+        daily_vol = _argaam_parse_num(raw.get("حجم التداول"))
+        if daily_vol is not None:
+            info["argaamDailyVolume"] = int(daily_vol)
+
+        # Daily trading value (in SAR)
+        daily_val = _argaam_parse_num(raw.get("قيمة التداول"))
+        if daily_val is not None:
+            info["argaamDailyValue"] = daily_val
+
+        # Number of transactions
+        daily_txn = _argaam_parse_num(raw.get("عدد الصفقات"))
+        if daily_txn is not None:
+            info["argaamDailyTxns"] = int(daily_txn)
+
+        # Last price override
+        last_price = _argaam_parse_num(raw.get("آخر سعر"))
+        if last_price is not None:
+            info["argaamLastPrice"] = last_price
 
         # Currency / exchange defaults for Saudi stocks
         if not info.get("currency"):
@@ -1007,7 +1027,7 @@ def chart_bytes(fig):
 # 6. STOCK DATA & INDICATORS
 # ─────────────────────────────────────────────────────────────
 def fetch_data(ticker):
-    """Fetch price data + supplement every info field from raw data for Saudi stocks."""
+    """Fetch price data + supplement every info field. Argaam takes priority."""
     try:
         stk = yf.Ticker(ticker)
         df = stk.history(period='1y')
@@ -1062,6 +1082,11 @@ def fetch_data(ticker):
 
         if not info.get('averageVolume'):
             try: info['averageVolume'] = int(df['Volume'].mean())
+            except Exception: pass
+
+        # Fallback daily volume from yfinance (Argaam will override if available)
+        if not info.get('argaamDailyVolume'):
+            try: info['argaamDailyVolume'] = int(df['Volume'].iloc[-1])
             except Exception: pass
 
         if not info.get('beta'):
@@ -1191,7 +1216,7 @@ def fetch_data(ticker):
         except Exception as e:
             logger.warning(f"fetch_data supplement error: {e}")
 
-        # ── Argaam enrichment: overrides yfinance fundamental fields ──
+        # ── Argaam enrichment: OVERRIDES yfinance for all available fields ──
         try:
             _enrich_with_argaam(ticker, info)
         except Exception as _ae:
@@ -1893,6 +1918,7 @@ def _get_pivots(d, order=5):
 
 
 def make_price_chart(d, sup=None, res=None):
+    """Main candlestick chart WITH support & resistance lines."""
     sup=sup or []; res=res or []; d=d.tail(180).copy()
     p=d[['Open','High','Low','Close','Volume']].copy()
     aps,labels=[],[]
@@ -1910,22 +1936,65 @@ def make_price_chart(d, sup=None, res=None):
     fig.subplots_adjust(right=0.80); return chart_bytes(fig)
 
 
-def make_ema_chart(d, sup=None, res=None):
-    sup=sup or []; res=res or []; d=d.tail(180).copy()
+def make_sma_chart_only(d):
+    """SMA chart WITHOUT support & resistance (for side-by-side display)."""
+    d=d.tail(180).copy()
+    p=d[['Open','High','Low','Close','Volume']].copy()
+    aps,labels=[],[]
+    for col,clr,lbl in [('SMA20',BLUE_HEX,'SMA 20'),('SMA50',ORANGE_HEX,'SMA 50'),('SMA200','#E91E63','SMA 200')]:
+        if col in d and d[col].notna().sum()>10:
+            aps.append(mpf.make_addplot(d[col],color=clr,width=1.0)); labels.append(lbl)
+    mc=mpf.make_marketcolors(up='#26a69a',down='#ef5350',edge='inherit',wick='inherit',volume={'up':'#80cbc4','down':'#ef9a9a'})
+    st=mpf.make_mpf_style(marketcolors=mc,gridstyle=':',gridcolor='#dddddd',rc={'axes.facecolor':'#FAFAFA'})
+    plot_kwargs=dict(type='candle',style=st,volume=True,figsize=(8,5),returnfig=True,warn_too_much_data=9999)
+    if aps: plot_kwargs['addplot']=aps
+    fig,ax=mpf.plot(p,**plot_kwargs); main_ax=ax[0]
+    if labels: main_ax.legend(labels,loc='upper left',fontsize=7,prop=MPL_FONT_PROP)
+    return chart_bytes(fig)
+
+
+def make_ema_chart_only(d):
+    """EMA chart WITHOUT support & resistance (for side-by-side display)."""
+    d=d.tail(180).copy()
     p=d[['Open','High','Low','Close','Volume']].copy()
     aps,labels=[],[]
     for col,clr,lbl in [('EMA20',BLUE_HEX,'EMA 20'),('EMA50',ORANGE_HEX,'EMA 50'),('EMA100','#6A1B9A','EMA 100'),('EMA200','#E91E63','EMA 200')]:
         if col in d and d[col].notna().sum()>10:
-            aps.append(mpf.make_addplot(d[col],color=clr,width=1.2)); labels.append(lbl)
+            aps.append(mpf.make_addplot(d[col],color=clr,width=1.0)); labels.append(lbl)
     mc=mpf.make_marketcolors(up='#26a69a',down='#ef5350',edge='inherit',wick='inherit',volume={'up':'#80cbc4','down':'#ef9a9a'})
     st=mpf.make_mpf_style(marketcolors=mc,gridstyle=':',gridcolor='#dddddd',rc={'axes.facecolor':'#FAFAFA'})
-    plot_kwargs=dict(type='candle',style=st,volume=True,figsize=(14,7),returnfig=True,warn_too_much_data=9999)
+    plot_kwargs=dict(type='candle',style=st,volume=True,figsize=(8,5),returnfig=True,warn_too_much_data=9999)
     if aps: plot_kwargs['addplot']=aps
     fig,ax=mpf.plot(p,**plot_kwargs); main_ax=ax[0]
-    if labels: main_ax.legend(labels,loc='upper left',fontsize=8,prop=MPL_FONT_PROP)
-    xmax=len(d); pivots=_get_pivots(d,order=5)
-    _draw_sr_lines(main_ax,sup,res,xmax,d_ind=d,pivots=pivots)
-    fig.subplots_adjust(right=0.80); return chart_bytes(fig)
+    if labels: main_ax.legend(labels,loc='upper left',fontsize=7,prop=MPL_FONT_PROP)
+    return chart_bytes(fig)
+
+
+def make_sma_ema_combined(d):
+    """Create a single wide image with SMA (left) and EMA (right) charts side by side."""
+    sma_buf = make_sma_chart_only(d)
+    ema_buf = make_ema_chart_only(d)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    fig.patch.set_facecolor('white')
+
+    sma_buf.seek(0)
+    sma_arr = plt.imread(sma_buf)
+    ax1.imshow(sma_arr)
+    ax1.axis('off')
+    title_fp = MPL_FONT_PROP_BOLD if MPL_FONT_PROP_BOLD else MPL_FONT_PROP
+    ax1.set_title(rtl('المتوسطات البسيطة  SMA 20 / 50 / 200'),
+                  fontproperties=title_fp, fontsize=10, pad=6)
+
+    ema_buf.seek(0)
+    ema_arr = plt.imread(ema_buf)
+    ax2.imshow(ema_arr)
+    ax2.axis('off')
+    ax2.set_title(rtl('المتوسطات الأسية  EMA 20 / 50 / 100 / 200'),
+                  fontproperties=title_fp, fontsize=10, pad=6)
+
+    plt.tight_layout(pad=0.5)
+    return chart_bytes(fig)
 
 
 def make_tech_chart(d):
