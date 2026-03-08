@@ -2024,7 +2024,7 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
     if not items:
         return
 
-    # ── Sort by price ascending (bottom → top) ──
+    # ── Sort ALL items by price ascending (bottom → top) ──
     items.sort(key=lambda x: x[0])
     n = len(items)
 
@@ -2032,26 +2032,43 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
     price_min = min(all_prices)
     price_max = max(all_prices)
     price_range = (price_max - price_min) if price_max != price_min \
-                  else abs(price_max) * 0.1
+                  else abs(price_max) * 0.1 or 1.0
 
-    # ── Evenly distribute label y-positions with padding ──
-    pad = price_range * 0.15
-    label_bottom = price_min - pad
-    label_top    = price_max + pad
-    label_span   = label_top - label_bottom
+    # ── Evenly distribute label y-positions ──
+    # Add generous padding so labels extend beyond the price range
+    # This keeps lines at a natural diagonal angle without crossing
+    pad_top = price_range * 0.25
+    pad_bot = price_range * 0.25
+
+    # Extra per-label spacing to guarantee no label touches another
+    min_label_height = price_range * 0.045
+    total_needed = min_label_height * (n - 1) if n > 1 else 0
+    natural_span = (price_max + pad_top) - (price_min - pad_bot)
+
+    if total_needed > natural_span and n > 1:
+        # Expand padding equally if labels are too dense
+        extra = (total_needed - natural_span) / 2.0
+        pad_top += extra
+        pad_bot += extra
+
+    label_bottom = price_min - pad_bot
+    label_top = price_max + pad_top
 
     if n == 1:
         label_ys = [items[0][0]]
     else:
-        label_ys = [label_bottom + label_span * i / (n - 1)
-                    for i in range(n)]
+        step = (label_top - label_bottom) / (n - 1)
+        label_ys = [label_bottom + step * i for i in range(n)]
 
+    # ── Connector x-coordinates ──
     label_x = xmax - 0.5
-    text_x  = xmax + 0.8
+    text_x = xmax + 0.8
 
-    # ── Draw annotations: angular right-angle connector ──
-    #    Path: label → horizontal left → vertical to price line
-    #    No curves, no flipping, sorted order preserved
+    # ── Draw annotations with straight diagonal lines ──
+    # Since both items and label_ys are sorted ascending,
+    # every line goes from (label_x, price_i) to (text_x, label_y_i)
+    # where price order == label order → lines NEVER cross.
+    # connectionstyle='' means a single straight segment (natural diagonal).
     for idx, (price, text, color, bg, edge_clr, fsize) in enumerate(items):
         ly = label_ys[idx]
         ax.annotate(
@@ -2067,7 +2084,8 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
                 arrowstyle='-',
                 color=color,
                 lw=0.7,
-                connectionstyle='angle,angleA=0,angleB=90,rad=0',
+                shrinkA=0,
+                shrinkB=0,
             ),
             bbox=dict(
                 boxstyle='round,pad=0.22',
@@ -2080,6 +2098,7 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
             zorder=8,
         )
 
+###########
 
 def _get_pivots(d, order=5):
     d=d.tail(180).copy().reset_index(drop=True)
