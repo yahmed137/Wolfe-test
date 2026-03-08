@@ -1936,43 +1936,149 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
     return sections
 
 
-# ─────────────────────────────────────────────────────────────
-# 7. CHART FUNCTIONS
-# ─────────────────────────────────────────────────────────────
+# # ─────────────────────────────────────────────────────────────
+# # 7. CHART FUNCTIONS
+# # ─────────────────────────────────────────────────────────────
+# def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
+#     sup_color='#1565C0'; res_color='#B71C1C'
+#     ema_colors={'EMA20':('#00897B','EMA 20'),'EMA50':('#F57F17','EMA 50'),'EMA100':('#6A1B9A','EMA 100'),'EMA200':('#C62828','EMA 200')}
+#     all_levels=list(sup)+list(res)
+#     if not all_levels: return
+#     price_range=max(all_levels)-min(all_levels) if len(all_levels)>1 else max(all_levels)*0.1
+#     min_gap=max(price_range*0.018,1e-6)
+#     placed=[]
+#     def place_label(ideal_y):
+#         for delta in [0,min_gap,-min_gap,2*min_gap,-2*min_gap,3*min_gap,-3*min_gap,4*min_gap,-4*min_gap,5*min_gap,-5*min_gap]:
+#             c=ideal_y+delta
+#             if all(abs(c-py)>=min_gap for py in placed):
+#                 placed.append(c); return c
+#         y=(max(placed)+min_gap) if placed else ideal_y; placed.append(y); return y
+#     label_x=xmax-0.5; text_x=xmax+0.8
+#     if pivots:
+#         for bx,by in pivots.get('highs',[]):
+#             ax.plot(bx,by,'v',color='#B71C1C',markersize=5,alpha=0.75,zorder=6,markeredgewidth=0)
+#         for bx,by in pivots.get('lows',[]):
+#             ax.plot(bx,by,'^',color='#1565C0',markersize=5,alpha=0.75,zorder=6,markeredgewidth=0)
+#     if d_ind is not None:
+#         for col,(clr,lbl) in ema_colors.items():
+#             if col in d_ind.columns:
+#                 val=d_ind[col].iloc[-1]
+#                 if pd.notna(val):
+#                     ev=float(val); ax.axhline(ev,color=clr,lw=0.9,ls='-.',alpha=0.55,zorder=4)
+#                     ly=place_label(ev)
+#                     ax.annotate(lbl,xy=(label_x,ev),xytext=(text_x,ly),fontsize=6.2,color=clr,ha='left',va='center',fontproperties=MPL_FONT_PROP,arrowprops=dict(arrowstyle='-',color=clr,lw=0.6,connectionstyle='arc3,rad=0.0'),bbox=dict(boxstyle='round,pad=0.18',facecolor='white',edgecolor=clr,alpha=0.88,linewidth=0.6),clip_on=False,zorder=7)
+#     for i,s in enumerate(sup):
+#         ax.axhline(s,color=sup_color,lw=0.7,ls='--',alpha=0.70,zorder=5); ly=place_label(s)
+#         ax.annotate(rtl(f'دعم {i+1}   {s:.2f}'),xy=(label_x,s),xytext=(text_x,ly),fontsize=6.8,color=sup_color,ha='left',va='center',fontproperties=MPL_FONT_PROP,arrowprops=dict(arrowstyle='-',color=sup_color,lw=0.7,connectionstyle='arc3,rad=0.0'),bbox=dict(boxstyle='round,pad=0.22',facecolor='#E8F4FD',edgecolor=sup_color,alpha=0.92,linewidth=0.7),clip_on=False,zorder=8)
+#     for i,r in enumerate(res):
+#         ax.axhline(r,color=res_color,lw=0.7,ls='--',alpha=0.70,zorder=5); ly=place_label(r)
+#         ax.annotate(rtl(f'مقاومة {i+1}   {r:.2f}'),xy=(label_x,r),xytext=(text_x,ly),fontsize=6.8,color=res_color,ha='left',va='center',fontproperties=MPL_FONT_PROP,arrowprops=dict(arrowstyle='-',color=res_color,lw=0.7,connectionstyle='arc3,rad=0.0'),bbox=dict(boxstyle='round,pad=0.22',facecolor='#FDEDED',edgecolor=res_color,alpha=0.92,linewidth=0.7),clip_on=False,zorder=8)
+#YASIR
 def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
-    sup_color='#1565C0'; res_color='#B71C1C'
-    ema_colors={'EMA20':('#00897B','EMA 20'),'EMA50':('#F57F17','EMA 50'),'EMA100':('#6A1B9A','EMA 100'),'EMA200':('#C62828','EMA 200')}
-    all_levels=list(sup)+list(res)
-    if not all_levels: return
-    price_range=max(all_levels)-min(all_levels) if len(all_levels)>1 else max(all_levels)*0.1
-    min_gap=max(price_range*0.018,1e-6)
-    placed=[]
-    def place_label(ideal_y):
-        for delta in [0,min_gap,-min_gap,2*min_gap,-2*min_gap,3*min_gap,-3*min_gap,4*min_gap,-4*min_gap,5*min_gap,-5*min_gap]:
-            c=ideal_y+delta
-            if all(abs(c-py)>=min_gap for py in placed):
-                placed.append(c); return c
-        y=(max(placed)+min_gap) if placed else ideal_y; placed.append(y); return y
-    label_x=xmax-0.5; text_x=xmax+0.8
+    sup_color = '#1565C0'
+    res_color = '#B71C1C'
+    ema_colors = {
+        'EMA20':  ('#00897B', 'EMA 20'),
+        'EMA50':  ('#F57F17', 'EMA 50'),
+        'EMA100': ('#6A1B9A', 'EMA 100'),
+        'EMA200': ('#C62828', 'EMA 200'),
+    }
+
+    # ── Draw pivot markers ──
     if pivots:
-        for bx,by in pivots.get('highs',[]):
-            ax.plot(bx,by,'v',color='#B71C1C',markersize=5,alpha=0.75,zorder=6,markeredgewidth=0)
-        for bx,by in pivots.get('lows',[]):
-            ax.plot(bx,by,'^',color='#1565C0',markersize=5,alpha=0.75,zorder=6,markeredgewidth=0)
+        for bx, by in pivots.get('highs', []):
+            ax.plot(bx, by, 'v', color='#B71C1C', markersize=5,
+                    alpha=0.75, zorder=6, markeredgewidth=0)
+        for bx, by in pivots.get('lows', []):
+            ax.plot(bx, by, '^', color='#1565C0', markersize=5,
+                    alpha=0.75, zorder=6, markeredgewidth=0)
+
+    # ── Collect ALL labels: (price, text, color, bg, edge, fontsize) ──
+    items = []
+
+    # EMA lines
     if d_ind is not None:
-        for col,(clr,lbl) in ema_colors.items():
+        for col, (clr, lbl) in ema_colors.items():
             if col in d_ind.columns:
-                val=d_ind[col].iloc[-1]
+                val = d_ind[col].iloc[-1]
                 if pd.notna(val):
-                    ev=float(val); ax.axhline(ev,color=clr,lw=0.9,ls='-.',alpha=0.55,zorder=4)
-                    ly=place_label(ev)
-                    ax.annotate(lbl,xy=(label_x,ev),xytext=(text_x,ly),fontsize=6.2,color=clr,ha='left',va='center',fontproperties=MPL_FONT_PROP,arrowprops=dict(arrowstyle='-',color=clr,lw=0.6,connectionstyle='arc3,rad=0.0'),bbox=dict(boxstyle='round,pad=0.18',facecolor='white',edgecolor=clr,alpha=0.88,linewidth=0.6),clip_on=False,zorder=7)
-    for i,s in enumerate(sup):
-        ax.axhline(s,color=sup_color,lw=0.7,ls='--',alpha=0.70,zorder=5); ly=place_label(s)
-        ax.annotate(rtl(f'دعم {i+1}   {s:.2f}'),xy=(label_x,s),xytext=(text_x,ly),fontsize=6.8,color=sup_color,ha='left',va='center',fontproperties=MPL_FONT_PROP,arrowprops=dict(arrowstyle='-',color=sup_color,lw=0.7,connectionstyle='arc3,rad=0.0'),bbox=dict(boxstyle='round,pad=0.22',facecolor='#E8F4FD',edgecolor=sup_color,alpha=0.92,linewidth=0.7),clip_on=False,zorder=8)
-    for i,r in enumerate(res):
-        ax.axhline(r,color=res_color,lw=0.7,ls='--',alpha=0.70,zorder=5); ly=place_label(r)
-        ax.annotate(rtl(f'مقاومة {i+1}   {r:.2f}'),xy=(label_x,r),xytext=(text_x,ly),fontsize=6.8,color=res_color,ha='left',va='center',fontproperties=MPL_FONT_PROP,arrowprops=dict(arrowstyle='-',color=res_color,lw=0.7,connectionstyle='arc3,rad=0.0'),bbox=dict(boxstyle='round,pad=0.22',facecolor='#FDEDED',edgecolor=res_color,alpha=0.92,linewidth=0.7),clip_on=False,zorder=8)
+                    ev = float(val)
+                    ax.axhline(ev, color=clr, lw=0.9, ls='-.',
+                               alpha=0.55, zorder=4)
+                    items.append((ev, lbl, clr, 'white', clr, 6.2))
+
+    # Support lines
+    for i, s in enumerate(sup):
+        ax.axhline(s, color=sup_color, lw=0.7, ls='--',
+                   alpha=0.70, zorder=5)
+        items.append((s, rtl(f'دعم {i+1}   {s:.2f}'),
+                       sup_color, '#E8F4FD', sup_color, 6.8))
+
+    # Resistance lines
+    for i, r in enumerate(res):
+        ax.axhline(r, color=res_color, lw=0.7, ls='--',
+                   alpha=0.70, zorder=5)
+        items.append((r, rtl(f'مقاومة {i+1}   {r:.2f}'),
+                       res_color, '#FDEDED', res_color, 6.8))
+
+    if not items:
+        return
+
+    # ── Sort by price ascending (bottom → top) ──
+    items.sort(key=lambda x: x[0])
+    n = len(items)
+
+    all_prices = [it[0] for it in items]
+    price_min = min(all_prices)
+    price_max = max(all_prices)
+    price_range = (price_max - price_min) if price_max != price_min \
+                  else abs(price_max) * 0.1
+
+    # ── Evenly distribute label y-positions with padding ──
+    pad = price_range * 0.15
+    label_bottom = price_min - pad
+    label_top    = price_max + pad
+    label_span   = label_top - label_bottom
+
+    if n == 1:
+        label_ys = [items[0][0]]
+    else:
+        label_ys = [label_bottom + label_span * i / (n - 1)
+                    for i in range(n)]
+
+    label_x = xmax - 0.5
+    text_x  = xmax + 0.8
+
+    # ── Draw annotations: angular right-angle connector ──
+    #    Path: label → horizontal left → vertical to price line
+    #    No curves, no flipping, sorted order preserved
+    for idx, (price, text, color, bg, edge_clr, fsize) in enumerate(items):
+        ly = label_ys[idx]
+        ax.annotate(
+            text,
+            xy=(label_x, price),
+            xytext=(text_x, ly),
+            fontsize=fsize,
+            color=color,
+            ha='left',
+            va='center',
+            fontproperties=MPL_FONT_PROP,
+            arrowprops=dict(
+                arrowstyle='-',
+                color=color,
+                lw=0.7,
+                connectionstyle='angle,angleA=0,angleB=90,rad=0',
+            ),
+            bbox=dict(
+                boxstyle='round,pad=0.22',
+                facecolor=bg,
+                edgecolor=edge_clr,
+                alpha=0.92,
+                linewidth=0.7,
+            ),
+            clip_on=False,
+            zorder=8,
+        )
 
 
 def _get_pivots(d, order=5):
