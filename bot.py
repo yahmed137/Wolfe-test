@@ -179,7 +179,6 @@ def safe(info, key, default=None):
 # ─────────────────────────────────────────────────────────────
 # 3. COMPANY NAMES
 # ─────────────────────────────────────────────────────────────
-
 COMPANY_NAMES = {
     '^TASI.SR':'تاسي','1010.SR':'الرياض','1020.SR':'الجزيرة','1030.SR':'الإستثمار',
     '1050.SR':'بي اس اف','1060.SR':'الأول','1080.SR':'العربي','1111.SR':'مجموعة تداول',
@@ -262,51 +261,7 @@ COMPANY_NAMES = {
 
 def get_name(ticker: str) -> str:
     return COMPANY_NAMES.get(ticker, ticker)
-#############################
-def find_ticker(query):
-    """
-    Search by:
-      - Full ticker:    "^TASI.SR" or "1120.SR"
-      - Ticker number:  "1120" or "TASI"
-      - Arabic name:    "تاسي" or "الراجحي"
-    Returns the full ticker symbol (e.g. '^TASI.SR') or None
-    """
-    query = query.strip()
 
-    # ─── 1) Direct match: user typed the exact ticker key ───
-    if query in COMPANY_NAMES:
-        return query
-
-    # ─── 2) Partial ticker match (without .SR) ───
-    #        e.g. "1120" → "1120.SR"  |  "TASI" → "^TASI.SR"
-    query_upper = query.upper()
-    for ticker in COMPANY_NAMES:
-        # strip .SR from ticker to get the "code" part
-        code = ticker.replace('.SR', '')          # "^TASI" or "1120"
-        code_clean = code.lstrip('^')             # "TASI"  or "1120"
-
-        if query_upper in (code, code_clean, code.upper(), code_clean.upper()):
-            return ticker
-
-    # ─── 3) Arabic / name search (exact or partial) ───
-    for ticker, name in COMPANY_NAMES.items():
-        if query == name:            # exact Arabic match first
-            return ticker
-
-    for ticker, name in COMPANY_NAMES.items():
-        if query in name:            # partial Arabic match
-            return ticker
-
-    return None
-
-
-# ───────────────────── TEST ─────────────────────
-tests = ["tasi", "TASI", "^TASI.SR", "تاسي"]
-
-for t in tests:
-    result = find_ticker(t)
-    print(f"  '{t}'  →  {result}  ({COMPANY_NAMES.get(result, '?')})")
-##############################
 SECTOR_MAP = {
     '1010.SR':('المالية','البنوك'),'1020.SR':('المالية','البنوك'),'1030.SR':('المالية','البنوك'),
     '1050.SR':('المالية','البنوك'),'1060.SR':('المالية','البنوك'),'1080.SR':('المالية','البنوك'),
