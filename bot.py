@@ -40,6 +40,24 @@ from telegram.ext import (
     MessageHandler, filters, ContextTypes,
 )
 
+# ── Argaam scraper dependencies (optional – graceful fallback if missing) ──
+try:
+    import sys
+    import time
+    import subprocess
+    from bs4 import BeautifulSoup
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options as ChromeOptions
+    from selenium.webdriver.chrome.service import Service as ChromeService
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    ARGAAM_AVAILABLE = True
+except ImportError:
+    ARGAAM_AVAILABLE = False
+    logger_stub = logging.getLogger(__name__)
+    logger_stub.warning("Argaam scraper deps not installed; falling back to yfinance only.")
+
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
@@ -76,12 +94,10 @@ def _download_font(url, path):
 def _init_fonts():
     global MPL_FONT_PROP, MPL_FONT_PROP_BOLD, ARABIC_FONT
 
-    # Cairo for wolfe charts
     _download_font(
         'https://github.com/google/fonts/raw/main/ofl/cairo/static/Cairo-Regular.ttf',
         CAIRO_PATH,
     )
-    # Amiri for PDF reports
     _download_font(
         'https://github.com/google/fonts/raw/refs/heads/main/ofl/amiri/Amiri-Regular.ttf',
         AMIRI_REG_PATH,
@@ -91,7 +107,6 @@ def _init_fonts():
         AMIRI_BOLD_PATH,
     )
 
-    # Register Amiri with ReportLab
     if os.path.exists(AMIRI_REG_PATH):
         try:
             pdfmetrics.registerFont(TTFont(AR_FONT, AMIRI_REG_PATH))
@@ -103,7 +118,6 @@ def _init_fonts():
         except Exception:
             pass
 
-    # Matplotlib fonts
     for fp in [AMIRI_REG_PATH, AMIRI_BOLD_PATH, CAIRO_PATH]:
         if os.path.exists(fp):
             fm.fontManager.addfont(fp)
@@ -115,7 +129,6 @@ def _init_fonts():
         MPL_FONT_PROP_BOLD = fm.FontProperties(fname=AMIRI_BOLD_PATH)
     plt.rcParams['axes.unicode_minus'] = False
 
-    # Cairo for wolfe charts title
     if os.path.exists(CAIRO_PATH):
         prop = fm.FontProperties(fname=CAIRO_PATH)
         ARABIC_FONT = prop.get_name()
@@ -166,6 +179,7 @@ def safe(info, key, default=None):
 # ─────────────────────────────────────────────────────────────
 # 3. COMPANY NAMES
 # ─────────────────────────────────────────────────────────────
+
 COMPANY_NAMES = {
     '^TASI.SR':'تاسي','1010.SR':'الرياض','1020.SR':'الجزيرة','1030.SR':'الإستثمار',
     '1050.SR':'بي اس اف','1060.SR':'الأول','1080.SR':'العربي','1111.SR':'مجموعة تداول',
@@ -248,7 +262,51 @@ COMPANY_NAMES = {
 
 def get_name(ticker: str) -> str:
     return COMPANY_NAMES.get(ticker, ticker)
+#############################
+def find_ticker(query):
+    """
+    Search by:
+      - Full ticker:    "^TASI.SR" or "1120.SR"
+      - Ticker number:  "1120" or "TASI"
+      - Arabic name:    "تاسي" or "الراجحي"
+    Returns the full ticker symbol (e.g. '^TASI.SR') or None
+    """
+    query = query.strip()
 
+    # ─── 1) Direct match: user typed the exact ticker key ───
+    if query in COMPANY_NAMES:
+        return query
+
+    # ─── 2) Partial ticker match (without .SR) ───
+    #        e.g. "1120" → "1120.SR"  |  "TASI" → "^TASI.SR"
+    query_upper = query.upper()
+    for ticker in COMPANY_NAMES:
+        # strip .SR from ticker to get the "code" part
+        code = ticker.replace('.SR', '')          # "^TASI" or "1120"
+        code_clean = code.lstrip('^')             # "TASI"  or "1120"
+
+        if query_upper in (code, code_clean, code.upper(), code_clean.upper()):
+            return ticker
+
+    # ─── 3) Arabic / name search (exact or partial) ───
+    for ticker, name in COMPANY_NAMES.items():
+        if query == name:            # exact Arabic match first
+            return ticker
+
+    for ticker, name in COMPANY_NAMES.items():
+        if query in name:            # partial Arabic match
+            return ticker
+
+    return None
+
+
+# ───────────────────── TEST ─────────────────────
+tests = ["tasi", "TASI", "^TASI.SR", "تاسي"]
+
+for t in tests:
+    result = find_ticker(t)
+    print(f"  '{t}'  →  {result}  ({COMPANY_NAMES.get(result, '?')})")
+##############################
 SECTOR_MAP = {
     '1010.SR':('المالية','البنوك'),'1020.SR':('المالية','البنوك'),'1030.SR':('المالية','البنوك'),
     '1050.SR':('المالية','البنوك'),'1060.SR':('المالية','البنوك'),'1080.SR':('المالية','البنوك'),
@@ -359,6 +417,597 @@ def get_sector_industry(ticker):
     return SECTOR_MAP.get(ticker, (None, None))
 
 # ─────────────────────────────────────────────────────────────
+# 3b. ARGAAM SCRAPER INTEGRATION
+# Priority: Argaam data overrides yfinance for fundamental fields.
+# Falls back to yfinance if Argaam is unavailable or scraping fails.
+# ─────────────────────────────────────────────────────────────
+
+# Argaam company ID → Tadawul ticker mapping
+ARGAAM_COMPANY_MAPPING = {
+    "3509":    {"ticker":"2222", "name":"أرامكو السعودية"},
+    "4434":    {"ticker":"2381", "name":"الحفر العربية"},
+    "14629":    {"ticker":"2382", "name":"أديس"},
+    "600":    {"ticker":"2380", "name":"بترو رابغ "},
+    "104":    {"ticker":"4030", "name":"البحري"},
+    "81":    {"ticker":"2030", "name":"المصافي"},
+    "4319":    {"ticker":"1202", "name":"مبكو"},
+    "4749":    {"ticker":"3007", "name":"الواحة"},
+    "1994":    {"ticker":"1201", "name":"تكوين "},
+    "13986":    {"ticker":"1322", "name":"أماك"},
+    "16491":    {"ticker":"4143", "name":"تالكو"},
+    "70":    {"ticker":"2150", "name":"زجاج"},
+    "67":    {"ticker":"2180", "name":"فيبكو"},
+    "73":    {"ticker":"2220", "name":"معدنية "},
+    "5154":    {"ticker":"1323", "name":"يو سي آي سي"},
+    "632":    {"ticker":"2300", "name":"صناعة الورق"},
+    "4726":    {"ticker":"3008", "name":"الكثيري"},
+    "855":    {"ticker":"1301", "name":"أسلاك"},
+    "1526":    {"ticker":"1320", "name":"أنابيب السعودية"},
+    "71":    {"ticker":"2090", "name":"جبسكو"},
+    "76":    {"ticker":"2200", "name":"أنابيب"},
+    "89":    {"ticker":"2240", "name":"صناعات"},
+    "1044":    {"ticker":"2360", "name":"الفخارية "},
+    "968":    {"ticker":"1210", "name":"بي سي آي"},
+    "836":    {"ticker":"1211", "name":"معادن"},
+    "4515":    {"ticker":"1304", "name":"اليمامة للحديد"},
+    "13749":    {"ticker":"1321", "name":"أنابيب الشرق"},
+    "4537":    {"ticker":"2223", "name":"لوبريف"},
+    "599":    {"ticker":"2001", "name":"كيمانول "},
+    "77":    {"ticker":"2010", "name":"سابك"},
+    "79":    {"ticker":"2020", "name":"سابك للمغذيات الزراعية"},
+    "72":    {"ticker":"2060", "name":"التصنيع"},
+    "63":    {"ticker":"2170", "name":"اللجين"},
+    "74":    {"ticker":"2210", "name":"نماء للكيماويات"},
+    "86":    {"ticker":"2250", "name":"المجموعة السعودية"},
+    "88":    {"ticker":"2290", "name":"ينساب"},
+    "585":    {"ticker":"2310", "name":"سبكيم العالمية"},
+    "1007":    {"ticker":"2330", "name":"المتقدمة"},
+    "598":    {"ticker":"2350", "name":"كيان السعودية "},
+    "1022":    {"ticker":"3002", "name":"أسمنت نجران"},
+    "1055":    {"ticker":"3003", "name":"أسمنت المدينة"},
+    "886":    {"ticker":"3004", "name":"أسمنت الشمالية"},
+    "53":    {"ticker":"3010", "name":"أسمنت العربية"},
+    "59":    {"ticker":"3020", "name":"أسمنت اليمامة"},
+    "56":    {"ticker":"3030", "name":"أسمنت السعودية"},
+    "55":    {"ticker":"3040", "name":"أسمنت القصيم"},
+    "57":    {"ticker":"3050", "name":"أسمنت الجنوب"},
+    "60":    {"ticker":"3060", "name":"أسمنت ينبع"},
+    "54":    {"ticker":"3080", "name":"أسمنت الشرقية"},
+    "58":    {"ticker":"3090", "name":"أسمنت تبوك"},
+    "885":    {"ticker":"3091", "name":"أسمنت الجوف"},
+    "3408":    {"ticker":"3005", "name":"أسمنت ام القرى"},
+    "4451":    {"ticker":"3092", "name":"أسمنت الرياض"},
+    "4391":    {"ticker":"4142", "name":"كابلات الرياض"},
+    "1880":    {"ticker":"1214", "name":"شاكر"},
+    "1086":    {"ticker":"1212", "name":"أسترا الصناعية"},
+    "1992":    {"ticker":"1302", "name":"بوان"},
+    "915":    {"ticker":"2370", "name":"مسك"},
+    "3829":    {"ticker":"1303", "name":"الصناعات الكهربائية"},
+    "907":    {"ticker":"2320", "name":"البابطين"},
+    "64":    {"ticker":"2160", "name":"أميانتيت"},
+    "65":    {"ticker":"2110", "name":"الكابلات السعودية "},
+    "66":    {"ticker":"2040", "name":"الخزف السعودي"},
+    "97":    {"ticker":"4110", "name":"باتك"},
+    "101":    {"ticker":"4140", "name":"صادرات "},
+    "3574":    {"ticker":"4147", "name":"سي جي إس"},
+    "3106":    {"ticker":"4145", "name":"أو جي سي"},
+    "13934":    {"ticker":"4146", "name":"جاز"},
+    "13883":    {"ticker":"4148", "name":"الوسائل الصناعية"},
+    "4624":    {"ticker":"4141", "name":"العمران"},
+    "4747":    {"ticker":"4144", "name":"رؤوم"},
+    "994":    {"ticker":"4270", "name":"طباعة وتغليف "},
+    "5268":    {"ticker":"1831", "name":"مهارة"},
+    "4627":    {"ticker":"1832", "name":"صدر"},
+    "1897":    {"ticker":"6004", "name":"كاتريون"},
+    "14277":    {"ticker":"1835", "name":"تمكين"},
+    "15170":    {"ticker":"1833", "name":"الموارد"},
+    "16903":    {"ticker":"1834", "name":"سماسكو"},
+    "843":    {"ticker":"4260", "name":"بدجت السعودية"},
+    "3433":    {"ticker":"4031", "name":"الخدمات الأرضية"},
+    "5122":    {"ticker":"4261", "name":"ذيب"},
+    "3069":    {"ticker":"4262", "name":"لومي"},
+    "11071":    {"ticker":"4263", "name":"سال"},
+    "17877":    {"ticker":"4265", "name":"شري"},
+    "4298":    {"ticker":"4264", "name":"طيران ناس"},
+    "99":    {"ticker":"4040", "name":"سابتكو "},
+    "87":    {"ticker":"2190", "name":"سيسكو القابضة"},
+    "4664":    {"ticker":"4012", "name":"الأصيل"},
+    "4508":    {"ticker":"4011", "name":"لازوردي"},
+    "909":    {"ticker":"2340", "name":"ارتيكس"},
+    "93":    {"ticker":"4180", "name":"مجموعة فتيحي"},
+    "84":    {"ticker":"2130", "name":"صدق "},
+    "1061":    {"ticker":"1213", "name":"نسيج "},
+    "1109":    {"ticker":"6002", "name":"هرفي للأغذية"},
+    "883":    {"ticker":"1810", "name":"سيرا"},
+    "103":    {"ticker":"4170", "name":"شمس"},
+    "3412":    {"ticker":"1820", "name":"بان "},
+    "12964":    {"ticker":"6016", "name":"برغرايززر"},
+    "16303":    {"ticker":"6018", "name":"الأندية للرياضة"},
+    "18814":    {"ticker":"6019", "name":"المسار الشامل"},
+    "5000":    {"ticker":"4292", "name":"عطاء"},
+    "1087":    {"ticker":"4290", "name":"الخليج للتدريب"},
+    "5004":    {"ticker":"4291", "name":"الوطنية للتعليم"},
+    "13502":    {"ticker":"6017", "name":"جاهز"},
+    "4625":    {"ticker":"6013", "name":"التطويرية الغذائية "},
+    "4516":    {"ticker":"1830", "name":"لجام للرياضة"},
+    "4538":    {"ticker":"6012", "name":"ريدان "},
+    "13805":    {"ticker":"6014", "name":"الآمار"},
+    "15023":    {"ticker":"6015", "name":"أمريكانا"},
+    "4367":    {"ticker":"4071", "name":"العربية"},
+    "14806":    {"ticker":"4072", "name":"مجموعة إم بي سي"},
+    "107":    {"ticker":"4070", "name":"تهامة "},
+    "578":    {"ticker":"4210", "name":"الأبحاث والإعلام"},
+    "17978":    {"ticker":"4194", "name":"محطة البناء"},
+    "14891":    {"ticker":"4192", "name":"السيف غاليري"},
+    "16515":    {"ticker":"4193", "name":"نايس ون"},
+    "4606":    {"ticker":"4051", "name":"باعظيم"},
+    "4626":    {"ticker":"4191", "name":"أبو معطي"},
+    "4337":    {"ticker":"4008", "name":"ساكو"},
+    "95":    {"ticker":"4190", "name":"جرير"},
+    "577":    {"ticker":"4200", "name":"الدريس"},
+    "917":    {"ticker":"4240", "name":"سينومي ريتيل "},
+    "1907":    {"ticker":"4003", "name":"إكسترا"},
+    "100":    {"ticker":"4050", "name":"ساسكو"},
+    "106":    {"ticker":"4160", "name":"ثمار "},
+    "2500":    {"ticker":"4006", "name":"أسواق المزرعة"},
+    "5131":    {"ticker":"4161", "name":"بن داود"},
+    "911":    {"ticker":"4001", "name":"أسواق ع العثيم"},
+    "5135":    {"ticker":"4162", "name":"المنجم"},
+    "12760":    {"ticker":"4164", "name":"النهدي"},
+    "3815":    {"ticker":"4163", "name":"الدواء"},
+    "102":    {"ticker":"4061", "name":"أنعام القابضة"},
+    "918":    {"ticker":"6001", "name":"حلواني إخوان"},
+    "14432":    {"ticker":"2282", "name":"نقي"},
+    "15705":    {"ticker":"2283", "name":"المطاحن الأولى"},
+    "16485":    {"ticker":"2284", "name":"المطاحن الحديثة"},
+    "13453":    {"ticker":"2285", "name":"المطاحن العربية"},
+    "13454":    {"ticker":"2286", "name":"المطاحن الرابعة"},
+    "34":    {"ticker":"6010", "name":"نادك"},
+    "35":    {"ticker":"6020", "name":"جاكو"},
+    "37":    {"ticker":"6040", "name":"تبوك الزراعية "},
+    "38":    {"ticker":"6050", "name":"الأسماك "},
+    "39":    {"ticker":"6060", "name":"الشرقية للتنمية"},
+    "40":    {"ticker":"6070", "name":"الجوف"},
+    "42":    {"ticker":"6090", "name":"جازادكو "},
+    "13515":    {"ticker":"2281", "name":"تنمية"},
+    "85":    {"ticker":"2050", "name":"مجموعة صافولا"},
+    "68":    {"ticker":"2100", "name":"وفرة"},
+    "78":    {"ticker":"2270", "name":"سدافكو"},
+    "62":    {"ticker":"2280", "name":"المراعي"},
+    "17417":    {"ticker":"2287", "name":"إنتاج"},
+    "14965":    {"ticker":"2288", "name":"نفوذ"},
+    "92":    {"ticker":"4080", "name":"سناد القابضة"},
+    "83":    {"ticker":"2230", "name":"الكيميائية"},
+    "13881":    {"ticker":"4014", "name":"دار المعدات"},
+    "61":    {"ticker":"2140", "name":"أيان"},
+    "4286":    {"ticker":"4017", "name":"فقيه الطبية"},
+    "4433":    {"ticker":"4013", "name":"سليمان الحبيب"},
+    "2298":    {"ticker":"4005", "name":"رعاية"},
+    "1524":    {"ticker":"4002", "name":"المواساة"},
+    "1181":    {"ticker":"4004", "name":"دله الصحية"},
+    "3438":    {"ticker":"4007", "name":"الحمادي"},
+    "4475":    {"ticker":"4009", "name":"السعودي الألماني الصحية"},
+    "16511":    {"ticker":"4018", "name":"الموسى"},
+    "17867":    {"ticker":"4019", "name":"اس ام سي للرعاية الصحية"},
+    "13574":    {"ticker":"4021", "name":"المركز الكندي الطبي"},
+    "75":    {"ticker":"2070", "name":"الدوائية"},
+    "15187":    {"ticker":"4015", "name":"جمجوم فارما"},
+    "16437":    {"ticker":"4016", "name":"أفالون فارما"},
+    "47":    {"ticker":"1010", "name":"الرياض"},
+    "46":    {"ticker":"1020", "name":"الجزيرة"},
+    "52":    {"ticker":"1030", "name":"الإستثمار"},
+    "50":    {"ticker":"1050", "name":"بي اس اف"},
+    "48":    {"ticker":"1060", "name":"الأول"},
+    "45":    {"ticker":"1080", "name":"العربي"},
+    "43":    {"ticker":"1120", "name":"الراجحي"},
+    "44":    {"ticker":"1140", "name":"البلاد"},
+    "826":    {"ticker":"1150", "name":"الإنماء"},
+    "3413":    {"ticker":"1180", "name":"الأهلي"},
+    "15432":    {"ticker":"4083", "name":"تسهيل"},
+    "2727":    {"ticker":"1183", "name":"سهل"},
+    "2707":    {"ticker":"1182", "name":"أملاك"},
+    "5269":    {"ticker":"4081", "name":"النايفات"},
+    "4067":    {"ticker":"1111", "name":"مجموعة تداول"},
+    "4696":    {"ticker":"4082", "name":"مرنة"},
+    "4370":    {"ticker":"4084", "name":"دراية"},
+    "90":    {"ticker":"4130", "name":"درب السعودية"},
+    "82":    {"ticker":"2120", "name":"متطورة"},
+    "856":    {"ticker":"4280", "name":"المملكة"},
+    "15706":    {"ticker":"8313", "name":"رسن"},
+    "33":    {"ticker":"8010", "name":"التعاونية"},
+    "970":    {"ticker":"8020", "name":"ملاذ للتأمين"},
+    "1015":    {"ticker":"8030", "name":"ميدغلف للتأمين"},
+    "1012":    {"ticker":"8060", "name":"ولاء"},
+    "1013":    {"ticker":"8040", "name":"متكاملة"},
+    "879":    {"ticker":"8070", "name":"الدرع العربي"},
+    "823":    {"ticker":"8050", "name":"سلامة "},
+    "1018":    {"ticker":"8100", "name":"سايكو"},
+    "2352":    {"ticker":"8012", "name":"جزيرة تكافل"},
+    "1057":    {"ticker":"8120", "name":"إتحاد الخليج الأهلية"},
+    "876":    {"ticker":"8150", "name":"أسيج "},
+    "1183":    {"ticker":"8160", "name":"التأمين العربية"},
+    "1010":    {"ticker":"8170", "name":"الاتحاد"},
+    "963":    {"ticker":"8180", "name":"الصقر للتأمين"},
+    "829":    {"ticker":"8190", "name":"المتحدة للتأمين "},
+    "1129":    {"ticker":"8200", "name":"الإعادة السعودية"},
+    "878":    {"ticker":"8210", "name":"بوبا العربية"},
+    "870":    {"ticker":"8230", "name":"تكافل الراجحي"},
+    "1515":    {"ticker":"8240", "name":"تْشب"},
+    "1513":    {"ticker":"8250", "name":"جي آي جي"},
+    "1527":    {"ticker":"8260", "name":"الخليجية العامة "},
+    "871":    {"ticker":"8280", "name":"ليفا"},
+    "1891":    {"ticker":"8300", "name":"الوطنية"},
+    "1892":    {"ticker":"8310", "name":"أمانة للتأمين "},
+    "1928":    {"ticker":"8311", "name":"عناية "},
+    "30":    {"ticker":"7010", "name":"اس تي سي"},
+    "31":    {"ticker":"7020", "name":"إتحاد إتصالات"},
+    "1058":    {"ticker":"7030", "name":"زين السعودية"},
+    "1404":    {"ticker":"7040", "name":"قو للإتصالات"},
+    "69":    {"ticker":"2080", "name":"الغاز"},
+    "32":    {"ticker":"5110", "name":"السعودية للطاقة"},
+    "13068":    {"ticker":"2081", "name":"الخريف"},
+    "4269":    {"ticker":"2082", "name":"أكوا"},
+    "4307":    {"ticker":"2083", "name":"مرافق"},
+    "16275":    {"ticker":"2084", "name":"مياهنا"},
+    "4604":    {"ticker":"4330", "name":"الرياض ريت"},
+    "4620":    {"ticker":"4331", "name":"الجزيرة ريت"},
+    "4690":    {"ticker":"4332", "name":"جدوى ريت الحرمين"},
+    "4718":    {"ticker":"4333", "name":"تعليم ريت"},
+    "4746":    {"ticker":"4334", "name":"المعذر ريت"},
+    "4760":    {"ticker":"4335", "name":"مشاركة ريت"},
+    "4771":    {"ticker":"4336", "name":"ملكية ريت"},
+    "4830":    {"ticker":"4337", "name":"العزيزية ريت"},
+    "4855":    {"ticker":"4338", "name":"الأهلي ريت 1"},
+    "4869":    {"ticker":"4344", "name":"سدكو كابيتال ريت"},
+    "4871":    {"ticker":"4339", "name":"دراية ريت"},
+    "4880":    {"ticker":"4340", "name":"الراجحي ريت"},
+    "4883":    {"ticker":"4345", "name":"الإنماء ريت للتجزئة"},
+    "4884":    {"ticker":"4342", "name":"جدوى ريت السعودية"},
+    "4926":    {"ticker":"4346", "name":"ميفك ريت"},
+    "4934":    {"ticker":"4347", "name":"بنيان ريت"},
+    "5026":    {"ticker":"4348", "name":"الخبير ريت"},
+    "14889":    {"ticker":"4349", "name":"الإنماء ريت الفندقي"},
+    "16599":    {"ticker":"4350", "name":"الاستثمار ريت"},
+    "3376":    {"ticker":"4325", "name":"مسار"},
+    "14966":    {"ticker":"4327", "name":"الرمز"},
+    "98":    {"ticker":"4020", "name":"العقارية"},
+    "105":    {"ticker":"4090", "name":"طيبة"},
+    "96":    {"ticker":"4100", "name":"مكة"},
+    "91":    {"ticker":"4150", "name":"التعمير"},
+    "832":    {"ticker":"4220", "name":"إعمار"},
+    "922":    {"ticker":"4250", "name":"جبل عمر"},
+    "920":    {"ticker":"4300", "name":"دار الأركان"},
+    "867":    {"ticker":"4310", "name":"مدينة المعرفة"},
+    "4461":    {"ticker":"4320", "name":"الأندلس"},
+    "4638":    {"ticker":"4321", "name":"سينومي سنترز"},
+    "10201":    {"ticker":"4322", "name":"رتال"},
+    "14169":    {"ticker":"4326", "name":"الماجدية"},
+    "11043":    {"ticker":"4323", "name":"سمو"},
+    "13573":    {"ticker":"4324", "name":"بنان"},
+    "833":    {"ticker":"4230", "name":"البحر الأحمر"},
+    "5192":    {"ticker":"7200", "name":"ام آي اس"},
+    "4610":    {"ticker":"7201", "name":"بحر العرب"},
+    "2983":    {"ticker":"7202", "name":"سلوشنز"},
+    "11828":    {"ticker":"7203", "name":"علم"},
+    "14801":    {"ticker":"7204", "name":"توبي"},
+    "13995":    {"ticker":"7211", "name":"عزم"},
+    "17152":    {"ticker":"4165", "name":"الماجد للعود"},
+    "14273":    {"ticker":"9406", "name":"صندوق البلاد الأمريكي"},
+    "12946":    {"ticker":"9402", "name":"صندوق الأول للاستثمار الكمي المتداول"},
+    "12947":    {"ticker":"9403", "name":"صندوق البلاد للصكوك السيادية"},
+    "14118":    {"ticker":"4701", "name":"الخبير للنمو والدخل"},
+    "14355":    {"ticker":"9400", "name":"صندوق يقين 30"},
+    "14356":    {"ticker":"9401", "name":"صندوق يقين للبتروكيماويات"},
+    "12948":    {"ticker":"9404", "name":"صندوق الإنماء للصكوك الحكومية"},
+    "12949":    {"ticker":"9405", "name":"صندوق البلاد للذهب"},
+    "13034":    {"ticker":"4700", "name":"الخبير للدخل"},
+    "15211":    {"ticker":"9407", "name":"صندوق البلاد التقني الأمريكي"},
+    "16523":    {"ticker":"9408", "name":"صندوق البلاد للنمو السعودي"},
+    "16995":    {"ticker":"4702", "name":"الخبير للدخل 2030"},
+    "17095":    {"ticker":"4703", "name":"سدكو متعدد الأصول"},
+    "17450":    {"ticker":"9410", "name":"صندوق البلاد هونج كونج الصين"},
+    "17451":    {"ticker":"9411", "name":"صندوق الأول للاستثمار هونج كونج"},
+    "17828":    {"ticker":"9409", "name":"صندوق يقين إي إس جي"},
+}
+
+# Reverse map: Tadawul ticker (without .SR) → Argaam ID
+ARGAAM_TICKER_TO_ID: dict = {
+    v["ticker"]: k for k, v in ARGAAM_COMPANY_MAPPING.items()
+}
+
+# Argaam fields we care about
+_ARGAAM_TRADING_FIELDS = [
+    "آخر سعر", "التغير", "التغير (%)", "الافتتاح", "الأدنى", "الأعلى",
+    "الإغلاق السابق", "حجم التداول", "قيمة التداول", "عدد الصفقات",
+    "القيمة السوقية", "م. حجم التداول (3 أشهر)", "م. قيمة التداول (3 أشهر)",
+    "م.عدد الصفقات (3 أشهر)", "التغير (3 أشهر)", "التغير (6 أشهر)",
+    "التغير (12 أشهر)", "التغير من بداية العام",
+]
+_ARGAAM_FUNDAMENTAL_FIELDS = [
+    "القيمة السوقية (مليون ريال)", "عدد الأسهم (مليون)",
+    "ربح السهم ( ريال) (أخر 12 شهر)",
+    "القيمة الدفترية ( ريال) (لأخر فترة معلنة)",
+    "القيمة الاسمية ( ريال)", "مكرر الربح المتكرر",
+    "مضاعف القيمة الدفترية",
+]
+_ARGAAM_ALL_FIELDS = _ARGAAM_TRADING_FIELDS + _ARGAAM_FUNDAMENTAL_FIELDS
+
+
+def _argaam_parse_num(text: str):
+    """Parse Arabic/Latin numeric string → float, or None."""
+    if not text:
+        return None
+    cleaned = str(text).replace(',', '').replace('٪', '').replace('%', '').strip()
+    try:
+        return float(cleaned)
+    except (ValueError, TypeError):
+        return None
+
+
+# ── Chrome helpers ────────────────────────────────────────────
+def _argaam_chrome_opts():
+    opts = ChromeOptions()
+    opts.add_argument("--headless=new")
+    opts.add_argument("--no-sandbox")
+    opts.add_argument("--disable-dev-shm-usage")
+    opts.add_argument("--disable-gpu")
+    opts.add_argument("--window-size=1920,1080")
+    opts.add_argument("--lang=ar")
+    opts.add_argument("--disable-blink-features=AutomationControlled")
+    opts.add_argument(
+        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    )
+    opts.add_experimental_option("excludeSwitches", ["enable-automation"])
+    opts.add_experimental_option("useAutomationExtension", False)
+    return opts
+
+
+def _argaam_setup_driver():
+    """Start headless Chrome. Returns driver or raises RuntimeError."""
+    opts = _argaam_chrome_opts()
+    try:
+        from webdriver_manager.chrome import ChromeDriverManager
+        service = ChromeService(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=opts)
+        driver.execute_script(
+            "Object.defineProperty(navigator,'webdriver',{get:()=>undefined})"
+        )
+        return driver
+    except Exception as exc:
+        logger.warning(f"webdriver-manager failed: {exc}; trying Selenium built-in…")
+    try:
+        driver = webdriver.Chrome(options=opts)
+        driver.execute_script(
+            "Object.defineProperty(navigator,'webdriver',{get:()=>undefined})"
+        )
+        return driver
+    except Exception as exc2:
+        raise RuntimeError(f"Could not start Chrome for Argaam scraping: {exc2}") from exc2
+
+
+# ── Page extraction helpers ───────────────────────────────────
+def _argaam_normalise(text: str) -> str:
+    return re.sub(r"\s+", " ", text.replace("\u00a0", " ")).strip()
+
+
+def _argaam_is_value(text: str) -> bool:
+    return bool(re.search(r"[\d\-\+\.٪%,]+", text)) and len(text) < 80
+
+
+def _argaam_extract_table(soup, results):
+    for row in soup.find_all("tr"):
+        cells = row.find_all(["td", "th"])
+        if len(cells) >= 2:
+            label = _argaam_normalise(cells[0].get_text())
+            value = _argaam_normalise(cells[1].get_text())
+            for field in _ARGAAM_ALL_FIELDS:
+                if field in label and field not in results:
+                    results[field] = value
+
+
+def _argaam_extract_dl(soup, results):
+    for dl in soup.find_all("dl"):
+        dts = dl.find_all("dt")
+        dds = dl.find_all("dd")
+        for dt, dd in zip(dts, dds):
+            label = _argaam_normalise(dt.get_text())
+            value = _argaam_normalise(dd.get_text())
+            for field in _ARGAAM_ALL_FIELDS:
+                if field in label and field not in results:
+                    results[field] = value
+
+
+def _argaam_extract_siblings(soup, results):
+    SKIP_TAGS = {"html", "body", "head", "script", "style", "nav", "header", "footer"}
+    for field in _ARGAAM_ALL_FIELDS:
+        if field in results:
+            continue
+        for tag in soup.find_all(True):
+            if tag.name in SKIP_TAGS:
+                continue
+            label = _argaam_normalise(tag.get_text())
+            if field not in label or len(label) > 150:
+                continue
+            candidates = [
+                tag.find_next_sibling(),
+                tag.parent.find_next_sibling() if tag.parent else None,
+                (tag.parent.parent.find_next_sibling()
+                 if tag.parent and tag.parent.parent else None),
+            ]
+            for cand in candidates:
+                if cand is None:
+                    continue
+                val = _argaam_normalise(cand.get_text())
+                if val and _argaam_is_value(val):
+                    results[field] = val
+                    break
+            if field in results:
+                break
+
+
+def _argaam_extract_spans(soup, results):
+    spans = soup.find_all("span")
+    for i, span in enumerate(spans[:-1]):
+        label = _argaam_normalise(span.get_text())
+        for field in _ARGAAM_ALL_FIELDS:
+            if field not in label or field in results or len(label) > 150:
+                continue
+            next_span = spans[i + 1]
+            val = _argaam_normalise(next_span.get_text())
+            if val and _argaam_is_value(val):
+                results[field] = val
+                break
+
+
+def _argaam_extract_regex(full_text: str, results: dict):
+    for field in _ARGAAM_ALL_FIELDS:
+        if field in results:
+            continue
+        pattern = re.escape(field) + r"[^\d\-\+]{0,20}?([\-\+]?[\d,\.]+\s*%?)"
+        m = re.search(pattern, full_text)
+        if m:
+            results[field] = m.group(1).strip()
+
+
+def _argaam_scrape(company_id: str, driver) -> dict:
+    """Scrape one company from Argaam. Returns raw field dict."""
+    url = (
+        f"https://www.argaam.com/ar/company/companyoverview"
+        f"/marketid/3/companyid/{company_id}"
+    )
+    try:
+        driver.get(url)
+        try:
+            WebDriverWait(driver, 25).until(
+                EC.presence_of_element_located((
+                    By.XPATH,
+                    "//*[contains(text(),'آخر سعر') or "
+                    "    contains(text(),'القيمة السوقية') or "
+                    "    contains(text(),'عدد الأسهم')]"
+                ))
+            )
+        except Exception:
+            time.sleep(6)
+        time.sleep(3)
+        soup = BeautifulSoup(driver.page_source, "lxml")
+        results: dict = {}
+        full_text = soup.get_text(separator=" ")
+        _argaam_extract_table(soup, results)
+        _argaam_extract_dl(soup, results)
+        _argaam_extract_siblings(soup, results)
+        _argaam_extract_spans(soup, results)
+        _argaam_extract_regex(full_text, results)
+        return results
+    except Exception as exc:
+        logger.warning(f"Argaam scrape error for {company_id}: {exc}")
+        return {}
+
+
+def _enrich_with_argaam(ticker: str, info: dict) -> None:
+    """
+    Fetch fundamental data from Argaam and update `info` in-place.
+    Argaam values take priority over yfinance for the fields it covers.
+    Silently skips if Chrome / network unavailable.
+    """
+    if not ARGAAM_AVAILABLE:
+        return
+
+    # Normalise ticker: strip .SR suffix
+    code = ticker.replace(".SR", "").strip()
+    company_id = ARGAAM_TICKER_TO_ID.get(code)
+    if not company_id:
+        logger.info(f"Argaam: no mapping for ticker {code} – skipping enrichment")
+        return
+
+    driver = None
+    try:
+        driver = _argaam_setup_driver()
+        raw = _argaam_scrape(company_id, driver)
+        if not raw:
+            return
+
+        # ── Map Argaam fields → yfinance info keys ────────────
+        # Market cap (Argaam gives millions of SAR)
+        mc = _argaam_parse_num(raw.get("القيمة السوقية (مليون ريال)"))
+        if mc is not None:
+            info["marketCap"] = mc * 1_000_000
+
+        # Shares outstanding (Argaam gives millions)
+        sh = _argaam_parse_num(raw.get("عدد الأسهم (مليون)"))
+        if sh is not None:
+            info["sharesOutstanding"] = sh * 1_000_000
+            info["floatShares"]       = sh * 1_000_000   # approximation
+
+        # EPS trailing twelve months
+        eps = _argaam_parse_num(raw.get("ربح السهم ( ريال) (أخر 12 شهر)"))
+        if eps is not None:
+            info["trailingEps"] = eps
+
+        # Book value per share
+        bv = _argaam_parse_num(raw.get("القيمة الدفترية ( ريال) (لأخر فترة معلنة)"))
+        if bv is not None:
+            info["bookValue"] = bv
+
+        # Trailing P/E
+        pe = _argaam_parse_num(raw.get("مكرر الربح المتكرر"))
+        if pe is not None and pe > 0:
+            info["trailingPE"] = pe
+
+        # Price-to-book
+        pb = _argaam_parse_num(raw.get("مضاعف القيمة الدفترية"))
+        if pb is not None and pb > 0:
+            info["priceToBook"] = pb
+
+        # Recalculate price-to-book if we now have bookValue but no priceToBook
+        if not info.get("priceToBook") and info.get("bookValue") and info.get("bookValue") > 0:
+            try:
+                price_now = float(info.get("currentPrice") or info.get("regularMarketPrice", 0))
+                if price_now > 0:
+                    info["priceToBook"] = round(price_now / float(info["bookValue"]), 4)
+            except Exception:
+                pass
+
+        # Average 3-month volume
+# Avg Vol
+        avg_vol = _argaam_parse_num(raw.get("م. حجم التداول (3 أشهر)"))
+        if avg_vol is not None:
+            info["averageVolume"] = int(avg_vol)
+
+        # Added fields
+        vol = _argaam_parse_num(raw.get("حجم التداول"))
+        if vol is not None:
+            info["volume"] = int(vol)
+
+        val = _argaam_parse_num(raw.get("قيمة التداول"))
+        if val is not None:
+            info["tradingValue"] = val
+
+        trades = _argaam_parse_num(raw.get("عدد الصفقات"))
+        if trades is not None:
+            info["tradesCount"] = int(trades)
+
+        # Currency / exchange defaults for Saudi stocks
+        if not info.get("volume") and "Volume" in df.columns and not df["Volume"].empty:
+            info["volume"] = float(df["Volume"].iloc[-1])
+        if not info.get("currency"):
+            info["currency"] = "SAR"
+        if not info.get("exchange"):
+            info["exchange"] = "Tadawul"
+
+        logger.info(f"Argaam enrichment OK for {ticker} (Argaam ID {company_id})")
+
+    except Exception as exc:
+        logger.warning(f"Argaam enrichment failed for {ticker}: {exc}")
+    finally:
+        if driver is not None:
+            try:
+                driver.quit()
+            except Exception:
+                pass
+
+
+# ─────────────────────────────────────────────────────────────
 # 4. PDF THEME CONSTANTS
 # ─────────────────────────────────────────────────────────────
 NAVY_HEX, TEAL_HEX, GREEN_HEX = '#1B2A4A', '#00897B', '#4CAF50'
@@ -437,7 +1086,6 @@ def fetch_data(ticker):
 
         price_now = float(df['Close'].iloc[-1])
 
-        # ── A. fast_info ─────────────────────────────────────────────────────
         try:
             fi = stk.fast_info
             for ikey, attr in [
@@ -458,7 +1106,6 @@ def fetch_data(ticker):
                 except Exception: pass
         except Exception: pass
 
-        # ── B. Always compute 52-week high/low from actual price history ──────
         try:
             tail252 = df2['High'].tail(252) if len(df2) >= 252 else df['High']
             tail252l = df2['Low'].tail(252) if len(df2) >= 252 else df['Low']
@@ -466,22 +1113,18 @@ def fetch_data(ticker):
             info['fiftyTwoWeekLow']  = float(tail252l.min())
         except Exception: pass
 
-        # ── C. Currency / exchange hardcoded for Saudi stocks ─────────────────
         if ticker.endswith('.SR'):
             if not info.get('currency'): info['currency'] = 'SAR'
             if not info.get('exchange'): info['exchange'] = 'Tadawul'
 
-        # ── D. Sector / Industry from local mapping ───────────────────────────
         sec, ind = get_sector_industry(ticker)
         if sec and not info.get('sector'):   info['sector']   = sec
         if ind and not info.get('industry'): info['industry'] = ind
 
-        # ── E. averageVolume ──────────────────────────────────────────────────
         if not info.get('averageVolume'):
             try: info['averageVolume'] = int(df['Volume'].mean())
             except Exception: pass
 
-        # ── F. Beta — compute from price returns vs TASI ─────────────────────
         if not info.get('beta'):
             try:
                 mkt = yf.Ticker('^TASI.SR').history(period='1y')['Close']
@@ -494,11 +1137,9 @@ def fetch_data(ticker):
                     if var > 0: info['beta'] = round(cov / var, 3)
             except Exception: pass
 
-        # ── G. Dividends — from actual dividend history ───────────────────────
         try:
             divs = stk.dividends
             if divs is not None and len(divs) > 0:
-                # last 12 months
                 cutoff = pd.Timestamp.now(tz=divs.index.tz) - pd.DateOffset(years=1)
                 annual_div = float(divs[divs.index >= cutoff].sum())
                 if annual_div > 0:
@@ -506,7 +1147,6 @@ def fetch_data(ticker):
                     if not info.get('dividendYield'): info['dividendYield'] = annual_div / price_now
         except Exception: pass
 
-        # ── H. Single-pass: financials + balance sheet ────────────────────────
         fin_ok = bs_ok = False
         rev = ni = equity = total_assets = curr_assets = curr_liab = inventory = None
         try:
@@ -523,7 +1163,6 @@ def fetch_data(ticker):
                         except Exception: continue
                 return None
 
-            # Income statement
             if fin_ok:
                 rev = _fv(fin, 'Total Revenue')
                 ni  = _fv(fin, 'Net Income Common Stockholders', 'Net Income')
@@ -539,7 +1178,6 @@ def fetch_data(ticker):
                     if op_inc  and not info.get('operatingMargins'): info['operatingMargins'] = op_inc / rev
                     if ni      and not info.get('profitMargins'):    info['profitMargins']    = ni / rev
 
-            # Balance sheet
             if bs_ok:
                 equity      = _fv(bs, 'Stockholders Equity', 'Common Stock Equity',
                                       'Total Equity Gross Minority Interest')
@@ -556,25 +1194,21 @@ def fetch_data(ticker):
 
                 shares_out = info.get('sharesOutstanding')
 
-                # bookValue per share
                 if equity and shares_out and not info.get('bookValue'):
                     try: info['bookValue'] = equity / float(shares_out)
                     except Exception: pass
 
-                # priceToBook
                 if equity and shares_out and not info.get('priceToBook'):
                     try:
                         bps = equity / float(shares_out)
                         if bps > 0: info['priceToBook'] = price_now / bps
                     except Exception: pass
 
-                # ROE / ROA
                 if equity and ni is not None and equity != 0 and not info.get('returnOnEquity'):
                     info['returnOnEquity'] = ni / abs(equity)
                 if total_assets and ni is not None and total_assets != 0 and not info.get('returnOnAssets'):
                     info['returnOnAssets'] = ni / abs(total_assets)
 
-                # Current Ratio / Quick Ratio
                 if curr_assets and curr_liab and curr_liab != 0:
                     if not info.get('currentRatio'):
                         info['currentRatio'] = round(curr_assets / curr_liab, 2)
@@ -582,11 +1216,9 @@ def fetch_data(ticker):
                         num = curr_assets - (inventory or 0)
                         info['quickRatio'] = round(num / curr_liab, 2)
 
-                # debtToEquity
                 if debt_val and equity and equity != 0 and not info.get('debtToEquity'):
                     info['debtToEquity'] = round((debt_val / abs(equity)) * 100, 2)
 
-            # EPS / Trailing PE
             shares_out = info.get('sharesOutstanding')
             if fin_ok and ni is not None and shares_out and float(shares_out) > 0:
                 eps = ni / float(shares_out)
@@ -594,7 +1226,6 @@ def fetch_data(ticker):
                 if not info.get('trailingPE') and eps != 0:
                     info['trailingPE'] = price_now / eps
 
-            # Enterprise Value based ratios
             mktcap   = info.get('marketCap', 0) or 0
             tot_debt = info.get('totalDebt', 0) or 0
             tot_cash = info.get('totalCash', 0) or 0
@@ -610,18 +1241,22 @@ def fetch_data(ticker):
                     if not info.get('priceToSalesTrailing12Months') and mktcap > 0:
                         info['priceToSalesTrailing12Months'] = mktcap / rev_v
 
-            # Payout ratio
             div_rate = info.get('dividendRate')
             eps_v    = info.get('trailingEps')
             if div_rate and eps_v and eps_v > 0 and not info.get('payoutRatio'):
                 info['payoutRatio'] = div_rate / eps_v
 
-            # floatShares fallback = sharesOutstanding
             if not info.get('floatShares') and info.get('sharesOutstanding'):
                 info['floatShares'] = info['sharesOutstanding']
 
         except Exception as e:
             logger.warning(f"fetch_data supplement error: {e}")
+
+        # ── Argaam enrichment: overrides yfinance fundamental fields ──
+        try:
+            _enrich_with_argaam(ticker, info)
+        except Exception as _ae:
+            logger.warning(f"Argaam enrichment skipped: {_ae}")
 
         return df, df2, info
     except Exception as e:
@@ -763,7 +1398,7 @@ def compute_score_criteria(d):
         ('7. خط الماكد > خط الإشارة', pd.notna(last['MACD']) and pd.notna(last['MACD_Sig']) and float(last['MACD']) > float(last['MACD_Sig'])),
         ('8. الماكد هستوجرام > 0', pd.notna(last['MACD_H']) and float(last['MACD_H']) > 0),
         ('9. مؤشر القوة النسبية > 50', pd.notna(last['RSI']) and float(last['RSI']) > 50),
-        ('10. ROC 12 إيجابي (زخم صاعد)', pd.notna(last['ROC12']) and float(last['ROC12']) > 0),
+        ('10. ROC 12 إيجابي - .خم صاعد', pd.notna(last['ROC12']) and float(last['ROC12']) > 0),
         ('11. مؤشر ADX > 25', pd.notna(last['ADX']) and float(last['ADX']) > 25),
         ('12. مؤشر +DI > مؤشر -DI', pd.notna(last['PDI']) and pd.notna(last['MDI']) and float(last['PDI']) > float(last['MDI'])),
     ]
@@ -1005,15 +1640,10 @@ def find_sr(df, d_ind=None, n_levels=8):
 
 
 def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, divergences=None):
-    """
-    Generate a structured Arabic technical review narrative from all indicators.
-    Returns a list of (section_title, paragraph_text) tuples.
-    """
     last = d.iloc[-1]
     c_price = float(last['Close'])
     sections = []
 
-    # ── 1. General Trend ─────────────────────────────────────────────────────
     ema7   = float(last['EMA7'])   if pd.notna(last['EMA7'])   else None
     ema20  = float(last['EMA20'])  if pd.notna(last['EMA20'])  else None
     ema50  = float(last['EMA50'])  if pd.notna(last['EMA50'])  else None
@@ -1045,7 +1675,6 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
         trend_parts.append(f'يُشير مؤشر ADX إلى اتجاه {direction} {strength} بقيمة {adx:.1f}.')
     sections.append(('الاتجاه العام', ' '.join(trend_parts) if trend_parts else 'لا تتوفر بيانات كافية لتحليل الاتجاه.'))
 
-    # ── 2. Momentum Indicators ───────────────────────────────────────────────
     rsi      = float(last['RSI'])      if pd.notna(last['RSI'])      else None
     macd     = float(last['MACD'])     if pd.notna(last['MACD'])     else None
     macd_sig = float(last['MACD_Sig']) if pd.notna(last['MACD_Sig']) else None
@@ -1082,7 +1711,6 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
             mom_parts.append(f'مؤشر ROC 12 عند {roc12:.2f}% يُشير إلى زخم هبوطي قوي على المدى المتوسط.')
     sections.append(('مؤشرات الزخم', ' '.join(mom_parts) if mom_parts else 'لا تتوفر بيانات كافية.'))
 
-    # ── 3. Volatility & Bollinger Bands ──────────────────────────────────────
     bb_u = float(last['BB_U']) if pd.notna(last['BB_U']) else None
     bb_m = float(last['BB_M']) if pd.notna(last['BB_M']) else None
     bb_l = float(last['BB_L']) if pd.notna(last['BB_L']) else None
@@ -1113,7 +1741,6 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
             vol_parts.append(f'مؤشر ATR عند {atr:.2f} ({atr_pct:.1f}% من السعر) يُشير إلى تذبذب يومي معتدل.')
     sections.append(('التذبذب ونطاق بولنجر', ' '.join(vol_parts) if vol_parts else 'لا تتوفر بيانات كافية.'))
 
-    # ── 4. Volume Analysis ───────────────────────────────────────────────────
     obv      = float(last['OBV'])         if pd.notna(last['OBV'])         else None
     bull_vol = float(last['Bull_Volume']) if pd.notna(last['Bull_Volume']) else None
     bear_vol = float(last['Bear_Volume']) if pd.notna(last['Bear_Volume']) else None
@@ -1152,7 +1779,6 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
                 volume_parts.append('OBV: المؤشر في اتجاه تراجعي خلال الأسبوع الأخير، مما يُلمح إلى ضعف خفي رغم الحركة السعرية.')
     sections.append(('تحليل الحجم', ' '.join(volume_parts) if volume_parts else 'لا تتوفر بيانات كافية.'))
 
-    # ── 5. Ichimoku & Advanced ───────────────────────────────────────────────
     tenkan = float(last['Tenkan'])   if pd.notna(last['Tenkan'])   else None
     kijun  = float(last['Kijun'])    if pd.notna(last['Kijun'])    else None
     senk_a = float(last['Senkou_A']) if pd.notna(last['Senkou_A']) else None
@@ -1181,7 +1807,6 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
             adv_parts.append(f'مؤشر بارابوليك SAR عند {sar:.2f} يعلو السعر الحالي، مما يشير إلى ضعف الزخم الصعودي.')
     sections.append(('مؤشرات متقدمة (إيشيموكو / SAR)', ' '.join(adv_parts) if adv_parts else 'لا تتوفر بيانات كافية.'))
 
-    # ── 6. Support / Resistance + ATR Price Targets ──────────────────────────
     atr_val = float(last['ATR']) if pd.notna(last['ATR']) else None
     sr_parts = []
     if sup:
@@ -1218,7 +1843,6 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
         sr_parts.append('لم يتم رصد مستويات دعم أو مقاومة واضحة في الفترة المحللة.')
     sections.append(('مستويات الدعم والمقاومة والأهداف السعرية', ' '.join(sr_parts)))
 
-    # ── 7. Overall Conclusion ────────────────────────────────────────────────
     rec_txt, _ = recommendation(score)
     if score >= 16:
         outlook = (f'الصورة الفنية الشاملة إيجابية بدرجة عالية وفق نتيجة {score}/20، '
@@ -1242,7 +1866,6 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
                    f'متابعة كسر مستويات الدعم أو المقاومة القريبة سيُحدد مسار الاتجاه القادم.')
     sections.append(('الخلاصة الفنية', outlook))
 
-    # ── 8. Divergences ───────────────────────────────────────────────────────
     if divergences:
         div_parts = [f'{ind}: {ar_type} — يُشير إلى احتمال تغيير في الزخم الحالي.' for ind, ar_type, en_type in divergences]
         sections.append(('التباعد بين السعر والمؤشرات', ' '.join(div_parts)))
@@ -1250,7 +1873,6 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
         sections.append(('التباعد بين السعر والمؤشرات',
                           'لا يُلاحَظ تباعد واضح بين السعر ومؤشري RSI وMACD في الفترة الأخيرة، مما يُشير إلى انسجام الزخم مع حركة السعر.'))
 
-    # ── 9. 52-Week Position ──────────────────────────────────────────────────
     w52_high = info.get('fiftyTwoWeekHigh') if info else None
     w52_low  = info.get('fiftyTwoWeekLow')  if info else None
     if w52_high and w52_low and float(w52_high) != float(w52_low):
@@ -1262,7 +1884,6 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
                           f'(أدنى 52 أسبوع: {float(w52_low):.2f} — أعلى 52 أسبوع: {float(w52_high):.2f}). '
                           f'المسافة من القمة: {dist_high:.1f}%. المسافة من القاع: {dist_low:.1f}%.'))
 
-    # ── 10. CCI & Williams %R ────────────────────────────────────────────────
     cci_val   = float(last['CCI'])   if pd.notna(last['CCI'])   else None
     willr     = float(last['WILLR']) if pd.notna(last['WILLR']) else None
     osc_parts = []
@@ -1332,6 +1953,17 @@ def _get_pivots(d, order=5):
     return {'highs':[(int(i),round(h[i],4)) for i in ph],'lows':[(int(i),round(l[i],4)) for i in pl]}
 
 
+def make_main_chart(d, sup=None, res=None):
+    sup=sup or []; res=res or []; d=d.tail(180).copy()
+    p=d[['Open','High','Low','Close','Volume']].copy()
+    mc=mpf.make_marketcolors(up='#26a69a',down='#ef5350',edge='inherit',wick='inherit',volume={'up':'#80cbc4','down':'#ef9a9a'})
+    st=mpf.make_mpf_style(marketcolors=mc,gridstyle=':',gridcolor='#dddddd',rc={'axes.facecolor':'#FAFAFA'})
+    plot_kwargs=dict(type='candle',style=st,volume=True,figsize=(14,7),returnfig=True,warn_too_much_data=9999)
+    fig,ax=mpf.plot(p,**plot_kwargs); main_ax=ax[0]
+    xmax=len(d); pivots=_get_pivots(d,order=5)
+    _draw_sr_lines(main_ax,sup,res,xmax,d_ind=d,pivots=pivots)
+    fig.subplots_adjust(right=0.80); return chart_bytes(fig)
+
 def make_price_chart(d, sup=None, res=None):
     sup=sup or []; res=res or []; d=d.tail(180).copy()
     p=d[['Open','High','Low','Close','Volume']].copy()
@@ -1346,8 +1978,7 @@ def make_price_chart(d, sup=None, res=None):
     fig,ax=mpf.plot(p,**plot_kwargs); main_ax=ax[0]
     if labels: main_ax.legend(labels,loc='upper left',fontsize=8,prop=MPL_FONT_PROP)
     xmax=len(d); pivots=_get_pivots(d,order=5)
-    _draw_sr_lines(main_ax,sup,res,xmax,d_ind=d,pivots=pivots)
-    fig.subplots_adjust(right=0.80); return chart_bytes(fig)
+    fig.subplots_adjust(right=0.95, left=0.05); return chart_bytes(fig)
 
 
 def make_ema_chart(d, sup=None, res=None):
@@ -1364,8 +1995,7 @@ def make_ema_chart(d, sup=None, res=None):
     fig,ax=mpf.plot(p,**plot_kwargs); main_ax=ax[0]
     if labels: main_ax.legend(labels,loc='upper left',fontsize=8,prop=MPL_FONT_PROP)
     xmax=len(d); pivots=_get_pivots(d,order=5)
-    _draw_sr_lines(main_ax,sup,res,xmax,d_ind=d,pivots=pivots)
-    fig.subplots_adjust(right=0.80); return chart_bytes(fig)
+    fig.subplots_adjust(right=0.95, left=0.05); return chart_bytes(fig)
 
 
 def make_tech_chart(d):
@@ -1440,7 +2070,7 @@ def make_gauge_chart(score):
     ax_button.axis('off'); ax_button.set_xlim(0,1); ax_button.set_ylim(0,1)
     rec,rec_color=recommendation(score)
     circle=mpatches.Circle((0.5,0.5),0.35,facecolor=rec_color,edgecolor='#333333',linewidth=2,transform=ax_button.transAxes)
-    ax_button.add_patch(circle); ax_button.text(0.5,0.5,rtl(rec),ha='center',va='center',fontsize=13,fontproperties=MPL_FONT_PROP_BOLD,color='white',transform=ax_button.transAxes)
+    ax_button.add_patch(circle); ax_button.text(0.5,0.5,rtl(rec),ha='center',va='center',fontsize=20,fontproperties=MPL_FONT_PROP_BOLD,color='white',transform=ax_button.transAxes)
     ax_button.text(0.5,0.12,f'{score}/20',ha='center',va='center',fontsize=10,fontproperties=MPL_FONT_PROP,transform=ax_button.transAxes)
     plt.tight_layout(); return chart_bytes(fig)
 
@@ -1609,7 +2239,6 @@ class Report:
         c=self.c; self.pn+=1
         c.setFillColor(NAVY); c.rect(0, PAGE_H-78*mm, PAGE_W, 78*mm, fill=1, stroke=0)
         c.setFillColor(TEAL); c.rect(0, PAGE_H-80*mm, PAGE_W, 2*mm, fill=1, stroke=0)
-        # Prefer Arabic name from COMPANY_NAMES, fall back to yfinance longName/shortName
         company_name = (COMPANY_NAMES.get(self.tk)
                         or safe(info, 'longName', safe(info, 'shortName', self.display_tk))
                         or self.display_tk)
@@ -1621,9 +2250,9 @@ class Report:
         c.setFillColor(HexColor(rec_color)); c.roundRect(MG, PAGE_H-58*mm, 60*mm, 14*mm, 8, fill=1, stroke=0)
         c.setFillColor(WHITE); self._font(True,11); c.drawCentredString(MG+30*mm, PAGE_H-53*mm, rtl(rec_txt))
         self._font(False,8); c.drawCentredString(MG+30*mm, PAGE_H-57*mm, rtl(f'النتيجة {score}/20'))
-        col_bw=CW/3-4*mm; col_bh=20*mm; col_gap=6*mm
+        col_bw=CW/3-4*mm; col_bh=18*mm; col_gap=4*mm
         x1=MG; x2=MG+col_bw+col_gap; x3=MG+2*(col_bw+col_gap)
-        y1=PAGE_H-112*mm; y2=y1-col_bh-col_gap; y3=y2-col_bh-col_gap
+        y1=PAGE_H-110*mm; y2=y1-col_bh-col_gap; y3=y2-col_bh-col_gap; y4=y3-col_bh-col_gap
         self._box(x1,y1,col_bw,col_bh,'السعر الحالي',price)
         self._box(x2,y1,col_bw,col_bh,'التغير اليومي',f'{chg:+.2f}%',clr=GREEN_HEX if chg>=0 else RED_HEX)
         self._box(x3,y1,col_bw,col_bh,'القيمة السوقية',fmt_n(safe(info,'marketCap'))[0])
@@ -1637,18 +2266,24 @@ class Report:
         self._box(x1,y3,col_bw,col_bh,'مضاعف القيمة الدفترية',f'{float(pb):.2f}' if pb else '-')
         self._box(x2,y3,col_bw,col_bh,'العائد على حقوق المساهمين',fmt_p(roe)[0] if roe else '-')
         self._box(x3,y3,col_bw,col_bh,'بيتا',f'{float(beta):.2f}' if beta else '-')
+
+        self._box(x1,y4,col_bw,col_bh,'حجم التداول',fmt_n(safe(info,'volume'),d=0)[0])
+        val_str = fmt_n(safe(info,'tradingValue'),d=0)[0] if safe(info,'tradingValue') else '-'
+        self._box(x2,y4,col_bw,col_bh,'قيمة التداول',val_str)
+        trades_str = fmt_n(safe(info,'tradesCount'),d=0)[0] if safe(info,'tradesCount') else '-'
+        self._box(x3,y4,col_bw,col_bh,'عدد الصفقات',trades_str)
         w52h=safe(info,'fiftyTwoWeekHigh'); w52l=safe(info,'fiftyTwoWeekLow')
         if w52h and w52l and float(w52h)!=float(w52l):
-            bar_y=y3-14*mm; c.setFillColor(NAVY); self._font(True,8); c.drawRightString(PAGE_W-MG, bar_y+2, rtl('نطاق 52 أسبوع'))
+            bar_y=y4-12*mm; c.setFillColor(NAVY); self._font(True,8); c.drawRightString(PAGE_W-MG, bar_y+2, rtl('نطاق 52 أسبوع'))
             bar_x=MG; bar_w=CW; bar_h=5*mm; bar_y2=bar_y-bar_h-2
             c.setFillColor(HexColor('#ECEFF1')); c.roundRect(bar_x, bar_y2, bar_w, bar_h, 3, fill=1, stroke=0)
             pos=(price-float(w52l))/(float(w52h)-float(w52l)); pos=max(0.0,min(1.0,pos)); fill_w=bar_w*pos
             fill_c=HexColor(RED_HEX) if pos<0.35 else (HexColor(GREEN_HEX) if pos>0.65 else HexColor(ORANGE_HEX))
             c.setFillColor(fill_c); c.roundRect(bar_x, bar_y2, max(fill_w,4), bar_h, 3, fill=1, stroke=0)
             c.setFillColor(DGRAY); self._font(False,7); c.drawString(bar_x, bar_y2-9, f'{float(w52l):.2f}'); c.drawRightString(bar_x+bar_w, bar_y2-9, f'{float(w52h):.2f}')
-            c.setFillColor(NAVY); self._font(True,7); c.drawCentredString(bar_x+bar_w/2, bar_y2-9, f'{pos*100:.0f}%'); y3=bar_y2-14*mm
-        else: y3=y3-8*mm
-        y=y3-6*mm; y=self._stitle(y,'معلومات الشركة')
+            c.setFillColor(NAVY); self._font(True,7); c.drawCentredString(bar_x+bar_w/2, bar_y2-9, f'{pos*100:.0f}%'); y_after=bar_y2-12*mm
+        else: y_after=y4-6*mm
+        y=y_after; y=self._stitle(y,'معلومات الشركة')
         sector=short_text(safe(info,'sector','-') or '-',26); industry=short_text(safe(info,'industry','-') or '-',26)
         items=[('القطاع',sector),('الصناعة',industry),('العملة',safe(info,'currency','SAR') or '-'),('متوسط الحجم',fmt_n(safe(info,'averageVolume'),d=0)[0]),('أعلى 52 أسبوع',fmt_n(safe(info,'fiftyTwoWeekHigh'))[0]),('أدنى 52 أسبوع',fmt_n(safe(info,'fiftyTwoWeekLow'))[0]),('الأسهم القائمة',fmt_n(safe(info,'sharesOutstanding'),d=0)[0]),('الأسهم الحرة',fmt_n(safe(info,'floatShares'),d=0)[0])]
         half=CW/2
@@ -1659,13 +2294,42 @@ class Report:
         c.setFillColor(DGRAY); self._font(False,7); c.drawCentredString(PAGE_W/2, 14*mm, rtl('هذا التقرير لأغراض معلوماتية فقط وليس توصية استثمارية.'))
         self._foot(); c.showPage()
 
-    def price_page(self, img):
-        self._bar('حركة السعر والمتوسطات المتحركة'); self._foot()
-        y=PAGE_H-44*mm; y=self._stitle(y,'الرسم الشمعي مع SMA 20 / 50 / 200 وحجم التداول'); self._img(y, img, 178*mm)
 
-    def ema_page(self, img):
-        self._bar('حركة السعر والمتوسطات المتحركة (EMA)'); self._foot()
-        y=PAGE_H-160*mm; y=self._stitle(y,'الرسم الشمعي مع EMA 20 / 50 / 200 وحجم التداول'); self._img(y, img, 178*mm); self.c.showPage()
+    def main_charts_page(self, main_img, sma_img, ema_img):
+        self._bar('الرسم البياني')
+        self._foot()
+        c = self.c
+        y = PAGE_H - 44*mm
+        y = self._stitle(y, 'الرسم البياني الرئيسي مع الدعم والمقاومة')
+        y = self._img(y, main_img, 100*mm)
+        y = self._stitle(y, 'المتوسطات المتحركة (SMA يمين - EMA يسار)')
+
+        sma_img.seek(0); img1 = ImageReader(sma_img)
+        ema_img.seek(0); img2 = ImageReader(ema_img)
+
+        dw = (CW / 2) - 2*mm
+        ratio1 = img1.getSize()[1] / img1.getSize()[0]
+        dh1 = dw * ratio1
+        ratio2 = img2.getSize()[1] / img2.getSize()[0]
+        dh2 = dw * ratio2
+
+        maxh = 75*mm
+        if dh1 > maxh:
+            dh1 = maxh
+            dw = dh1 / ratio1
+            dh2 = dw * ratio2
+        if dh2 > maxh:
+            dh2 = maxh
+            dw = dh2 / ratio2
+            dh1 = dw * ratio1
+
+        x1 = PAGE_W - MG - dw
+        x2 = MG
+
+        c.drawImage(img1, x1, y - dh1 - 2, dw, dh1)
+        c.drawImage(img2, x2, y - dh2 - 2, dw, dh2)
+
+        self.c.showPage()
 
     def tech_page(self, tech_img, bb_img):
         self._bar('المؤشرات الفنية'); self._foot()
@@ -1688,15 +2352,19 @@ class Report:
             y_table=self._stitle(y_table,f'جدول نقاط النتيجة ({total_score}/20)')
             rows_score=[['النقاط','الحالة','البند']]
             for lbl,(symbol,pt) in score_criteria.items():
-                status=rtl('نعم (+1)') if pt==1 else rtl('لا (0)'); rows_score.append([str(pt),status,rtl(short_text(lbl,35))])
-            rows_score.append([str(total_score),rtl('من 20'),rtl('الإجمالي')]); self._table(y_table,rows_score,[CW*0.15,CW*0.30,CW*0.55],score_mode=True)
+                status=rtl('نعم ✓') if pt==1 else rtl('لا ✗')
+                rows_score.append([str(pt),status,rtl(short_text(lbl,35))])
+            rows_score.append([str(total_score),rtl('من 20'),rtl('الإجمالي')])
+            self._table(y_table,rows_score,[CW*0.15,CW*0.30,CW*0.55],score_mode=True)
         else:
             self.c.showPage(); self._bar('جدول نقاط النتيجة'); self._foot()
             y_table=PAGE_H-44*mm; y_table=self._stitle(y_table,f'جدول نقاط النتيجة ({total_score}/20)')
             rows_score=[['النقاط','الحالة','البند']]
             for lbl,(symbol,pt) in score_criteria.items():
-                status=rtl('نعم (+1)') if pt==1 else rtl('لا (0)'); rows_score.append([str(pt),status,rtl(short_text(lbl,35))])
-            rows_score.append([str(total_score),rtl('من 20'),rtl('الإجمالي')]); self._table(y_table,rows_score,[CW*0.15,CW*0.30,CW*0.55],score_mode=True)
+                status=rtl('نعم ✓') if pt==1 else rtl('لا ✗')
+                rows_score.append([str(pt),status,rtl(short_text(lbl,35))])
+            rows_score.append([str(total_score),rtl('من 20'),rtl('الإجمالي')])
+            self._table(y_table,rows_score,[CW*0.15,CW*0.30,CW*0.55],score_mode=True)
         self.c.showPage()
 
     def fund_page(self, info):
@@ -1823,6 +2491,7 @@ def _build_report_sync(ticker_input: str):
     divergences = detect_divergences(d)
     review_sections = gen_technical_review(d, sig, score, sup, res, info, patterns=patterns, divergences=divergences)
 
+    main_img = make_main_chart(d, sup=sup, res=res)
     p_img    = make_price_chart(d, sup=sup, res=res)
     ema_img  = make_ema_chart(d, sup=sup, res=res)
     t_img    = make_tech_chart(d)
@@ -1841,13 +2510,12 @@ def _build_report_sync(ticker_input: str):
     pdf_buf = BytesIO()
     rpt = Report(pdf_buf, ticker, info, display_ticker)
     rpt.cover(price, chg, info, rec_txt, rec_color, score)
-    rpt.price_page(p_img)
-    rpt.ema_page(ema_img)
+    rpt.main_charts_page(main_img, p_img, ema_img)
     rpt.tech_page(t_img, bb_img)
+    rpt.ichimoku_page(ichi_img, cpat_img)
     rpt.perf_page(pers, risk, dd_img, v_img, score_criteria, score)
     rpt.fund_page(info)
     rpt.signal_page(g_img, sig, score, sup, res, d)
-    rpt.ichimoku_page(ichi_img, cpat_img)
     rpt.cci_willr_page(cci_img, patterns, divergences, d)
     rpt.review_page(review_sections, score)
     rpt.save()
@@ -2122,7 +2790,7 @@ ANALYZER_MSG = (
 )
 
 # ─────────────────────────────────────────────────────────────
-# 14. LANDING HTML (unchanged from original)
+# 14. LANDING HTML
 # ─────────────────────────────────────────────────────────────
 LANDING_HTML = """<!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -2150,7 +2818,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     data = query.data
 
-    # ── Main menu ────────────────────────────────────────
     if data == "back_to_main":
         context.user_data.pop('waiting_ticker', None)
         await query.edit_message_text(
@@ -2175,7 +2842,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # ── Wolfe: back to wolfe menu ────────────────────────
     if data == "back_to_wolfe":
         await query.edit_message_text(
             WOLFE_WELCOME_MSG, parse_mode="Markdown",
@@ -2183,7 +2849,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # ── Wolfe: timeframe selected ────────────────────────
     if data.startswith("scan_"):
         tf_key = data[5:]
         if tf_key not in TF_MAP:
@@ -2196,7 +2861,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # ── Wolfe: filter selected → run scan ───────────────
     if data.startswith("filter_"):
         parts = data.split("_", 2)
         if len(parts) != 3:
@@ -2288,12 +2952,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle text messages — used for analyzer bot ticker input."""
     if not context.user_data.get('waiting_ticker'):
-        return  # ignore text if not in analyzer mode
+        return
 
     ticker_input = update.message.text.strip()
     chat_id = update.effective_chat.id
 
-    # Show processing message
     proc_msg = await update.message.reply_text(
         f"⏳ جاري تحميل وتحليل بيانات *{ticker_input}*...\n"
         "قد يستغرق ذلك حتى دقيقتين، يرجى الانتظار 🔄",
