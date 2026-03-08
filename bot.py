@@ -40,24 +40,6 @@ from telegram.ext import (
     MessageHandler, filters, ContextTypes,
 )
 
-# ── Argaam scraper dependencies (optional – graceful fallback if missing) ──
-try:
-    import sys
-    import time
-    import subprocess
-    from bs4 import BeautifulSoup
-    from selenium import webdriver
-    from selenium.webdriver.chrome.options import Options as ChromeOptions
-    from selenium.webdriver.chrome.service import Service as ChromeService
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
-    ARGAAM_AVAILABLE = True
-except ImportError:
-    ARGAAM_AVAILABLE = False
-    logger_stub = logging.getLogger(__name__)
-    logger_stub.warning("Argaam scraper deps not installed; falling back to yfinance only.")
-
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
@@ -94,10 +76,12 @@ def _download_font(url, path):
 def _init_fonts():
     global MPL_FONT_PROP, MPL_FONT_PROP_BOLD, ARABIC_FONT
 
+    # Cairo for wolfe charts
     _download_font(
         'https://github.com/google/fonts/raw/main/ofl/cairo/static/Cairo-Regular.ttf',
         CAIRO_PATH,
     )
+    # Amiri for PDF reports
     _download_font(
         'https://github.com/google/fonts/raw/refs/heads/main/ofl/amiri/Amiri-Regular.ttf',
         AMIRI_REG_PATH,
@@ -107,6 +91,7 @@ def _init_fonts():
         AMIRI_BOLD_PATH,
     )
 
+    # Register Amiri with ReportLab
     if os.path.exists(AMIRI_REG_PATH):
         try:
             pdfmetrics.registerFont(TTFont(AR_FONT, AMIRI_REG_PATH))
@@ -118,6 +103,7 @@ def _init_fonts():
         except Exception:
             pass
 
+    # Matplotlib fonts
     for fp in [AMIRI_REG_PATH, AMIRI_BOLD_PATH, CAIRO_PATH]:
         if os.path.exists(fp):
             fm.fontManager.addfont(fp)
@@ -129,6 +115,7 @@ def _init_fonts():
         MPL_FONT_PROP_BOLD = fm.FontProperties(fname=AMIRI_BOLD_PATH)
     plt.rcParams['axes.unicode_minus'] = False
 
+    # Cairo for wolfe charts title
     if os.path.exists(CAIRO_PATH):
         prop = fm.FontProperties(fname=CAIRO_PATH)
         ARABIC_FONT = prop.get_name()
@@ -372,408 +359,6 @@ def get_sector_industry(ticker):
     return SECTOR_MAP.get(ticker, (None, None))
 
 # ─────────────────────────────────────────────────────────────
-# 3b. ARGAAM SCRAPER INTEGRATION
-# Priority: Argaam data overrides yfinance for fundamental fields.
-# Falls back to yfinance if Argaam is unavailable or scraping fails.
-# ─────────────────────────────────────────────────────────────
-
-# Argaam company ID → Tadawul ticker mapping
-ARGAAM_COMPANY_MAPPING = {
-    "68":    {"ticker": "1120", "name": "الراجحي"},
-    "58":    {"ticker": "1180", "name": "الأهلي السعودي"},
-    "273":   {"ticker": "1150", "name": "الإنماء"},
-    "67":    {"ticker": "1010", "name": "الرياض"},
-    "60":    {"ticker": "1050", "name": "السعودي الفرنسي"},
-    "59":    {"ticker": "1060", "name": "ساب"},
-    "154":   {"ticker": "1140", "name": "البلاد"},
-    "61":    {"ticker": "1080", "name": "العربي الوطني"},
-    "57":    {"ticker": "1020", "name": "الجزيرة"},
-    "62":    {"ticker": "1030", "name": "السعودي للاستثمار"},
-    "11564": {"ticker": "2222", "name": "أرامكو"},
-    "66":    {"ticker": "2010", "name": "سابك"},
-    "95":    {"ticker": "2020", "name": "سابك للمغذيات"},
-    "84":    {"ticker": "2060", "name": "التصنيع"},
-    "199":   {"ticker": "2290", "name": "ينساب"},
-    "257":   {"ticker": "2350", "name": "كيان"},
-    "220":   {"ticker": "2380", "name": "بترو رابغ"},
-    "126":   {"ticker": "2330", "name": "المتقدمة"},
-    "155":   {"ticker": "2310", "name": "سبكيم"},
-    "85":    {"ticker": "2230", "name": "الكيميائية"},
-    "152":   {"ticker": "2210", "name": "نماء للكيماويات"},
-    "297":   {"ticker": "2340", "name": "كيمانول"},
-    "156":   {"ticker": "2260", "name": "الصحراء"},
-    "12129": {"ticker": "2223", "name": "لوبريف"},
-    "134":   {"ticker": "2280", "name": "المراعي"},
-    "258":   {"ticker": "1211", "name": "معادن"},
-    "69":    {"ticker": "3010", "name": "أسمنت السعودية"},
-    "70":    {"ticker": "3020", "name": "أسمنت اليمامة"},
-    "73":    {"ticker": "3050", "name": "أسمنت الجنوبية"},
-    "71":    {"ticker": "3030", "name": "أسمنت القصيم"},
-    "72":    {"ticker": "3040", "name": "أسمنت العربية"},
-    "74":    {"ticker": "3060", "name": "أسمنت ينبع"},
-    "75":    {"ticker": "3080", "name": "أسمنت الشرقية"},
-    "76":    {"ticker": "3090", "name": "أسمنت تبوك"},
-    "250":   {"ticker": "3091", "name": "أسمنت الجوف"},
-    "272":   {"ticker": "3002", "name": "أسمنت نجران"},
-    "271":   {"ticker": "3003", "name": "أسمنت المدينة"},
-    "270":   {"ticker": "3004", "name": "أسمنت الشمالية"},
-    "309":   {"ticker": "3001", "name": "أسمنت حائل"},
-    "312":   {"ticker": "3005", "name": "أم القرى"},
-    "88":    {"ticker": "2240", "name": "الزامل"},
-    "221":   {"ticker": "2320", "name": "البابطين"},
-    "82":    {"ticker": "2200", "name": "الأنابيب السعودية"},
-    "11827": {"ticker": "2370", "name": "أنابيب الشرق"},
-    "86":    {"ticker": "2040", "name": "الخزف"},
-    "87":    {"ticker": "2180", "name": "فيبكو"},
-    "83":    {"ticker": "2160", "name": "أميانتيت"},
-    "127":   {"ticker": "2250", "name": "بي سي آي"},
-    "128":   {"ticker": "2150", "name": "زجاج"},
-    "153":   {"ticker": "2220", "name": "معدنية"},
-    "89":    {"ticker": "2110", "name": "الصناعات الكهربائية"},
-    "63":    {"ticker": "7010", "name": "stc"},
-    "148":   {"ticker": "7020", "name": "موبايلي"},
-    "233":   {"ticker": "7030", "name": "زين السعودية"},
-    "11828": {"ticker": "7203", "name": "علم"},
-    "11821": {"ticker": "7202", "name": "الحلول"},
-    "316":   {"ticker": "4007", "name": "الحمادي"},
-    "306":   {"ticker": "4004", "name": "دله الصحية"},
-    "131":   {"ticker": "4002", "name": "المواساة"},
-    "11561": {"ticker": "4013", "name": "سليمان الحبيب"},
-    "130":   {"ticker": "4001", "name": "رعاية"},
-    "160":   {"ticker": "8010", "name": "التعاونية"},
-    "234":   {"ticker": "8210", "name": "بوبا العربية"},
-    "229":   {"ticker": "4300", "name": "دار الأركان"},
-    "260":   {"ticker": "4250", "name": "جبل عمر"},
-    "201":   {"ticker": "4220", "name": "إعمار"},
-    "97":    {"ticker": "4090", "name": "طيبة"},
-    "96":    {"ticker": "4100", "name": "مكة"},
-    "99":    {"ticker": "4150", "name": "الرياض للتعمير"},
-    "100":   {"ticker": "4020", "name": "العقارية"},
-    "118":   {"ticker": "4240", "name": "الحكير"},
-    "305":   {"ticker": "4321", "name": "سينومي سنترز"},
-    "125":   {"ticker": "4190", "name": "جرير"},
-    "298":   {"ticker": "4003", "name": "إكسترا"},
-    "200":   {"ticker": "4001", "name": "العثيم"},
-    "11593": {"ticker": "4161", "name": "بن داود"},
-    "315":   {"ticker": "4011", "name": "لازوردي"},
-    "123":   {"ticker": "4180", "name": "فتيحي"},
-    "91":    {"ticker": "2050", "name": "صافولا"},
-    "93":    {"ticker": "6010", "name": "نادك"},
-    "92":    {"ticker": "6060", "name": "حائل الزراعية"},
-    "94":    {"ticker": "6040", "name": "تبوك الزراعية"},
-    "157":   {"ticker": "6020", "name": "القصيم الزراعية"},
-    "158":   {"ticker": "6070", "name": "الجوف الزراعية"},
-    "159":   {"ticker": "6090", "name": "الشرقية للتنمية"},
-    "151":   {"ticker": "6050", "name": "أنعام القابضة"},
-    "300":   {"ticker": "6002", "name": "هرفي"},
-    "64":    {"ticker": "5110", "name": "الكهرباء"},
-    "11810": {"ticker": "2082", "name": "أكوا باور"},
-    "80":    {"ticker": "2080", "name": "الغاز"},
-    "304":   {"ticker": "6004", "name": "التموين"},
-    "105":   {"ticker": "4260", "name": "بدجت"},
-    "104":   {"ticker": "4040", "name": "النقل الجماعي"},
-    "103":   {"ticker": "4030", "name": "البحري"},
-    "106":   {"ticker": "4280", "name": "المملكة القابضة"},
-    "81":    {"ticker": "2190", "name": "سيسكو"},
-    "124":   {"ticker": "4200", "name": "الدريس"},
-    "107":   {"ticker": "4210", "name": "الأبحاث والإعلام"},
-    "108":   {"ticker": "4070", "name": "تهامة"},
-    "90":    {"ticker": "4130", "name": "الكابلات السعودية"},
-    "11950": {"ticker": "1111", "name": "مجموعة تداول"},
-    "162":   {"ticker": "8020", "name": "ملاذ"},
-    "237":   {"ticker": "8230", "name": "الراجحي تكافل"},
-    "161":   {"ticker": "8030", "name": "ميدغلف"},
-    "163":   {"ticker": "8050", "name": "سلامة"},
-    "235":   {"ticker": "8270", "name": "ساب تكافل"},
-    "232":   {"ticker": "8012", "name": "الأهلي تكافل"},
-    "236":   {"ticker": "8040", "name": "أمانة"},
-    "238":   {"ticker": "8150", "name": "أسيج"},
-    "244":   {"ticker": "8060", "name": "ولاء"},
-    "264":   {"ticker": "8200", "name": "الإعادة السعودية"},
-}
-
-# Reverse map: Tadawul ticker (without .SR) → Argaam ID
-ARGAAM_TICKER_TO_ID: dict = {
-    v["ticker"]: k for k, v in ARGAAM_COMPANY_MAPPING.items()
-}
-
-# Argaam fields we care about
-_ARGAAM_TRADING_FIELDS = [
-    "آخر سعر", "التغير", "التغير (%)", "الافتتاح", "الأدنى", "الأعلى",
-    "الإغلاق السابق", "حجم التداول", "قيمة التداول", "عدد الصفقات",
-    "القيمة السوقية", "م. حجم التداول (3 أشهر)", "م. قيمة التداول (3 أشهر)",
-    "م.عدد الصفقات (3 أشهر)", "التغير (3 أشهر)", "التغير (6 أشهر)",
-    "التغير (12 أشهر)", "التغير من بداية العام",
-]
-_ARGAAM_FUNDAMENTAL_FIELDS = [
-    "القيمة السوقية (مليون ريال)", "عدد الأسهم (مليون)",
-    "ربح السهم ( ريال) (أخر 12 شهر)",
-    "القيمة الدفترية ( ريال) (لأخر فترة معلنة)",
-    "القيمة الاسمية ( ريال)", "مكرر الربح المتكرر",
-    "مضاعف القيمة الدفترية",
-]
-_ARGAAM_ALL_FIELDS = _ARGAAM_TRADING_FIELDS + _ARGAAM_FUNDAMENTAL_FIELDS
-
-
-def _argaam_parse_num(text: str):
-    """Parse Arabic/Latin numeric string → float, or None."""
-    if not text:
-        return None
-    cleaned = str(text).replace(',', '').replace('٪', '').replace('%', '').strip()
-    try:
-        return float(cleaned)
-    except (ValueError, TypeError):
-        return None
-
-
-# ── Chrome helpers ────────────────────────────────────────────
-def _argaam_chrome_opts():
-    opts = ChromeOptions()
-    opts.add_argument("--headless=new")
-    opts.add_argument("--no-sandbox")
-    opts.add_argument("--disable-dev-shm-usage")
-    opts.add_argument("--disable-gpu")
-    opts.add_argument("--window-size=1920,1080")
-    opts.add_argument("--lang=ar")
-    opts.add_argument("--disable-blink-features=AutomationControlled")
-    opts.add_argument(
-        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    )
-    opts.add_experimental_option("excludeSwitches", ["enable-automation"])
-    opts.add_experimental_option("useAutomationExtension", False)
-    return opts
-
-
-def _argaam_setup_driver():
-    """Start headless Chrome. Returns driver or raises RuntimeError."""
-    opts = _argaam_chrome_opts()
-    try:
-        from webdriver_manager.chrome import ChromeDriverManager
-        service = ChromeService(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=opts)
-        driver.execute_script(
-            "Object.defineProperty(navigator,'webdriver',{get:()=>undefined})"
-        )
-        return driver
-    except Exception as exc:
-        logger.warning(f"webdriver-manager failed: {exc}; trying Selenium built-in…")
-    try:
-        driver = webdriver.Chrome(options=opts)
-        driver.execute_script(
-            "Object.defineProperty(navigator,'webdriver',{get:()=>undefined})"
-        )
-        return driver
-    except Exception as exc2:
-        raise RuntimeError(f"Could not start Chrome for Argaam scraping: {exc2}") from exc2
-
-
-# ── Page extraction helpers ───────────────────────────────────
-def _argaam_normalise(text: str) -> str:
-    return re.sub(r"\s+", " ", text.replace("\u00a0", " ")).strip()
-
-
-def _argaam_is_value(text: str) -> bool:
-    return bool(re.search(r"[\d\-\+\.٪%,]+", text)) and len(text) < 80
-
-
-def _argaam_extract_table(soup, results):
-    for row in soup.find_all("tr"):
-        cells = row.find_all(["td", "th"])
-        if len(cells) >= 2:
-            label = _argaam_normalise(cells[0].get_text())
-            value = _argaam_normalise(cells[1].get_text())
-            for field in _ARGAAM_ALL_FIELDS:
-                if field in label and field not in results:
-                    results[field] = value
-
-
-def _argaam_extract_dl(soup, results):
-    for dl in soup.find_all("dl"):
-        dts = dl.find_all("dt")
-        dds = dl.find_all("dd")
-        for dt, dd in zip(dts, dds):
-            label = _argaam_normalise(dt.get_text())
-            value = _argaam_normalise(dd.get_text())
-            for field in _ARGAAM_ALL_FIELDS:
-                if field in label and field not in results:
-                    results[field] = value
-
-
-def _argaam_extract_siblings(soup, results):
-    SKIP_TAGS = {"html", "body", "head", "script", "style", "nav", "header", "footer"}
-    for field in _ARGAAM_ALL_FIELDS:
-        if field in results:
-            continue
-        for tag in soup.find_all(True):
-            if tag.name in SKIP_TAGS:
-                continue
-            label = _argaam_normalise(tag.get_text())
-            if field not in label or len(label) > 150:
-                continue
-            candidates = [
-                tag.find_next_sibling(),
-                tag.parent.find_next_sibling() if tag.parent else None,
-                (tag.parent.parent.find_next_sibling()
-                 if tag.parent and tag.parent.parent else None),
-            ]
-            for cand in candidates:
-                if cand is None:
-                    continue
-                val = _argaam_normalise(cand.get_text())
-                if val and _argaam_is_value(val):
-                    results[field] = val
-                    break
-            if field in results:
-                break
-
-
-def _argaam_extract_spans(soup, results):
-    spans = soup.find_all("span")
-    for i, span in enumerate(spans[:-1]):
-        label = _argaam_normalise(span.get_text())
-        for field in _ARGAAM_ALL_FIELDS:
-            if field not in label or field in results or len(label) > 150:
-                continue
-            next_span = spans[i + 1]
-            val = _argaam_normalise(next_span.get_text())
-            if val and _argaam_is_value(val):
-                results[field] = val
-                break
-
-
-def _argaam_extract_regex(full_text: str, results: dict):
-    for field in _ARGAAM_ALL_FIELDS:
-        if field in results:
-            continue
-        pattern = re.escape(field) + r"[^\d\-\+]{0,20}?([\-\+]?[\d,\.]+\s*%?)"
-        m = re.search(pattern, full_text)
-        if m:
-            results[field] = m.group(1).strip()
-
-
-def _argaam_scrape(company_id: str, driver) -> dict:
-    """Scrape one company from Argaam. Returns raw field dict."""
-    url = (
-        f"https://www.argaam.com/ar/company/companyoverview"
-        f"/marketid/3/companyid/{company_id}"
-    )
-    try:
-        driver.get(url)
-        try:
-            WebDriverWait(driver, 25).until(
-                EC.presence_of_element_located((
-                    By.XPATH,
-                    "//*[contains(text(),'آخر سعر') or "
-                    "    contains(text(),'القيمة السوقية') or "
-                    "    contains(text(),'عدد الأسهم')]"
-                ))
-            )
-        except Exception:
-            time.sleep(6)
-        time.sleep(3)
-        soup = BeautifulSoup(driver.page_source, "lxml")
-        results: dict = {}
-        full_text = soup.get_text(separator=" ")
-        _argaam_extract_table(soup, results)
-        _argaam_extract_dl(soup, results)
-        _argaam_extract_siblings(soup, results)
-        _argaam_extract_spans(soup, results)
-        _argaam_extract_regex(full_text, results)
-        return results
-    except Exception as exc:
-        logger.warning(f"Argaam scrape error for {company_id}: {exc}")
-        return {}
-
-
-def _enrich_with_argaam(ticker: str, info: dict) -> None:
-    """
-    Fetch fundamental data from Argaam and update `info` in-place.
-    Argaam values take priority over yfinance for the fields it covers.
-    Silently skips if Chrome / network unavailable.
-    """
-    if not ARGAAM_AVAILABLE:
-        return
-
-    # Normalise ticker: strip .SR suffix
-    code = ticker.replace(".SR", "").strip()
-    company_id = ARGAAM_TICKER_TO_ID.get(code)
-    if not company_id:
-        logger.info(f"Argaam: no mapping for ticker {code} – skipping enrichment")
-        return
-
-    driver = None
-    try:
-        driver = _argaam_setup_driver()
-        raw = _argaam_scrape(company_id, driver)
-        if not raw:
-            return
-
-        # ── Map Argaam fields → yfinance info keys ────────────
-        # Market cap (Argaam gives millions of SAR)
-        mc = _argaam_parse_num(raw.get("القيمة السوقية (مليون ريال)"))
-        if mc is not None:
-            info["marketCap"] = mc * 1_000_000
-
-        # Shares outstanding (Argaam gives millions)
-        sh = _argaam_parse_num(raw.get("عدد الأسهم (مليون)"))
-        if sh is not None:
-            info["sharesOutstanding"] = sh * 1_000_000
-            info["floatShares"]       = sh * 1_000_000   # approximation
-
-        # EPS trailing twelve months
-        eps = _argaam_parse_num(raw.get("ربح السهم ( ريال) (أخر 12 شهر)"))
-        if eps is not None:
-            info["trailingEps"] = eps
-
-        # Book value per share
-        bv = _argaam_parse_num(raw.get("القيمة الدفترية ( ريال) (لأخر فترة معلنة)"))
-        if bv is not None:
-            info["bookValue"] = bv
-
-        # Trailing P/E
-        pe = _argaam_parse_num(raw.get("مكرر الربح المتكرر"))
-        if pe is not None and pe > 0:
-            info["trailingPE"] = pe
-
-        # Price-to-book
-        pb = _argaam_parse_num(raw.get("مضاعف القيمة الدفترية"))
-        if pb is not None and pb > 0:
-            info["priceToBook"] = pb
-
-        # Recalculate price-to-book if we now have bookValue but no priceToBook
-        if not info.get("priceToBook") and info.get("bookValue") and info.get("bookValue") > 0:
-            try:
-                price_now = float(info.get("currentPrice") or info.get("regularMarketPrice", 0))
-                if price_now > 0:
-                    info["priceToBook"] = round(price_now / float(info["bookValue"]), 4)
-            except Exception:
-                pass
-
-        # Average 3-month volume
-        avg_vol = _argaam_parse_num(raw.get("م. حجم التداول (3 أشهر)"))
-        if avg_vol is not None:
-            info["averageVolume"] = int(avg_vol)
-
-        # Currency / exchange defaults for Saudi stocks
-        if not info.get("currency"):
-            info["currency"] = "SAR"
-        if not info.get("exchange"):
-            info["exchange"] = "Tadawul"
-
-        logger.info(f"Argaam enrichment OK for {ticker} (Argaam ID {company_id})")
-
-    except Exception as exc:
-        logger.warning(f"Argaam enrichment failed for {ticker}: {exc}")
-    finally:
-        if driver is not None:
-            try:
-                driver.quit()
-            except Exception:
-                pass
-
-
-# ─────────────────────────────────────────────────────────────
 # 4. PDF THEME CONSTANTS
 # ─────────────────────────────────────────────────────────────
 NAVY_HEX, TEAL_HEX, GREEN_HEX = '#1B2A4A', '#00897B', '#4CAF50'
@@ -852,6 +437,7 @@ def fetch_data(ticker):
 
         price_now = float(df['Close'].iloc[-1])
 
+        # ── A. fast_info ─────────────────────────────────────────────────────
         try:
             fi = stk.fast_info
             for ikey, attr in [
@@ -872,6 +458,7 @@ def fetch_data(ticker):
                 except Exception: pass
         except Exception: pass
 
+        # ── B. Always compute 52-week high/low from actual price history ──────
         try:
             tail252 = df2['High'].tail(252) if len(df2) >= 252 else df['High']
             tail252l = df2['Low'].tail(252) if len(df2) >= 252 else df['Low']
@@ -879,18 +466,22 @@ def fetch_data(ticker):
             info['fiftyTwoWeekLow']  = float(tail252l.min())
         except Exception: pass
 
+        # ── C. Currency / exchange hardcoded for Saudi stocks ─────────────────
         if ticker.endswith('.SR'):
             if not info.get('currency'): info['currency'] = 'SAR'
             if not info.get('exchange'): info['exchange'] = 'Tadawul'
 
+        # ── D. Sector / Industry from local mapping ───────────────────────────
         sec, ind = get_sector_industry(ticker)
         if sec and not info.get('sector'):   info['sector']   = sec
         if ind and not info.get('industry'): info['industry'] = ind
 
+        # ── E. averageVolume ──────────────────────────────────────────────────
         if not info.get('averageVolume'):
             try: info['averageVolume'] = int(df['Volume'].mean())
             except Exception: pass
 
+        # ── F. Beta — compute from price returns vs TASI ─────────────────────
         if not info.get('beta'):
             try:
                 mkt = yf.Ticker('^TASI.SR').history(period='1y')['Close']
@@ -903,9 +494,11 @@ def fetch_data(ticker):
                     if var > 0: info['beta'] = round(cov / var, 3)
             except Exception: pass
 
+        # ── G. Dividends — from actual dividend history ───────────────────────
         try:
             divs = stk.dividends
             if divs is not None and len(divs) > 0:
+                # last 12 months
                 cutoff = pd.Timestamp.now(tz=divs.index.tz) - pd.DateOffset(years=1)
                 annual_div = float(divs[divs.index >= cutoff].sum())
                 if annual_div > 0:
@@ -913,6 +506,7 @@ def fetch_data(ticker):
                     if not info.get('dividendYield'): info['dividendYield'] = annual_div / price_now
         except Exception: pass
 
+        # ── H. Single-pass: financials + balance sheet ────────────────────────
         fin_ok = bs_ok = False
         rev = ni = equity = total_assets = curr_assets = curr_liab = inventory = None
         try:
@@ -929,6 +523,7 @@ def fetch_data(ticker):
                         except Exception: continue
                 return None
 
+            # Income statement
             if fin_ok:
                 rev = _fv(fin, 'Total Revenue')
                 ni  = _fv(fin, 'Net Income Common Stockholders', 'Net Income')
@@ -944,6 +539,7 @@ def fetch_data(ticker):
                     if op_inc  and not info.get('operatingMargins'): info['operatingMargins'] = op_inc / rev
                     if ni      and not info.get('profitMargins'):    info['profitMargins']    = ni / rev
 
+            # Balance sheet
             if bs_ok:
                 equity      = _fv(bs, 'Stockholders Equity', 'Common Stock Equity',
                                       'Total Equity Gross Minority Interest')
@@ -960,21 +556,25 @@ def fetch_data(ticker):
 
                 shares_out = info.get('sharesOutstanding')
 
+                # bookValue per share
                 if equity and shares_out and not info.get('bookValue'):
                     try: info['bookValue'] = equity / float(shares_out)
                     except Exception: pass
 
+                # priceToBook
                 if equity and shares_out and not info.get('priceToBook'):
                     try:
                         bps = equity / float(shares_out)
                         if bps > 0: info['priceToBook'] = price_now / bps
                     except Exception: pass
 
+                # ROE / ROA
                 if equity and ni is not None and equity != 0 and not info.get('returnOnEquity'):
                     info['returnOnEquity'] = ni / abs(equity)
                 if total_assets and ni is not None and total_assets != 0 and not info.get('returnOnAssets'):
                     info['returnOnAssets'] = ni / abs(total_assets)
 
+                # Current Ratio / Quick Ratio
                 if curr_assets and curr_liab and curr_liab != 0:
                     if not info.get('currentRatio'):
                         info['currentRatio'] = round(curr_assets / curr_liab, 2)
@@ -982,9 +582,11 @@ def fetch_data(ticker):
                         num = curr_assets - (inventory or 0)
                         info['quickRatio'] = round(num / curr_liab, 2)
 
+                # debtToEquity
                 if debt_val and equity and equity != 0 and not info.get('debtToEquity'):
                     info['debtToEquity'] = round((debt_val / abs(equity)) * 100, 2)
 
+            # EPS / Trailing PE
             shares_out = info.get('sharesOutstanding')
             if fin_ok and ni is not None and shares_out and float(shares_out) > 0:
                 eps = ni / float(shares_out)
@@ -992,6 +594,7 @@ def fetch_data(ticker):
                 if not info.get('trailingPE') and eps != 0:
                     info['trailingPE'] = price_now / eps
 
+            # Enterprise Value based ratios
             mktcap   = info.get('marketCap', 0) or 0
             tot_debt = info.get('totalDebt', 0) or 0
             tot_cash = info.get('totalCash', 0) or 0
@@ -1007,22 +610,18 @@ def fetch_data(ticker):
                     if not info.get('priceToSalesTrailing12Months') and mktcap > 0:
                         info['priceToSalesTrailing12Months'] = mktcap / rev_v
 
+            # Payout ratio
             div_rate = info.get('dividendRate')
             eps_v    = info.get('trailingEps')
             if div_rate and eps_v and eps_v > 0 and not info.get('payoutRatio'):
                 info['payoutRatio'] = div_rate / eps_v
 
+            # floatShares fallback = sharesOutstanding
             if not info.get('floatShares') and info.get('sharesOutstanding'):
                 info['floatShares'] = info['sharesOutstanding']
 
         except Exception as e:
             logger.warning(f"fetch_data supplement error: {e}")
-
-        # ── Argaam enrichment: overrides yfinance fundamental fields ──
-        try:
-            _enrich_with_argaam(ticker, info)
-        except Exception as _ae:
-            logger.warning(f"Argaam enrichment skipped: {_ae}")
 
         return df, df2, info
     except Exception as e:
@@ -1164,7 +763,7 @@ def compute_score_criteria(d):
         ('7. خط الماكد > خط الإشارة', pd.notna(last['MACD']) and pd.notna(last['MACD_Sig']) and float(last['MACD']) > float(last['MACD_Sig'])),
         ('8. الماكد هستوجرام > 0', pd.notna(last['MACD_H']) and float(last['MACD_H']) > 0),
         ('9. مؤشر القوة النسبية > 50', pd.notna(last['RSI']) and float(last['RSI']) > 50),
-        ('10. ROC 12 إيجابي - .خم صاعد', pd.notna(last['ROC12']) and float(last['ROC12']) > 0),
+        ('10. ROC 12 إيجابي (زخم صاعد)', pd.notna(last['ROC12']) and float(last['ROC12']) > 0),
         ('11. مؤشر ADX > 25', pd.notna(last['ADX']) and float(last['ADX']) > 25),
         ('12. مؤشر +DI > مؤشر -DI', pd.notna(last['PDI']) and pd.notna(last['MDI']) and float(last['PDI']) > float(last['MDI'])),
     ]
@@ -1406,10 +1005,15 @@ def find_sr(df, d_ind=None, n_levels=8):
 
 
 def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, divergences=None):
+    """
+    Generate a structured Arabic technical review narrative from all indicators.
+    Returns a list of (section_title, paragraph_text) tuples.
+    """
     last = d.iloc[-1]
     c_price = float(last['Close'])
     sections = []
 
+    # ── 1. General Trend ─────────────────────────────────────────────────────
     ema7   = float(last['EMA7'])   if pd.notna(last['EMA7'])   else None
     ema20  = float(last['EMA20'])  if pd.notna(last['EMA20'])  else None
     ema50  = float(last['EMA50'])  if pd.notna(last['EMA50'])  else None
@@ -1441,6 +1045,7 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
         trend_parts.append(f'يُشير مؤشر ADX إلى اتجاه {direction} {strength} بقيمة {adx:.1f}.')
     sections.append(('الاتجاه العام', ' '.join(trend_parts) if trend_parts else 'لا تتوفر بيانات كافية لتحليل الاتجاه.'))
 
+    # ── 2. Momentum Indicators ───────────────────────────────────────────────
     rsi      = float(last['RSI'])      if pd.notna(last['RSI'])      else None
     macd     = float(last['MACD'])     if pd.notna(last['MACD'])     else None
     macd_sig = float(last['MACD_Sig']) if pd.notna(last['MACD_Sig']) else None
@@ -1477,6 +1082,7 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
             mom_parts.append(f'مؤشر ROC 12 عند {roc12:.2f}% يُشير إلى زخم هبوطي قوي على المدى المتوسط.')
     sections.append(('مؤشرات الزخم', ' '.join(mom_parts) if mom_parts else 'لا تتوفر بيانات كافية.'))
 
+    # ── 3. Volatility & Bollinger Bands ──────────────────────────────────────
     bb_u = float(last['BB_U']) if pd.notna(last['BB_U']) else None
     bb_m = float(last['BB_M']) if pd.notna(last['BB_M']) else None
     bb_l = float(last['BB_L']) if pd.notna(last['BB_L']) else None
@@ -1507,6 +1113,7 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
             vol_parts.append(f'مؤشر ATR عند {atr:.2f} ({atr_pct:.1f}% من السعر) يُشير إلى تذبذب يومي معتدل.')
     sections.append(('التذبذب ونطاق بولنجر', ' '.join(vol_parts) if vol_parts else 'لا تتوفر بيانات كافية.'))
 
+    # ── 4. Volume Analysis ───────────────────────────────────────────────────
     obv      = float(last['OBV'])         if pd.notna(last['OBV'])         else None
     bull_vol = float(last['Bull_Volume']) if pd.notna(last['Bull_Volume']) else None
     bear_vol = float(last['Bear_Volume']) if pd.notna(last['Bear_Volume']) else None
@@ -1545,6 +1152,7 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
                 volume_parts.append('OBV: المؤشر في اتجاه تراجعي خلال الأسبوع الأخير، مما يُلمح إلى ضعف خفي رغم الحركة السعرية.')
     sections.append(('تحليل الحجم', ' '.join(volume_parts) if volume_parts else 'لا تتوفر بيانات كافية.'))
 
+    # ── 5. Ichimoku & Advanced ───────────────────────────────────────────────
     tenkan = float(last['Tenkan'])   if pd.notna(last['Tenkan'])   else None
     kijun  = float(last['Kijun'])    if pd.notna(last['Kijun'])    else None
     senk_a = float(last['Senkou_A']) if pd.notna(last['Senkou_A']) else None
@@ -1573,6 +1181,7 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
             adv_parts.append(f'مؤشر بارابوليك SAR عند {sar:.2f} يعلو السعر الحالي، مما يشير إلى ضعف الزخم الصعودي.')
     sections.append(('مؤشرات متقدمة (إيشيموكو / SAR)', ' '.join(adv_parts) if adv_parts else 'لا تتوفر بيانات كافية.'))
 
+    # ── 6. Support / Resistance + ATR Price Targets ──────────────────────────
     atr_val = float(last['ATR']) if pd.notna(last['ATR']) else None
     sr_parts = []
     if sup:
@@ -1609,6 +1218,7 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
         sr_parts.append('لم يتم رصد مستويات دعم أو مقاومة واضحة في الفترة المحللة.')
     sections.append(('مستويات الدعم والمقاومة والأهداف السعرية', ' '.join(sr_parts)))
 
+    # ── 7. Overall Conclusion ────────────────────────────────────────────────
     rec_txt, _ = recommendation(score)
     if score >= 16:
         outlook = (f'الصورة الفنية الشاملة إيجابية بدرجة عالية وفق نتيجة {score}/20، '
@@ -1632,6 +1242,7 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
                    f'متابعة كسر مستويات الدعم أو المقاومة القريبة سيُحدد مسار الاتجاه القادم.')
     sections.append(('الخلاصة الفنية', outlook))
 
+    # ── 8. Divergences ───────────────────────────────────────────────────────
     if divergences:
         div_parts = [f'{ind}: {ar_type} — يُشير إلى احتمال تغيير في الزخم الحالي.' for ind, ar_type, en_type in divergences]
         sections.append(('التباعد بين السعر والمؤشرات', ' '.join(div_parts)))
@@ -1639,6 +1250,7 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
         sections.append(('التباعد بين السعر والمؤشرات',
                           'لا يُلاحَظ تباعد واضح بين السعر ومؤشري RSI وMACD في الفترة الأخيرة، مما يُشير إلى انسجام الزخم مع حركة السعر.'))
 
+    # ── 9. 52-Week Position ──────────────────────────────────────────────────
     w52_high = info.get('fiftyTwoWeekHigh') if info else None
     w52_low  = info.get('fiftyTwoWeekLow')  if info else None
     if w52_high and w52_low and float(w52_high) != float(w52_low):
@@ -1650,6 +1262,7 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
                           f'(أدنى 52 أسبوع: {float(w52_low):.2f} — أعلى 52 أسبوع: {float(w52_high):.2f}). '
                           f'المسافة من القمة: {dist_high:.1f}%. المسافة من القاع: {dist_low:.1f}%.'))
 
+    # ── 10. CCI & Williams %R ────────────────────────────────────────────────
     cci_val   = float(last['CCI'])   if pd.notna(last['CCI'])   else None
     willr     = float(last['WILLR']) if pd.notna(last['WILLR']) else None
     osc_parts = []
@@ -1827,7 +1440,7 @@ def make_gauge_chart(score):
     ax_button.axis('off'); ax_button.set_xlim(0,1); ax_button.set_ylim(0,1)
     rec,rec_color=recommendation(score)
     circle=mpatches.Circle((0.5,0.5),0.35,facecolor=rec_color,edgecolor='#333333',linewidth=2,transform=ax_button.transAxes)
-    ax_button.add_patch(circle); ax_button.text(0.5,0.5,rtl(rec),ha='center',va='center',fontsize=20,fontproperties=MPL_FONT_PROP_BOLD,color='white',transform=ax_button.transAxes)
+    ax_button.add_patch(circle); ax_button.text(0.5,0.5,rtl(rec),ha='center',va='center',fontsize=13,fontproperties=MPL_FONT_PROP_BOLD,color='white',transform=ax_button.transAxes)
     ax_button.text(0.5,0.12,f'{score}/20',ha='center',va='center',fontsize=10,fontproperties=MPL_FONT_PROP,transform=ax_button.transAxes)
     plt.tight_layout(); return chart_bytes(fig)
 
@@ -1996,6 +1609,7 @@ class Report:
         c=self.c; self.pn+=1
         c.setFillColor(NAVY); c.rect(0, PAGE_H-78*mm, PAGE_W, 78*mm, fill=1, stroke=0)
         c.setFillColor(TEAL); c.rect(0, PAGE_H-80*mm, PAGE_W, 2*mm, fill=1, stroke=0)
+        # Prefer Arabic name from COMPANY_NAMES, fall back to yfinance longName/shortName
         company_name = (COMPANY_NAMES.get(self.tk)
                         or safe(info, 'longName', safe(info, 'shortName', self.display_tk))
                         or self.display_tk)
@@ -2074,19 +1688,15 @@ class Report:
             y_table=self._stitle(y_table,f'جدول نقاط النتيجة ({total_score}/20)')
             rows_score=[['النقاط','الحالة','البند']]
             for lbl,(symbol,pt) in score_criteria.items():
-                status=rtl('نعم ✓') if pt==1 else rtl('لا ✗')
-                rows_score.append([str(pt),status,rtl(short_text(lbl,35))])
-            rows_score.append([str(total_score),rtl('من 20'),rtl('الإجمالي')])
-            self._table(y_table,rows_score,[CW*0.15,CW*0.30,CW*0.55],score_mode=True)
+                status=rtl('نعم (+1)') if pt==1 else rtl('لا (0)'); rows_score.append([str(pt),status,rtl(short_text(lbl,35))])
+            rows_score.append([str(total_score),rtl('من 20'),rtl('الإجمالي')]); self._table(y_table,rows_score,[CW*0.15,CW*0.30,CW*0.55],score_mode=True)
         else:
             self.c.showPage(); self._bar('جدول نقاط النتيجة'); self._foot()
             y_table=PAGE_H-44*mm; y_table=self._stitle(y_table,f'جدول نقاط النتيجة ({total_score}/20)')
             rows_score=[['النقاط','الحالة','البند']]
             for lbl,(symbol,pt) in score_criteria.items():
-                status=rtl('نعم ✓') if pt==1 else rtl('لا ✗')
-                rows_score.append([str(pt),status,rtl(short_text(lbl,35))])
-            rows_score.append([str(total_score),rtl('من 20'),rtl('الإجمالي')])
-            self._table(y_table,rows_score,[CW*0.15,CW*0.30,CW*0.55],score_mode=True)
+                status=rtl('نعم (+1)') if pt==1 else rtl('لا (0)'); rows_score.append([str(pt),status,rtl(short_text(lbl,35))])
+            rows_score.append([str(total_score),rtl('من 20'),rtl('الإجمالي')]); self._table(y_table,rows_score,[CW*0.15,CW*0.30,CW*0.55],score_mode=True)
         self.c.showPage()
 
     def fund_page(self, info):
@@ -2512,7 +2122,7 @@ ANALYZER_MSG = (
 )
 
 # ─────────────────────────────────────────────────────────────
-# 14. LANDING HTML
+# 14. LANDING HTML (unchanged from original)
 # ─────────────────────────────────────────────────────────────
 LANDING_HTML = """<!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -2540,6 +2150,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     data = query.data
 
+    # ── Main menu ────────────────────────────────────────
     if data == "back_to_main":
         context.user_data.pop('waiting_ticker', None)
         await query.edit_message_text(
@@ -2564,6 +2175,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # ── Wolfe: back to wolfe menu ────────────────────────
     if data == "back_to_wolfe":
         await query.edit_message_text(
             WOLFE_WELCOME_MSG, parse_mode="Markdown",
@@ -2571,6 +2183,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # ── Wolfe: timeframe selected ────────────────────────
     if data.startswith("scan_"):
         tf_key = data[5:]
         if tf_key not in TF_MAP:
@@ -2583,6 +2196,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # ── Wolfe: filter selected → run scan ───────────────
     if data.startswith("filter_"):
         parts = data.split("_", 2)
         if len(parts) != 3:
@@ -2674,11 +2288,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle text messages — used for analyzer bot ticker input."""
     if not context.user_data.get('waiting_ticker'):
-        return
+        return  # ignore text if not in analyzer mode
 
     ticker_input = update.message.text.strip()
     chat_id = update.effective_chat.id
 
+    # Show processing message
     proc_msg = await update.message.reply_text(
         f"⏳ جاري تحميل وتحليل بيانات *{ticker_input}*...\n"
         "قد يستغرق ذلك حتى دقيقتين، يرجى الانتظار 🔄",
