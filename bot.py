@@ -2888,7 +2888,7 @@ def make_gauge_chart(score):
         t_mid=(t_start+t_end)/2; lx=R_MID*np.cos(t_mid); ly=R_MID*np.sin(t_mid)
         rotation=np.rad2deg(t_mid)
         if rotation>90: rotation-=180
-        ax_gauge.text(lx,ly,label,ha='center',va='center',fontsize=8.5,fontproperties=MPL_FONT_PROP,color='white',fontweight='bold',rotation=rotation,zorder=4)
+        ax_gauge.text(lx,ly,label,ha='center',va='center',fontsize=20,fontproperties=MPL_FONT_PROP,color='white',fontweight='bold',rotation=rotation,zorder=4)
     theta_all=np.linspace(0,np.pi,200)
     xo_all=(R_OUTER+0.03)*np.cos(theta_all); yo_all=(R_OUTER+0.03)*np.sin(theta_all)
     xi_all=R_OUTER*np.cos(theta_all); yi_all=R_OUTER*np.sin(theta_all)
