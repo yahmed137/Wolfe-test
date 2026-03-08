@@ -249,6 +249,115 @@ COMPANY_NAMES = {
 def get_name(ticker: str) -> str:
     return COMPANY_NAMES.get(ticker, ticker)
 
+SECTOR_MAP = {
+    '1010.SR':('المالية','البنوك'),'1020.SR':('المالية','البنوك'),'1030.SR':('المالية','البنوك'),
+    '1050.SR':('المالية','البنوك'),'1060.SR':('المالية','البنوك'),'1080.SR':('المالية','البنوك'),
+    '1120.SR':('المالية','البنوك'),'1140.SR':('المالية','البنوك'),'1150.SR':('المالية','البنوك'),
+    '1180.SR':('المالية','البنوك'),'1182.SR':('المالية','البنوك'),'1183.SR':('المالية','البنوك'),
+    '8010.SR':('المالية','التأمين'),'8012.SR':('المالية','التأمين'),'8020.SR':('المالية','التأمين'),
+    '8030.SR':('المالية','التأمين'),'8040.SR':('المالية','التأمين'),'8050.SR':('المالية','التأمين'),
+    '8060.SR':('المالية','التأمين'),'8070.SR':('المالية','التأمين'),'8100.SR':('المالية','التأمين'),
+    '8120.SR':('المالية','التأمين'),'8150.SR':('المالية','التأمين'),'8160.SR':('المالية','التأمين'),
+    '8170.SR':('المالية','التأمين'),'8180.SR':('المالية','التأمين'),'8190.SR':('المالية','التأمين'),
+    '8200.SR':('المالية','التأمين'),'8210.SR':('المالية','التأمين'),'8230.SR':('المالية','التأمين'),
+    '8240.SR':('المالية','التأمين'),'8250.SR':('المالية','التأمين'),'8260.SR':('المالية','التأمين'),
+    '8270.SR':('المالية','التأمين'),'8280.SR':('المالية','التأمين'),'8300.SR':('المالية','التأمين'),
+    '8310.SR':('المالية','التأمين'),'8311.SR':('المالية','التأمين'),'8313.SR':('المالية','التأمين'),
+    '2001.SR':('المواد الأساسية','البتروكيماويات'),'2010.SR':('المواد الأساسية','البتروكيماويات'),
+    '2020.SR':('المواد الأساسية','البتروكيماويات'),'2060.SR':('المواد الأساسية','البتروكيماويات'),
+    '2080.SR':('المواد الأساسية','البتروكيماويات'),'2090.SR':('المواد الأساسية','البتروكيماويات'),
+    '2110.SR':('المواد الأساسية','البتروكيماويات'),'2120.SR':('المواد الأساسية','البتروكيماويات'),
+    '2130.SR':('المواد الأساسية','البتروكيماويات'),'2140.SR':('المواد الأساسية','البتروكيماويات'),
+    '2150.SR':('المواد الأساسية','البتروكيماويات'),'2160.SR':('المواد الأساسية','البتروكيماويات'),
+    '2170.SR':('المواد الأساسية','البتروكيماويات'),'2180.SR':('المواد الأساسية','البتروكيماويات'),
+    '2190.SR':('المواد الأساسية','البتروكيماويات'),'2200.SR':('المواد الأساسية','البتروكيماويات'),
+    '2210.SR':('المواد الأساسية','البتروكيماويات'),'2220.SR':('المواد الأساسية','البتروكيماويات'),
+    '2230.SR':('المواد الأساسية','البتروكيماويات'),'2240.SR':('المواد الأساسية','البتروكيماويات'),
+    '2250.SR':('المواد الأساسية','البتروكيماويات'),'2270.SR':('المواد الأساسية','البتروكيماويات'),
+    '2290.SR':('المواد الأساسية','البتروكيماويات'),'2300.SR':('المواد الأساسية','البتروكيماويات'),
+    '2310.SR':('المواد الأساسية','البتروكيماويات'),'2320.SR':('المواد الأساسية','البتروكيماويات'),
+    '2330.SR':('المواد الأساسية','البتروكيماويات'),'2340.SR':('المواد الأساسية','البتروكيماويات'),
+    '2350.SR':('المواد الأساسية','البتروكيماويات'),'2360.SR':('المواد الأساسية','البتروكيماويات'),
+    '2370.SR':('المواد الأساسية','البتروكيماويات'),'2380.SR':('المواد الأساسية','البتروكيماويات'),
+    '2222.SR':('الطاقة','النفط والغاز'),'2030.SR':('الطاقة','النفط والغاز'),
+    '2381.SR':('الطاقة','النفط والغاز'),'2382.SR':('الطاقة','النفط والغاز'),
+    '3002.SR':('المواد الأساسية','الإسمنت'),'3003.SR':('المواد الأساسية','الإسمنت'),
+    '3004.SR':('المواد الأساسية','الإسمنت'),'3005.SR':('المواد الأساسية','الإسمنت'),
+    '3007.SR':('المواد الأساسية','الإسمنت'),'3008.SR':('المواد الأساسية','الإسمنت'),
+    '3010.SR':('المواد الأساسية','الإسمنت'),'3020.SR':('المواد الأساسية','الإسمنت'),
+    '3030.SR':('المواد الأساسية','الإسمنت'),'3040.SR':('المواد الأساسية','الإسمنت'),
+    '3050.SR':('المواد الأساسية','الإسمنت'),'3060.SR':('المواد الأساسية','الإسمنت'),
+    '3080.SR':('المواد الأساسية','الإسمنت'),'3090.SR':('المواد الأساسية','الإسمنت'),
+    '3091.SR':('المواد الأساسية','الإسمنت'),'3092.SR':('المواد الأساسية','الإسمنت'),
+    '4001.SR':('السلع الاستهلاكية','تجارة التجزئة'),'4003.SR':('السلع الاستهلاكية','تجارة التجزئة'),
+    '4006.SR':('السلع الاستهلاكية','تجارة التجزئة'),'4011.SR':('السلع الاستهلاكية','تجارة التجزئة'),
+    '4190.SR':('السلع الاستهلاكية','تجارة التجزئة'),'4192.SR':('السلع الاستهلاكية','تجارة التجزئة'),
+    '4193.SR':('السلع الاستهلاكية','تجارة التجزئة'),'4240.SR':('السلع الاستهلاكية','تجارة التجزئة'),
+    '4002.SR':('الرعاية الصحية','الخدمات الصحية'),'4004.SR':('الرعاية الصحية','الخدمات الصحية'),
+    '4005.SR':('الرعاية الصحية','الخدمات الصحية'),'4007.SR':('الرعاية الصحية','الخدمات الصحية'),
+    '4009.SR':('الرعاية الصحية','الخدمات الصحية'),'4012.SR':('الرعاية الصحية','الخدمات الصحية'),
+    '4013.SR':('الرعاية الصحية','الخدمات الصحية'),'4014.SR':('الرعاية الصحية','الخدمات الصحية'),
+    '4015.SR':('الرعاية الصحية','الصيدلانيات'),'4016.SR':('الرعاية الصحية','الصيدلانيات'),
+    '4017.SR':('الرعاية الصحية','الخدمات الصحية'),'4018.SR':('الرعاية الصحية','الخدمات الصحية'),
+    '4019.SR':('الرعاية الصحية','الخدمات الصحية'),'4021.SR':('الرعاية الصحية','الخدمات الصحية'),
+    '7010.SR':('الاتصالات','خدمات الاتصالات'),'7020.SR':('الاتصالات','خدمات الاتصالات'),
+    '7030.SR':('الاتصالات','خدمات الاتصالات'),'7040.SR':('الاتصالات','خدمات الاتصالات'),
+    '7200.SR':('الاتصالات','تقنية المعلومات'),'7201.SR':('الاتصالات','تقنية المعلومات'),
+    '7202.SR':('الاتصالات','تقنية المعلومات'),'7203.SR':('الاتصالات','تقنية المعلومات'),
+    '7204.SR':('الاتصالات','تقنية المعلومات'),'7211.SR':('الاتصالات','خدمات الاتصالات'),
+    '2040.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),'2050.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),
+    '2280.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),'2281.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),
+    '2282.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),'2283.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),
+    '2284.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),'2285.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),
+    '2286.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),'2287.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),
+    '2288.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),'6001.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),
+    '6002.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),'6004.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),
+    '6010.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),'6012.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),
+    '6013.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),'6014.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),
+    '6015.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),'6016.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),
+    '6017.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),'6040.SR':('السلع الاستهلاكية','الزراعة والأغذية'),
+    '6050.SR':('السلع الاستهلاكية','الزراعة والأغذية'),'6060.SR':('السلع الاستهلاكية','الزراعة والأغذية'),
+    '6070.SR':('السلع الاستهلاكية','الزراعة والأغذية'),'6090.SR':('السلع الاستهلاكية','الزراعة والأغذية'),
+    '4020.SR':('العقارات','التطوير العقاري'),'4220.SR':('العقارات','التطوير العقاري'),
+    '4230.SR':('العقارات','التطوير العقاري'),'4250.SR':('العقارات','التطوير العقاري'),
+    '4300.SR':('العقارات','التطوير العقاري'),'4310.SR':('العقارات','التطوير العقاري'),
+    '4320.SR':('العقارات','التطوير العقاري'),'4321.SR':('العقارات','مراكز التسوق'),
+    '4322.SR':('العقارات','التطوير العقاري'),'4323.SR':('العقارات','التطوير العقاري'),
+    '4324.SR':('العقارات','التطوير العقاري'),'4325.SR':('العقارات','التطوير العقاري'),
+    '4330.SR':('العقارات','صناديق الاستثمار العقاري'),'4331.SR':('العقارات','صناديق الاستثمار العقاري'),
+    '4332.SR':('العقارات','صناديق الاستثمار العقاري'),'4333.SR':('العقارات','صناديق الاستثمار العقاري'),
+    '4334.SR':('العقارات','صناديق الاستثمار العقاري'),'4335.SR':('العقارات','صناديق الاستثمار العقاري'),
+    '4336.SR':('العقارات','صناديق الاستثمار العقاري'),'4337.SR':('العقارات','صناديق الاستثمار العقاري'),
+    '4338.SR':('العقارات','صناديق الاستثمار العقاري'),'4339.SR':('العقارات','صناديق الاستثمار العقاري'),
+    '4340.SR':('العقارات','صناديق الاستثمار العقاري'),'4342.SR':('العقارات','صناديق الاستثمار العقاري'),
+    '4344.SR':('العقارات','صناديق الاستثمار العقاري'),'4345.SR':('العقارات','صناديق الاستثمار العقاري'),
+    '4346.SR':('العقارات','صناديق الاستثمار العقاري'),'4347.SR':('العقارات','صناديق الاستثمار العقاري'),
+    '4348.SR':('العقارات','صناديق الاستثمار العقاري'),'4349.SR':('العقارات','صناديق الاستثمار العقاري'),
+    '4350.SR':('العقارات','صناديق الاستثمار العقاري'),
+    '5110.SR':('المرافق العامة','الكهرباء والمياه'),'2082.SR':('المرافق العامة','الكهرباء والمياه'),
+    '2083.SR':('المرافق العامة','الكهرباء والمياه'),'2084.SR':('المرافق العامة','الكهرباء والمياه'),
+    '1201.SR':('الصناعة','الصناعات التحويلية'),'1202.SR':('الصناعة','الصناعات التحويلية'),
+    '1210.SR':('الصناعة','التعدين والمعادن'),'1211.SR':('الصناعة','التعدين والمعادن'),
+    '1212.SR':('الصناعة','الصناعات التحويلية'),'1213.SR':('الصناعة','الصناعات التحويلية'),
+    '1214.SR':('الصناعة','الصناعات التحويلية'),'1301.SR':('الصناعة','الصناعات التحويلية'),
+    '1302.SR':('الصناعة','الصناعات التحويلية'),'1303.SR':('الصناعة','الصناعات التحويلية'),
+    '1304.SR':('الصناعة','الصناعات التحويلية'),'1320.SR':('الصناعة','الصناعات التحويلية'),
+    '1321.SR':('الصناعة','الصناعات التحويلية'),'1322.SR':('الصناعة','الصناعات التحويلية'),
+    '1323.SR':('الصناعة','الصناعات التحويلية'),
+    '4030.SR':('الصناعة','النقل البحري'),'4031.SR':('الصناعة','الخدمات الأرضية'),
+    '4040.SR':('الصناعة','النقل البري'),'4050.SR':('الصناعة','محطات الوقود'),
+    '4080.SR':('الصناعة','الخدمات اللوجستية'),'4260.SR':('الصناعة','تأجير السيارات'),
+    '4261.SR':('الصناعة','تأجير السيارات'),'4263.SR':('الصناعة','الخدمات اللوجستية'),
+    '4264.SR':('الصناعة','النقل الجوي'),
+    '4070.SR':('الخدمات','الإعلام والترفيه'),'4071.SR':('الخدمات','الإعلام والترفيه'),
+    '4072.SR':('الخدمات','الإعلام والترفيه'),
+    '4290.SR':('الخدمات','التعليم'),'4291.SR':('الخدمات','التعليم'),'4292.SR':('الخدمات','التعليم'),
+    '1111.SR':('المالية','أسواق المال'),
+}
+
+def get_sector_industry(ticker):
+    return SECTOR_MAP.get(ticker, (None, None))
+
 # ─────────────────────────────────────────────────────────────
 # 4. PDF THEME CONSTANTS
 # ─────────────────────────────────────────────────────────────
@@ -310,6 +419,7 @@ def chart_bytes(fig):
 # 6. STOCK DATA & INDICATORS
 # ─────────────────────────────────────────────────────────────
 def fetch_data(ticker):
+    """Fetch price data + supplement every info field from raw data for Saudi stocks."""
     try:
         stk = yf.Ticker(ticker)
         df = stk.history(period='1y')
@@ -325,145 +435,190 @@ def fetch_data(ticker):
         except Exception:
             info = {}
 
-        # ── 1. fast_info supplement (single call, correct attribute names) ──
+        price_now = float(df['Close'].iloc[-1])
+
+        # ── A. fast_info ─────────────────────────────────────────────────────
         try:
             fi = stk.fast_info
-            _fi_map = {
-                'marketCap':        'market_cap',
-                'sharesOutstanding':'shares',
-                'fiftyTwoWeekHigh': 'fifty_two_week_high',
-                'fiftyTwoWeekLow':  'fifty_two_week_low',
-                'currency':         'currency',
-                'exchange':         'exchange',
-            }
-            for ikey, attr in _fi_map.items():
+            for ikey, attr in [
+                ('marketCap','market_cap'), ('sharesOutstanding','shares'),
+                ('fiftyTwoWeekHigh','fifty_two_week_high'),
+                ('fiftyTwoWeekLow','fifty_two_week_low'),
+                ('currency','currency'), ('exchange','exchange'),
+            ]:
                 if not info.get(ikey):
                     try:
                         v = getattr(fi, attr, None)
-                        if v is not None:
-                            info[ikey] = v
-                    except Exception:
-                        pass
-            # float_shares is separate from shares
+                        if v is not None: info[ikey] = v
+                    except Exception: pass
             if not info.get('floatShares'):
                 try:
                     v = getattr(fi, 'float_shares', None)
-                    if v is not None:
-                        info['floatShares'] = v
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                    if v is not None: info['floatShares'] = v
+                except Exception: pass
+        except Exception: pass
 
-        # averageVolume from price history
-        if not info.get('averageVolume') and not df.empty:
-            try:
-                info['averageVolume'] = int(df['Volume'].mean())
-            except Exception:
-                pass
-
-        # ── 2. Single-pass: load financials + balance_sheet once ──────────
-        price_now = float(df['Close'].iloc[-1]) if not df.empty else None
+        # ── B. Always compute 52-week high/low from actual price history ──────
         try:
-            fin = stk.financials          # income statement (annual)
-            bs  = stk.balance_sheet       # balance sheet (annual)
+            tail252 = df2['High'].tail(252) if len(df2) >= 252 else df['High']
+            tail252l = df2['Low'].tail(252) if len(df2) >= 252 else df['Low']
+            info['fiftyTwoWeekHigh'] = float(tail252.max())
+            info['fiftyTwoWeekLow']  = float(tail252l.min())
+        except Exception: pass
+
+        # ── C. Currency / exchange hardcoded for Saudi stocks ─────────────────
+        if ticker.endswith('.SR'):
+            if not info.get('currency'): info['currency'] = 'SAR'
+            if not info.get('exchange'): info['exchange'] = 'Tadawul'
+
+        # ── D. Sector / Industry from local mapping ───────────────────────────
+        sec, ind = get_sector_industry(ticker)
+        if sec and not info.get('sector'):   info['sector']   = sec
+        if ind and not info.get('industry'): info['industry'] = ind
+
+        # ── E. averageVolume ──────────────────────────────────────────────────
+        if not info.get('averageVolume'):
+            try: info['averageVolume'] = int(df['Volume'].mean())
+            except Exception: pass
+
+        # ── F. Beta — compute from price returns vs TASI ─────────────────────
+        if not info.get('beta'):
+            try:
+                mkt = yf.Ticker('^TASI.SR').history(period='1y')['Close']
+                stk_ret = df['Close'].pct_change().dropna()
+                mkt_ret = mkt.pct_change().dropna()
+                aligned  = pd.concat([stk_ret, mkt_ret], axis=1, join='inner').dropna()
+                if len(aligned) > 30:
+                    cov = aligned.cov().iloc[0,1]
+                    var = aligned.iloc[:,1].var()
+                    if var > 0: info['beta'] = round(cov / var, 3)
+            except Exception: pass
+
+        # ── G. Dividends — from actual dividend history ───────────────────────
+        try:
+            divs = stk.dividends
+            if divs is not None and len(divs) > 0:
+                # last 12 months
+                cutoff = pd.Timestamp.now(tz=divs.index.tz) - pd.DateOffset(years=1)
+                annual_div = float(divs[divs.index >= cutoff].sum())
+                if annual_div > 0:
+                    if not info.get('dividendRate'): info['dividendRate'] = annual_div
+                    if not info.get('dividendYield'): info['dividendYield'] = annual_div / price_now
+        except Exception: pass
+
+        # ── H. Single-pass: financials + balance sheet ────────────────────────
+        fin_ok = bs_ok = False
+        rev = ni = equity = total_assets = curr_assets = curr_liab = inventory = None
+        try:
+            fin = stk.financials
+            bs  = stk.balance_sheet
             fin_ok = not fin.empty
             bs_ok  = not bs.empty
 
-            # Helper: first matching row value
-            def _fv(frame, *candidates):
-                for cand in candidates:
-                    keys = [k for k in frame.index if cand.lower() in str(k).lower()]
-                    if keys:
-                        try:
-                            return float(frame.loc[keys[0]].iloc[0])
-                        except Exception:
-                            continue
+            def _fv(frame, *cands):
+                for c in cands:
+                    ks = [k for k in frame.index if c.lower() in str(k).lower()]
+                    if ks:
+                        try: return float(frame.loc[ks[0]].iloc[0])
+                        except Exception: continue
                 return None
 
-            # ── Income statement fields ───────────────────────────────────
+            # Income statement
             if fin_ok:
                 rev = _fv(fin, 'Total Revenue')
                 ni  = _fv(fin, 'Net Income Common Stockholders', 'Net Income')
+                op_inc = _fv(fin, 'Operating Income')
+                gross  = _fv(fin, 'Gross Profit')
+                ebitda = _fv(fin, 'EBITDA', 'Normalized EBITDA')
 
-                if not info.get('totalRevenue')      and rev is not None: info['totalRevenue']      = rev
-                if not info.get('netIncomeToCommon') and ni  is not None: info['netIncomeToCommon'] = ni
-                if not info.get('ebitda'):
-                    v = _fv(fin, 'EBITDA', 'Normalized EBITDA')
-                    if v is not None: info['ebitda'] = v
-
+                if rev and not info.get('totalRevenue'):      info['totalRevenue']      = rev
+                if ni  and not info.get('netIncomeToCommon'): info['netIncomeToCommon'] = ni
+                if ebitda and not info.get('ebitda'):         info['ebitda']            = ebitda
                 if rev and rev != 0:
-                    if not info.get('grossMargins'):
-                        v = _fv(fin, 'Gross Profit')
-                        if v is not None: info['grossMargins'] = v / rev
-                    if not info.get('operatingMargins'):
-                        v = _fv(fin, 'Operating Income')
-                        if v is not None: info['operatingMargins'] = v / rev
-                    if not info.get('profitMargins') and ni is not None:
-                        info['profitMargins'] = ni / rev
+                    if gross   and not info.get('grossMargins'):    info['grossMargins']    = gross / rev
+                    if op_inc  and not info.get('operatingMargins'): info['operatingMargins'] = op_inc / rev
+                    if ni      and not info.get('profitMargins'):    info['profitMargins']    = ni / rev
 
-            # ── Balance sheet fields ──────────────────────────────────────
+            # Balance sheet
             if bs_ok:
-                shares_out = info.get('sharesOutstanding')
-                equity = _fv(bs, 'Stockholders Equity', 'Common Stock Equity', 'Total Equity Gross Minority Interest')
-
-                if not info.get('totalCash'):
-                    v = _fv(bs, 'Cash Cash Equivalents And Short Term Investments', 'Cash And Cash Equivalents')
-                    if v is not None: info['totalCash'] = v
-                if not info.get('totalDebt'):
-                    v = _fv(bs, 'Total Debt', 'Long Term Debt And Capital Lease Obligation', 'Long Term Debt')
-                    if v is not None: info['totalDebt'] = v
-
+                equity      = _fv(bs, 'Stockholders Equity', 'Common Stock Equity',
+                                      'Total Equity Gross Minority Interest')
                 total_assets = _fv(bs, 'Total Assets')
+                curr_assets  = _fv(bs, 'Current Assets')
+                curr_liab    = _fv(bs, 'Current Liabilities')
+                inventory    = _fv(bs, 'Inventory')
+                cash_val     = _fv(bs, 'Cash Cash Equivalents And Short Term Investments',
+                                       'Cash And Cash Equivalents')
+                debt_val     = _fv(bs, 'Total Debt', 'Long Term Debt And Capital Lease Obligation',
+                                       'Long Term Debt')
+                if cash_val and not info.get('totalCash'):  info['totalCash']  = cash_val
+                if debt_val and not info.get('totalDebt'):  info['totalDebt']  = debt_val
 
-                # priceToBook
-                if not info.get('priceToBook') and equity and shares_out and price_now:
-                    try:
-                        bps = equity / float(shares_out)
-                        if bps > 0:
-                            info['priceToBook'] = price_now / bps
-                    except Exception:
-                        pass
+                shares_out = info.get('sharesOutstanding')
 
                 # bookValue per share
-                if not info.get('bookValue') and equity and shares_out:
+                if equity and shares_out and not info.get('bookValue'):
+                    try: info['bookValue'] = equity / float(shares_out)
+                    except Exception: pass
+
+                # priceToBook
+                if equity and shares_out and not info.get('priceToBook'):
                     try:
-                        info['bookValue'] = equity / float(shares_out)
-                    except Exception:
-                        pass
+                        bps = equity / float(shares_out)
+                        if bps > 0: info['priceToBook'] = price_now / bps
+                    except Exception: pass
 
-                # ROE
-                if not info.get('returnOnEquity') and equity and ni is not None and equity != 0:
+                # ROE / ROA
+                if equity and ni is not None and equity != 0 and not info.get('returnOnEquity'):
                     info['returnOnEquity'] = ni / abs(equity)
-
-                # ROA
-                if not info.get('returnOnAssets') and total_assets and ni is not None and total_assets != 0:
+                if total_assets and ni is not None and total_assets != 0 and not info.get('returnOnAssets'):
                     info['returnOnAssets'] = ni / abs(total_assets)
 
-            # ── EPS / PE ──────────────────────────────────────────────────
+                # Current Ratio / Quick Ratio
+                if curr_assets and curr_liab and curr_liab != 0:
+                    if not info.get('currentRatio'):
+                        info['currentRatio'] = round(curr_assets / curr_liab, 2)
+                    if not info.get('quickRatio'):
+                        num = curr_assets - (inventory or 0)
+                        info['quickRatio'] = round(num / curr_liab, 2)
+
+                # debtToEquity
+                if debt_val and equity and equity != 0 and not info.get('debtToEquity'):
+                    info['debtToEquity'] = round((debt_val / abs(equity)) * 100, 2)
+
+            # EPS / Trailing PE
             shares_out = info.get('sharesOutstanding')
-            if fin_ok and shares_out and price_now:
-                ni = _fv(fin, 'Net Income Common Stockholders', 'Net Income')
-                if ni is not None and float(shares_out) > 0:
-                    eps = ni / float(shares_out)
-                    if not info.get('trailingEps'):
-                        info['trailingEps'] = eps
-                    if not info.get('trailingPE') and eps != 0:
-                        info['trailingPE'] = price_now / eps
+            if fin_ok and ni is not None and shares_out and float(shares_out) > 0:
+                eps = ni / float(shares_out)
+                if not info.get('trailingEps'): info['trailingEps'] = eps
+                if not info.get('trailingPE') and eps != 0:
+                    info['trailingPE'] = price_now / eps
 
-            # ── dividendYield from dividendRate ───────────────────────────
-            if not info.get('dividendYield') and info.get('dividendRate') and price_now:
-                try:
-                    info['dividendYield'] = float(info['dividendRate']) / price_now
-                except Exception:
-                    pass
+            # Enterprise Value based ratios
+            mktcap   = info.get('marketCap', 0) or 0
+            tot_debt = info.get('totalDebt', 0) or 0
+            tot_cash = info.get('totalCash', 0) or 0
+            ev = mktcap + tot_debt - tot_cash
+            if ev > 0:
+                ebitda_v = info.get('ebitda')
+                if ebitda_v and ebitda_v != 0 and not info.get('enterpriseToEbitda'):
+                    info['enterpriseToEbitda'] = ev / ebitda_v
+                rev_v = info.get('totalRevenue')
+                if rev_v and rev_v != 0:
+                    if not info.get('enterpriseToRevenue'):
+                        info['enterpriseToRevenue'] = ev / rev_v
+                    if not info.get('priceToSalesTrailing12Months') and mktcap > 0:
+                        info['priceToSalesTrailing12Months'] = mktcap / rev_v
 
-            # ── debtToEquity ──────────────────────────────────────────────
-            if not info.get('debtToEquity') and bs_ok:
-                d_val  = info.get('totalDebt')
-                eq_val = equity if 'equity' in dir() else None
-                if d_val and eq_val and eq_val != 0:
-                    info['debtToEquity'] = (d_val / abs(eq_val)) * 100
+            # Payout ratio
+            div_rate = info.get('dividendRate')
+            eps_v    = info.get('trailingEps')
+            if div_rate and eps_v and eps_v > 0 and not info.get('payoutRatio'):
+                info['payoutRatio'] = div_rate / eps_v
+
+            # floatShares fallback = sharesOutstanding
+            if not info.get('floatShares') and info.get('sharesOutstanding'):
+                info['floatShares'] = info['sharesOutstanding']
 
         except Exception as e:
             logger.warning(f"fetch_data supplement error: {e}")
