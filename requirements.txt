@@ -9,3 +9,4 @@ mplfinance>=0.12.10b0
 reportlab>=4.2.0
 arabic-reshaper>=3.0.0
 python-bidi>=0.4.2
+#https://www.argaam.com/ar/monitors/market-analytics
