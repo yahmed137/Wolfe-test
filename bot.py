@@ -1634,85 +1634,35 @@ class Report:
         line_h = 13
         card_pad = 5 * mm
         max_text_width = CW - 2 * card_pad - 2
-
-        def _new_page(is_first=False):
-            if not is_first:
-                self.c.showPage()
-            lbl = 'المراجعة الفنية الشاملة' if is_first else 'المراجعة الفنية الشاملة (تابع)'
-            self._bar(lbl); self._foot()
-            return PAGE_H - 44*mm
-
-        c = self.c
-        y = _new_page(is_first=True)
-
-        # ── Score banner ─────────────────────────────────────────────────
-        if score >= 14:   banner_fill = HexColor('#1B5E20'); verdict = 'إيجابي +'
-        elif score >= 10: banner_fill = NAVY;                verdict = 'إيجابي'
-        elif score >= 7:  banner_fill = HexColor('#E65100'); verdict = 'حياد'
-        else:             banner_fill = HexColor('#B71C1C'); verdict = 'سلبي'
-
-        banner_h = 14 * mm
-        c.setFillColor(banner_fill)
-        c.roundRect(MG, y - banner_h, CW, banner_h, 6, fill=1, stroke=0)
-        # left badge
-        badge_w = 38 * mm
-        c.setFillColor(WHITE if score >= 7 else HexColor('#FFCDD2'))
-        c.roundRect(MG + 4, y - banner_h + 3, badge_w, banner_h - 6, 4, fill=1, stroke=0)
-        c.setFillColor(banner_fill); self._font(True, 9)
-        c.drawCentredString(MG + 4 + badge_w / 2, y - banner_h + 6, rtl(f'{verdict}  •  {score}/20'))
-        # centre text
-        c.setFillColor(WHITE); self._font(True, 10)
-        c.drawCentredString(PAGE_W / 2, y - banner_h + 5, rtl('نتيجة التحليل الفني الشاملة'))
-        # date right
-        c.setFillColor(HexColor('#B2DFDB')); self._font(False, 7.5)
-        c.drawRightString(PAGE_W - MG - 6, y - banner_h + 8, datetime.now().strftime('%Y-%m-%d'))
-        y -= banner_h + 7 * mm
-
-        # ── Sections ─────────────────────────────────────────────────────
-        for section_title, paragraph in review_sections:
-            lines = self._wrap_arabic_text(paragraph, max_text_width, font_size_body)
-            card_h = card_pad + len(lines) * line_h + card_pad + 2
-
-            # page break if card won't fit (keep ≥30 mm margin for footer)
-            if y - card_h < 30 * mm:
-                y = _new_page()
-
-            accent = _section_color(section_title)
-
-            # Card background
-            c.setFillColor(HexColor('#F8F9FA'))
-            c.roundRect(MG, y - card_h, CW, card_h, 5, fill=1, stroke=0)
-            # Left accent bar
-            c.setFillColor(accent)
-            c.roundRect(MG, y - card_h, 3.5, card_h, 2, fill=1, stroke=0)
-            # Section title inside card
-            c.setFillColor(accent); self._font(True, 9.5)
-            c.drawRightString(PAGE_W - MG - 6, y - card_pad - 1, rtl(section_title))
-            # Thin divider
-            c.setStrokeColor(accent); c.setLineWidth(0.6)
-            c.line(MG + 6, y - card_pad - 6, PAGE_W - MG - 6, y - card_pad - 6)
-            # Paragraph lines
-            ty = y - card_pad - line_h - 2
-            c.setFillColor(TXTDARK); self._font(False, font_size_body)
+### hi
+    def review_page(self, review_sections, score):
+        self._bar('المراجعة الفنية الشاملة'); self._foot()
+        c=self.c; y=PAGE_H-44*mm; line_h=13; para_gap=8; section_gap=6; font_size_body=9; max_text_width=CW-4*mm
+        strip_h=10*mm; strip_y=y-strip_h
+        if score>=14:   strip_fill=HexColor('#1B5E20')
+        elif score>=10: strip_fill=HexColor('#1B2A4A')
+        elif score>=7:  strip_fill=HexColor('#E65100')
+        else:           strip_fill=HexColor('#B71C1C')
+        c.setFillColor(strip_fill); c.roundRect(MG, strip_y, CW, strip_h, 5, fill=1, stroke=0)
+        c.setFillColor(WHITE); self._font(True,9); c.drawCentredString(PAGE_W/2, strip_y+3, rtl(f'نتيجة التحليل الفني: {score} من أصل 20 نقطة')); y=strip_y-10*mm
+        for section_title,paragraph in review_sections:
+            if y<40*mm: c.showPage(); self._bar('المراجعة الفنية الشاملة (تابع)'); self._foot(); y=PAGE_H-44*mm
+            y=self._stitle(y,section_title); y+=4
+            lines=self._wrap_arabic_text(paragraph,max_text_width,font_size_body)
+            c.setFillColor(TXTDARK); self._font(False,font_size_body)
             for line in lines:
-                c.drawRightString(PAGE_W - MG - 6, ty, line)
-                ty -= line_h
-
-            y -= card_h + 4 * mm
-
-        # ── Disclaimer footer ────────────────────────────────────────────
-        disc_y = max(y - 6, 24 * mm)
-        c.setFillColor(HexColor('#ECEFF1'))
-        c.roundRect(MG, disc_y - 10 * mm, CW, 10 * mm, 4, fill=1, stroke=0)
-        c.setFillColor(DGRAY); self._font(False, 6.8)
-        c.drawCentredString(PAGE_W/2, disc_y - 5*mm + 3,
-                            rtl('هذا التقرير آلي لأغراض معلوماتية فقط وليس نصيحة استثمارية.'))
-        c.drawCentredString(PAGE_W/2, disc_y - 5*mm - 5,
-                            rtl('الأداء السابق لا يضمن النتائج المستقبلية. قم دائماً ببحثك الخاص قبل اتخاذ أي قرار.'))
-        c.showPage()
+                if y<25*mm: c.showPage(); self._bar('المراجعة الفنية الشاملة (تابع)'); self._foot(); y=PAGE_H-44*mm
+                c.drawRightString(PAGE_W-MG, y, line); y-=line_h
+            y-=para_gap+section_gap
+        c.setFillColor(DGRAY); self._font(False,6.5)
+        c.drawCentredString(PAGE_W/2, 16*mm, rtl('هذا التقرير آلي لأغراض معلوماتية فقط وليس نصيحة استثمارية.'))
+        c.drawCentredString(PAGE_W/2, 12*mm, rtl('الأداء السابق لا يضمن النتائج المستقبلية. قم دائماً ببحثك الخاص.')); c.showPage()
 
     def save(self):
         self.c.save()
+
+#
+#المستقبلية
 
 # ─────────────────────────────────────────────────────────────
 # 9. ANALYZER BOT — generate PDF in thread executor
