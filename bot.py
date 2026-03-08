@@ -1673,139 +1673,33 @@ class Report:
         y=PAGE_H-44*mm; y=self._stitle(y,'RSI و MACD و ROC 12'); y=self._img(y, tech_img, 113*mm)
         y=self._stitle(y,'نطاقات بولنجر'); self._img(y, bb_img, 113*mm); self.c.showPage()
 
-    # def perf_page(self, pers, risk, dd_img, vol_img, score_criteria, total_score):
-    #     self._bar('الأداء والمخاطر'); self._foot()
-    #     y=PAGE_H-44*mm; y=self._stitle(y,'العوائد حسب الفترة')
-    #     rows=[['القيمة','الفترة']]
-    #     for k,v in pers.items(): rows.append([f'{v:+.2f}%',PERIOD_AR.get(k,k)])
-    #     y=self._table(y,rows,[CW*0.38,CW*0.62]); y=self._stitle(y,'مقاييس المخاطر')
-    #     rows2=[['القيمة','المقياس']]
-    #     for k,v in risk.items(): rows2.append([str(v),RISK_AR.get(k,k)])
-    #     y=self._table(y,rows2,[CW*0.38,CW*0.62]); y=self._stitle(y,'منحنى التراجع'); self._img(y,dd_img,58*mm); self.c.showPage()
-    #     self._bar('تحليل الحجم'); self._foot()
-    #     y2=PAGE_H-44*mm; y2=self._stitle(y2,'الحجم اليومي مقابل متوسط 20 يوم'); y2=self._img(y2,vol_img,100*mm)
-    #     y_table=y2-6*mm
-    #     if y_table>80*mm:
-    #         y_table=self._stitle(y_table,f'جدول نقاط النتيجة ({total_score}/20)')
-    #         rows_score=[['النقاط','الحالة','البند']]
-    #         for lbl,(symbol,pt) in score_criteria.items():
-    #             status=rtl('✅ نعم') if pt==1 else rtl('❌ لا'); rows_score.append([str(pt),status,rtl(short_text(lbl,35))]) #ياسر
-    #         rows_score.append([str(total_score),rtl('من 20'),rtl('الإجمالي')]); self._table(y_table,rows_score,[CW*0.15,CW*0.30,CW*0.55],score_mode=True)
-    #     else:
-    #         self.c.showPage(); self._bar('جدول نقاط النتيجة'); self._foot()
-    #         y_table=PAGE_H-44*mm; y_table=self._stitle(y_table,f'جدول نقاط النتيجة ({total_score}/20)')
-    #         rows_score=[['النقاط','الحالة','البند']]
-    #         for lbl,(symbol,pt) in score_criteria.items():
-    #             status=rtl('✅ نعم') if pt==1 else rtl('❌ لا'); rows_score.append([str(pt),status,rtl(short_text(lbl,35))])
-    #         rows_score.append([str(total_score),rtl('من 20'),rtl('الإجمالي')]); self._table(y_table,rows_score,[CW*0.15,CW*0.30,CW*0.55],score_mode=True)
-    #     self.c.showPage()
-def _draw_status_cell(self, x, y, w, h, is_yes):
-    """Draw status cell with colored symbol + Arabic text, handling emoji display."""
-    # Save state
-    self.c.saveState()
-    
-    if is_yes:
-        # Draw green checkmark ✓
-        self.c.setFillColor(colors.HexColor('#27ae60'))
-        symbol = '✓'
-        label = 'نعم'
-    else:
-        # Draw red X mark ✗
-        self.c.setFillColor(colors.HexColor('#e74c3c'))
-        symbol = '✗'
-        label = 'لا'
-    
-    # Calculate center of cell
-    center_y = y + (h - 8) / 2  # vertically center (assuming ~8pt font)
-    
-    # Draw the symbol using a standard font that supports it
-    self.c.setFont('Helvetica-Bold', 10)
-    symbol_width = self.c.stringWidth(symbol, 'Helvetica-Bold', 10)
-    
-    # Arabic text width
-    arabic_font = self.arabic_font  # Your registered Arabic font name
-    arabic_size = 9  # Adjust to match your table font size
-    label_rtl = rtl(label)
-    label_width = self.c.stringWidth(label_rtl, arabic_font, arabic_size)
-    
-    # Total content width (symbol + space + label)
-    space = 3
-    total_width = symbol_width + space + label_width
-    
-    # Start X position to center everything in cell
-    start_x = x + (w - total_width) / 2
-    
-    # Draw symbol (left side since RTL label comes first visually)
-    # In RTL context: label appears right, symbol appears left
-    # But since we're manually positioning, we put: [symbol] [arabic_text]
-    # Visually for RTL: arabic_text then symbol (reading right to left)
-    
-    # Draw Arabic label first (right side)
-    self.c.setFont(arabic_font, arabic_size)
-    self.c.drawString(start_x + symbol_width + space, center_y, label_rtl)
-    
-    # Draw symbol (left side)
-    self.c.setFont('Helvetica-Bold', 10)
-    self.c.drawString(start_x, center_y, symbol)
-    
-    # Restore state
-    self.c.restoreState()
-
-
-def perf_page(self, pers, risk, dd_img, vol_img, score_criteria, total_score):
-    self._bar('الأداء والمخاطر'); self._foot()
-    y = PAGE_H - 44 * mm; y = self._stitle(y, 'العوائد حسب الفترة')
-    rows = [['القيمة', 'الفترة']]
-    for k, v in pers.items():
-        rows.append([f'{v:+.2f}%', PERIOD_AR.get(k, k)])
-    y = self._table(y, rows, [CW * 0.38, CW * 0.62])
-    y = self._stitle(y, 'مقاييس المخاطر')
-    rows2 = [['القيمة', 'المقياس']]
-    for k, v in risk.items():
-        rows2.append([str(v), RISK_AR.get(k, k)])
-    y = self._table(y, rows2, [CW * 0.38, CW * 0.62])
-    y = self._stitle(y, 'منحنى التراجع')
-    self._img(y, dd_img, 58 * mm)
-    self.c.showPage()
-
-    self._bar('تحليل الحجم'); self._foot()
-    y2 = PAGE_H - 44 * mm
-    y2 = self._stitle(y2, 'الحجم اليومي مقابل متوسط 20 يوم')
-    y2 = self._img(y2, vol_img, 100 * mm)
-    y_table = y2 - 6 * mm
-
-    if y_table > 80 * mm:
-        y_table = self._stitle(y_table, f'جدول نقاط النتيجة ({total_score}/20)')
-        rows_score = [['النقاط', 'الحالة', 'البند']]
-        # Store which rows are yes/no for custom drawing
-        status_flags = []
-        for lbl, (symbol, pt) in score_criteria.items():
-            is_yes = (pt == 1)
-            status_flags.append(is_yes)
-            # Use placeholder text - will be overdrawn
-            status_text = rtl('نعم') if is_yes else rtl('لا')
-            rows_score.append([str(pt), status_text, rtl(short_text(lbl, 35))])
-        rows_score.append([str(total_score), rtl('من 20'), rtl('الإجمالي')])
-        status_flags.append(None)  # For the total row
-        self._table(y_table, rows_score, [CW * 0.15, CW * 0.30, CW * 0.55],
-                    score_mode=True, status_flags=status_flags)
-    else:
+    def perf_page(self, pers, risk, dd_img, vol_img, score_criteria, total_score):
+        self._bar('الأداء والمخاطر'); self._foot()
+        y=PAGE_H-44*mm; y=self._stitle(y,'العوائد حسب الفترة')
+        rows=[['القيمة','الفترة']]
+        for k,v in pers.items(): rows.append([f'{v:+.2f}%',PERIOD_AR.get(k,k)])
+        y=self._table(y,rows,[CW*0.38,CW*0.62]); y=self._stitle(y,'مقاييس المخاطر')
+        rows2=[['القيمة','المقياس']]
+        for k,v in risk.items(): rows2.append([str(v),RISK_AR.get(k,k)])
+        y=self._table(y,rows2,[CW*0.38,CW*0.62]); y=self._stitle(y,'منحنى التراجع'); self._img(y,dd_img,58*mm); self.c.showPage()
+        self._bar('تحليل الحجم'); self._foot()
+        y2=PAGE_H-44*mm; y2=self._stitle(y2,'الحجم اليومي مقابل متوسط 20 يوم'); y2=self._img(y2,vol_img,100*mm)
+        y_table=y2-6*mm
+        if y_table>80*mm:
+            y_table=self._stitle(y_table,f'جدول نقاط النتيجة ({total_score}/20)')
+            rows_score=[['النقاط','الحالة','البند']]
+            for lbl,(symbol,pt) in score_criteria.items():
+                status=rtl('✅ نعم') if pt==1 else rtl('❌ لا'); rows_score.append([str(pt),status,rtl(short_text(lbl,35))]) #ياسر
+            rows_score.append([str(total_score),rtl('من 20'),rtl('الإجمالي')]); self._table(y_table,rows_score,[CW*0.15,CW*0.30,CW*0.55],score_mode=True)
+        else:
+            self.c.showPage(); self._bar('جدول نقاط النتيجة'); self._foot()
+            y_table=PAGE_H-44*mm; y_table=self._stitle(y_table,f'جدول نقاط النتيجة ({total_score}/20)')
+            rows_score=[['النقاط','الحالة','البند']]
+            for lbl,(symbol,pt) in score_criteria.items():
+                status=rtl('✅ نعم') if pt==1 else rtl('❌ لا'); rows_score.append([str(pt),status,rtl(short_text(lbl,35))])
+            rows_score.append([str(total_score),rtl('من 20'),rtl('الإجمالي')]); self._table(y_table,rows_score,[CW*0.15,CW*0.30,CW*0.55],score_mode=True)
         self.c.showPage()
-        self._bar('جدول نقاط النتيجة'); self._foot()
-        y_table = PAGE_H - 44 * mm
-        y_table = self._stitle(y_table, f'جدول نقاط النتيجة ({total_score}/20)')
-        rows_score = [['النقاط', 'الحالة', 'البند']]
-        status_flags = []
-        for lbl, (symbol, pt) in score_criteria.items():
-            is_yes = (pt == 1)
-            status_flags.append(is_yes)
-            status_text = rtl('نعم') if is_yes else rtl('لا')
-            rows_score.append([str(pt), status_text, rtl(short_text(lbl, 35))])
-        rows_score.append([str(total_score), rtl('من 20'), rtl('الإجمالي')])
-        status_flags.append(None)
-        self._table(y_table, rows_score, [CW * 0.15, CW * 0.30, CW * 0.55],
-                    score_mode=True, status_flags=status_flags)
-    self.c.showPage()
+
     def fund_page(self, info):
         self._bar('التحليل الأساسي'); self._foot()
         y=PAGE_H-44*mm; y=self._stitle(y,'التقييم')
