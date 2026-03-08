@@ -3137,8 +3137,11 @@ class Report:
         c.setFillColor(HexColor(rec_color)); c.roundRect(MG, PAGE_H-58*mm, 60*mm, 14*mm, 8, fill=1, stroke=0)
         # c.setFillColor(WHITE); self._font(True,11); c.drawCentredString(MG+30*mm, PAGE_H-53*mm, rtl(rec_txt))
         # self._font(False,8); c.drawCentredString(MG+30*mm, PAGE_H-57*mm, rtl(f'النتيجة {score}/20'))
-        c.setFillColor(WHITE); self._font(True,11); c.drawCentredString(PAGE_W/2, PAGE_H-53*mm, rtl(rec_txt))
-        self._font(False,8); c.drawCentredString(PAGE_W/2, PAGE_H-57*mm, rtl(f'النتيجة {score}/20'))
+        #c.setFillColor(WHITE); self._font(True,11); c.drawCentredString(PAGE_W/2, PAGE_H-53*mm, rtl(rec_txt))
+        #self._font(False,8); c.drawCentredString(PAGE_W/2, PAGE_H-57*mm, rtl(f'النتيجة {score}/20'))
+        c.setFillColor(WHITE); self._font(True,11); c.drawCentredString(MG+30*mm, PAGE_H-50*mm, rtl(rec_txt))
+        self._font(False,8); c.drawCentredString(MG+30*mm, PAGE_H-54*mm, rtl(f'النتيجة {score}/20'))
+        
         
         col_bw=CW/3-4*mm; col_bh=18*mm; col_gap=4*mm
         x1=MG; x2=MG+col_bw+col_gap; x3=MG+2*(col_bw+col_gap)
