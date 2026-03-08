@@ -1428,7 +1428,7 @@ def compute_score_criteria(d):
         ('8. الماكد هستوجرام > 0', pd.notna(last['MACD_H']) and float(last['MACD_H']) > 0),
         ('9. مؤشر القوة النسبية > 50', pd.notna(last['RSI']) and float(last['RSI']) > 50),
         #('10. ROC 12 إيجابي - زخم صاعد', pd.notna(last['ROC12']) and float(last['ROC12']) > 0),
-        ('10. ROC12 > 0', pd.notna(last['ROC12']) and float(last['ROC12']) > 0),
+        ('10. مؤشر معدل التغير > 0', pd.notna(last['ROC12']) and float(last['ROC12']) > 0),
         ('11. مؤشر ADX > 25', pd.notna(last['ADX']) and float(last['ADX']) > 25),
         ('12. مؤشر +DI > مؤشر -DI', pd.notna(last['PDI']) and pd.notna(last['MDI']) and float(last['PDI']) > float(last['MDI'])),
     ]
