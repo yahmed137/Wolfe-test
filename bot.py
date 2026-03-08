@@ -1996,7 +1996,6 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
     # ── Collect ALL labels: (price, text, color, bg, edge, fontsize) ──
     items = []
 
-    # EMA lines
     if d_ind is not None:
         for col, (clr, lbl) in ema_colors.items():
             if col in d_ind.columns:
@@ -2007,14 +2006,12 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
                                alpha=0.55, zorder=4)
                     items.append((ev, lbl, clr, 'white', clr, 6.2))
 
-    # Support lines
     for i, s in enumerate(sup):
         ax.axhline(s, color=sup_color, lw=0.7, ls='--',
                    alpha=0.70, zorder=5)
         items.append((s, rtl(f'دعم {i+1}   {s:.2f}'),
                        sup_color, '#E8F4FD', sup_color, 6.8))
 
-    # Resistance lines
     for i, r in enumerate(res):
         ax.axhline(r, color=res_color, lw=0.7, ls='--',
                    alpha=0.70, zorder=5)
@@ -2024,7 +2021,7 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
     if not items:
         return
 
-    # ── Sort ALL items by price ascending (bottom → top) ──
+    # ── Sort by price ascending ──
     items.sort(key=lambda x: x[0])
     n = len(items)
 
@@ -2034,19 +2031,15 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
     price_range = (price_max - price_min) if price_max != price_min \
                   else abs(price_max) * 0.1 or 1.0
 
-    # ── Evenly distribute label y-positions ──
-    # Add generous padding so labels extend beyond the price range
-    # This keeps lines at a natural diagonal angle without crossing
-    pad_top = price_range * 0.25
-    pad_bot = price_range * 0.25
+    # ── Evenly distribute label y-positions with generous padding ──
+    pad_top = price_range * 0.30
+    pad_bot = price_range * 0.30
 
-    # Extra per-label spacing to guarantee no label touches another
-    min_label_height = price_range * 0.045
+    min_label_height = price_range * 0.055
     total_needed = min_label_height * (n - 1) if n > 1 else 0
     natural_span = (price_max + pad_top) - (price_min - pad_bot)
 
     if total_needed > natural_span and n > 1:
-        # Expand padding equally if labels are too dense
         extra = (total_needed - natural_span) / 2.0
         pad_top += extra
         pad_bot += extra
@@ -2060,21 +2053,69 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
         step = (label_top - label_bottom) / (n - 1)
         label_ys = [label_bottom + step * i for i in range(n)]
 
-    # ── Connector x-coordinates ──
+    # ── X-coordinates: stagger depths so lines don't cross labels ──
+    # Labels pushed further out (~4-5cm equivalent in data coords)
+    # Alternate between two x-depth columns so adjacent labels
+    # don't block each other's connector lines
     label_x = xmax - 0.5
-    text_x = xmax + 0.8
 
-    # ── Draw annotations with straight diagonal lines ──
-    # Since both items and label_ys are sorted ascending,
-    # every line goes from (label_x, price_i) to (text_x, label_y_i)
-    # where price order == label order → lines NEVER cross.
-    # connectionstyle='' means a single straight segment (natural diagonal).
+    # Base offset pushed further out
+    base_offset = xmax * 0.12  # ~4-5cm equivalent
+    if base_offset < 8:
+        base_offset = 8.0
+
+    # Two stagger depths: odd labels closer, even labels further
+    text_x_near = xmax + base_offset
+    text_x_far  = xmax + base_offset * 1.6
+
+    # ── Determine which labels need the far column ──
+    # A line from (label_x, price_i) to (text_x, label_y_i) could
+    # visually cross another label box. To prevent this:
+    # - labels whose connector passes through a neighbor's y-zone
+    #   get pushed to the far column
+    # - we check if the diagonal line between price and label_y
+    #   would intersect any other label's y-band
+
+    label_box_half_h = price_range * 0.025  # approximate half-height of label box
+
+    def line_crosses_label(price_from, ly_to, other_ly):
+        """Check if straight line from (label_x, price_from) to (text_x, ly_to)
+           passes through the y-band of another label at any x between."""
+        band_lo = other_ly - label_box_half_h
+        band_hi = other_ly + label_box_half_h
+        # Check a few sample points along the line
+        for t in (0.3, 0.5, 0.7):
+            y_at_t = price_from + t * (ly_to - price_from)
+            if band_lo <= y_at_t <= band_hi:
+                return True
+        return False
+
+    use_far = [False] * n
+    for i in range(n):
+        price_i = items[i][0]
+        ly_i = label_ys[i]
+        for j in range(n):
+            if i == j:
+                continue
+            ly_j = label_ys[j]
+            if line_crosses_label(price_i, ly_i, ly_j):
+                use_far[i] = True
+                break
+
+    # ── If two adjacent labels both got "far", alternate them ──
+    for i in range(1, n):
+        if use_far[i] and use_far[i - 1]:
+            use_far[i - 1] = False  # push one back to near
+
+    # ── Draw annotations ──
     for idx, (price, text, color, bg, edge_clr, fsize) in enumerate(items):
         ly = label_ys[idx]
+        tx = text_x_far if use_far[idx] else text_x_near
+
         ax.annotate(
             text,
             xy=(label_x, price),
-            xytext=(text_x, ly),
+            xytext=(tx, ly),
             fontsize=fsize,
             color=color,
             ha='left',
@@ -2097,6 +2138,13 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
             clip_on=False,
             zorder=8,
         )
+
+    # ── Expand axes to show labels ──
+    current_xlim = ax.get_xlim()
+    needed_right = text_x_far + base_offset * 0.5
+    if current_xlim[1] < needed_right:
+        ax.set_xlim(current_xlim[0], needed_right)
+
 
 ###########
 
