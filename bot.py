@@ -860,7 +860,7 @@ def recommendation(score):
     elif score >= 12: return 'إيجابي', '#66BB6A'
     elif score <= 4: return 'سلبي +', RED_HEX
     elif score <= 8: return 'سلبي', '#EF5350'
-    return 'حياد', ORANGE_HEX
+    return 'حياد / احتفاظ', ORANGE_HEX
 
 
 def decision_text(v):
@@ -1005,134 +1005,286 @@ def find_sr(df, d_ind=None, n_levels=8):
 
 
 def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, divergences=None):
-    last = d.iloc[-1]; c_price = float(last['Close']); sections = []
-    ema7=float(last['EMA7']) if pd.notna(last['EMA7']) else None
-    ema20=float(last['EMA20']) if pd.notna(last['EMA20']) else None
-    ema50=float(last['EMA50']) if pd.notna(last['EMA50']) else None
-    ema200=float(last['EMA200']) if pd.notna(last['EMA200']) else None
-    sma50=float(last['SMA50']) if pd.notna(last['SMA50']) else None
-    sma200=float(last['SMA200']) if pd.notna(last['SMA200']) else None
-    adx=float(last['ADX']) if pd.notna(last['ADX']) else None
-    pdi=float(last['PDI']) if pd.notna(last['PDI']) else None
-    mdi=float(last['MDI']) if pd.notna(last['MDI']) else None
+    """
+    Generate a structured Arabic technical review narrative from all indicators.
+    Returns a list of (section_title, paragraph_text) tuples.
+    """
+    last = d.iloc[-1]
+    c_price = float(last['Close'])
+    sections = []
+
+    # ── 1. General Trend ─────────────────────────────────────────────────────
+    ema7   = float(last['EMA7'])   if pd.notna(last['EMA7'])   else None
+    ema20  = float(last['EMA20'])  if pd.notna(last['EMA20'])  else None
+    ema50  = float(last['EMA50'])  if pd.notna(last['EMA50'])  else None
+    ema200 = float(last['EMA200']) if pd.notna(last['EMA200']) else None
+    sma50  = float(last['SMA50'])  if pd.notna(last['SMA50'])  else None
+    sma200 = float(last['SMA200']) if pd.notna(last['SMA200']) else None
+    adx    = float(last['ADX'])    if pd.notna(last['ADX'])    else None
+    pdi    = float(last['PDI'])    if pd.notna(last['PDI'])    else None
+    mdi    = float(last['MDI'])    if pd.notna(last['MDI'])    else None
+
     trend_parts = []
-    if all(v is not None for v in [ema7,ema20,ema50,ema200]):
-        if ema7>ema20>ema50>ema200: trend_parts.append('المتوسطات المتحركة الأسية (7/20/50/200) مرتبة ترتيباً صاعداً مثالياً، مما يدل على اتجاه تصاعدي قوي ومنتظم.')
-        elif c_price>ema50 and c_price>ema200: trend_parts.append('السعر يتداول فوق المتوسطَين الأسيَين 50 و200، مما يشير إلى استمرار الاتجاه الصعودي على المدى المتوسط والطويل.')
-        elif c_price<ema50 and c_price<ema200: trend_parts.append('السعر يتداول دون المتوسطَين الأسيَين 50 و200، مما يعكس ضغطاً بيعياً سائداً على المدى المتوسط والطويل.')
-        else: trend_parts.append('يتباين موقع السعر بالنسبة للمتوسطات المتحركة، مما يشير إلى اتجاه متذبذب يستدعي المراقبة.')
+    if all(v is not None for v in [ema7, ema20, ema50, ema200]):
+        if ema7 > ema20 > ema50 > ema200:
+            trend_parts.append('المتوسطات المتحركة الأسية (7/20/50/200) مرتبة ترتيباً صاعداً مثالياً، مما يدل على اتجاه تصاعدي قوي ومنتظم.')
+        elif c_price > ema50 and c_price > ema200:
+            trend_parts.append('السعر يتداول فوق المتوسطَين الأسيَين 50 و200، مما يشير إلى استمرار الاتجاه الصعودي على المدى المتوسط والطويل.')
+        elif c_price < ema50 and c_price < ema200:
+            trend_parts.append('السعر يتداول دون المتوسطَين الأسيَين 50 و200، مما يعكس ضغطاً بيعياً سائداً على المدى المتوسط والطويل.')
+        else:
+            trend_parts.append('يتباين موقع السعر بالنسبة للمتوسطات المتحركة، مما يشير إلى اتجاه متذبذب يستدعي المراقبة.')
     if sma50 is not None and sma200 is not None:
-        if sma50>sma200: trend_parts.append('يُسجَّل تقاطع ذهبي بين المتوسطَين البسيطَين 50 و200، وهو إشارة فنية إيجابية تاريخياً.')
-        else:            trend_parts.append('يُلاحَظ تقاطع سلبي (موت) بين المتوسطَين البسيطَين 50 و200، وهو إشارة تحذيرية للمستثمرين.')
+        if sma50 > sma200:
+            trend_parts.append('يُسجَّل تقاطع ذهبي بين المتوسطَين البسيطَين 50 و200، وهو إشارة فنية إيجابية تاريخياً.')
+        else:
+            trend_parts.append('يُلاحَظ تقاطع سلبي (موت) بين المتوسطَين البسيطَين 50 و200، وهو إشارة تحذيرية للمستثمرين.')
     if adx is not None and pdi is not None and mdi is not None:
-        strength='قوي' if adx>25 else ('معتدل' if adx>15 else 'ضعيف')
-        direction='صاعد' if pdi>mdi else 'هابط'
+        strength  = 'قوي' if adx > 25 else ('معتدل' if adx > 15 else 'ضعيف')
+        direction = 'صاعد' if pdi > mdi else 'هابط'
         trend_parts.append(f'يُشير مؤشر ADX إلى اتجاه {direction} {strength} بقيمة {adx:.1f}.')
-    sections.append(('الاتجاه العام', ' '.join(trend_parts) if trend_parts else 'لا تتوفر بيانات كافية.'))
-    rsi=float(last['RSI']) if pd.notna(last['RSI']) else None
-    macd=float(last['MACD']) if pd.notna(last['MACD']) else None
-    macd_sig=float(last['MACD_Sig']) if pd.notna(last['MACD_Sig']) else None
-    macd_h=float(last['MACD_H']) if pd.notna(last['MACD_H']) else None
-    roc12=float(last['ROC12']) if pd.notna(last['ROC12']) else None
-    mom_parts=[]
+    sections.append(('الاتجاه العام', ' '.join(trend_parts) if trend_parts else 'لا تتوفر بيانات كافية لتحليل الاتجاه.'))
+
+    # ── 2. Momentum Indicators ───────────────────────────────────────────────
+    rsi      = float(last['RSI'])      if pd.notna(last['RSI'])      else None
+    macd     = float(last['MACD'])     if pd.notna(last['MACD'])     else None
+    macd_sig = float(last['MACD_Sig']) if pd.notna(last['MACD_Sig']) else None
+    macd_h   = float(last['MACD_H'])   if pd.notna(last['MACD_H'])   else None
+    roc12    = float(last['ROC12'])    if pd.notna(last['ROC12'])    else None
+
+    mom_parts = []
     if rsi is not None:
-        if rsi>=70: mom_parts.append(f'مؤشر RSI يقرأ {rsi:.1f} في منطقة التشبع الشرائي، مما يستوجب الحذر.')
-        elif rsi<=30: mom_parts.append(f'مؤشر RSI عند {rsi:.1f} في منطقة التشبع البيعي.')
-        elif rsi>=55: mom_parts.append(f'مؤشر RSI عند {rsi:.1f} في المنطقة الإيجابية.')
-        else: mom_parts.append(f'مؤشر RSI محايد عند {rsi:.1f}.')
+        if rsi >= 70:
+            mom_parts.append(f'مؤشر القوة النسبية RSI يقرأ {rsi:.1f} في منطقة التشبع الشرائي، مما يستوجب الحذر من تصحيح وشيك.')
+        elif rsi <= 30:
+            mom_parts.append(f'مؤشر RSI عند {rsi:.1f} في منطقة التشبع البيعي، مما يستدعي مراقبة إشارات الانعكاس المحتملة.')
+        elif rsi >= 55:
+            mom_parts.append(f'مؤشر RSI عند {rsi:.1f} في المنطقة الإيجابية فوق خط 50، مما يعكس زخماً شرائياً متواصلاً.')
+        elif rsi <= 45:
+            mom_parts.append(f'مؤشر RSI عند {rsi:.1f} في المنطقة السلبية دون خط 50، مما يعكس ضعفاً في الزخم الشرائي.')
+        else:
+            mom_parts.append(f'مؤشر RSI محايد عند {rsi:.1f} قريباً من الخط 50.')
     if macd is not None and macd_sig is not None and macd_h is not None:
-        if macd>macd_sig and macd_h>0: mom_parts.append('مؤشر الماكد يتداول فوق خط الإشارة مع هستوجرام إيجابي.')
-        elif macd<macd_sig and macd_h<0: mom_parts.append('مؤشر الماكد يتداول دون خط الإشارة مع هستوجرام سلبي.')
-        else: mom_parts.append('مؤشر الماكد في مرحلة تقاطع.')
+        if macd > macd_sig and macd_h > 0:
+            mom_parts.append('مؤشر الماكد MACD يتداول فوق خط الإشارة مع هستوجرام إيجابي، مما يدعم الزخم الصعودي.')
+        elif macd < macd_sig and macd_h < 0:
+            mom_parts.append('مؤشر الماكد يتداول دون خط الإشارة مع هستوجرام سلبي، مما يعكس ضعف الزخم الحالي.')
+        else:
+            mom_parts.append('مؤشر الماكد في مرحلة تقاطع، مما قد يُنذر بتغيير في الاتجاه.')
+    if roc12 is not None:
+        if roc12 > 5:
+            mom_parts.append(f'مؤشر ROC 12 عند {roc12:.2f}% يُشير إلى زخم صاعد قوي على المدى المتوسط.')
+        elif roc12 > 0:
+            mom_parts.append(f'مؤشر ROC 12 عند {roc12:.2f}% إيجابي، مما يدل على استمرار الزخم الشرائي.')
+        elif roc12 > -5:
+            mom_parts.append(f'مؤشر ROC 12 عند {roc12:.2f}% سلبي، مما يعكس ضعفاً في الزخم الحالي.')
+        else:
+            mom_parts.append(f'مؤشر ROC 12 عند {roc12:.2f}% يُشير إلى زخم هبوطي قوي على المدى المتوسط.')
     sections.append(('مؤشرات الزخم', ' '.join(mom_parts) if mom_parts else 'لا تتوفر بيانات كافية.'))
-    bb_u=float(last['BB_U']) if pd.notna(last['BB_U']) else None
-    bb_m=float(last['BB_M']) if pd.notna(last['BB_M']) else None
-    bb_l=float(last['BB_L']) if pd.notna(last['BB_L']) else None
-    bb_p=float(last['BB_P']) if pd.notna(last['BB_P']) else None
-    atr=float(last['ATR']) if pd.notna(last['ATR']) else None
-    vol_parts=[]
-    if all(v is not None for v in [bb_u,bb_m,bb_l,bb_p]):
-        if c_price>bb_u: vol_parts.append(f'السعر اخترق الحد العلوي لنطاق بولنجر ({bb_u:.2f}).')
-        elif c_price<bb_l: vol_parts.append(f'السعر دون الحد السفلي لنطاق بولنجر ({bb_l:.2f}).')
-        else: vol_parts.append(f'السعر داخل نطاق بولنجر عند الموقع {bb_p*100:.0f}%.')
+
+    # ── 3. Volatility & Bollinger Bands ──────────────────────────────────────
+    bb_u = float(last['BB_U']) if pd.notna(last['BB_U']) else None
+    bb_m = float(last['BB_M']) if pd.notna(last['BB_M']) else None
+    bb_l = float(last['BB_L']) if pd.notna(last['BB_L']) else None
+    bb_p = float(last['BB_P']) if pd.notna(last['BB_P']) else None
+    atr  = float(last['ATR'])  if pd.notna(last['ATR'])  else None
+
+    vol_parts = []
+    if all(v is not None for v in [bb_u, bb_m, bb_l, bb_p]):
+        bb_width = (bb_u - bb_l) / bb_m * 100 if bb_m != 0 else 0
+        if c_price > bb_u:
+            vol_parts.append(f'السعر اخترق الحد العلوي لنطاق بولنجر ({bb_u:.2f})، مما يشير إلى زخم صعودي قوي مع احتمال توقف مؤقت.')
+        elif c_price < bb_l:
+            vol_parts.append(f'السعر دون الحد السفلي لنطاق بولنجر ({bb_l:.2f})، مما يدل على زخم هبوطي حاد مع احتمال توقف مؤقت.')
+        else:
+            pos_pct = bb_p * 100
+            vol_parts.append(f'السعر داخل نطاق بولنجر عند الموقع {pos_pct:.0f}% بين الحدين، والحد الأوسط عند {bb_m:.2f}.')
+        if bb_width < 5:
+            vol_parts.append('تضيّق نطاق بولنجر يوحي بتراكم طاقة قد يتبعه تحرك حاد في أحد الاتجاهين.')
+        elif bb_width > 20:
+            vol_parts.append('اتساع نطاق بولنجر يعكس تذبذباً مرتفعاً في السوق.')
     if atr is not None:
-        atr_pct=(atr/c_price)*100
-        vol_parts.append(f'مؤشر ATR يُسجّل {atr:.2f} ({atr_pct:.1f}% من السعر).')
+        atr_pct = (atr / c_price) * 100
+        if atr_pct > 3:
+            vol_parts.append(f'مؤشر ATR يُسجّل {atr:.2f} ({atr_pct:.1f}% من السعر)، مما يُشير إلى تذبذب يومي مرتفع.')
+        elif atr_pct < 1:
+            vol_parts.append(f'مؤشر ATR عند {atr:.2f} ({atr_pct:.1f}% من السعر)، مما يعكس هدوءاً نسبياً في حركة السعر.')
+        else:
+            vol_parts.append(f'مؤشر ATR عند {atr:.2f} ({atr_pct:.1f}% من السعر) يُشير إلى تذبذب يومي معتدل.')
     sections.append(('التذبذب ونطاق بولنجر', ' '.join(vol_parts) if vol_parts else 'لا تتوفر بيانات كافية.'))
-    volume_parts=[]
-    obv=float(last['OBV']) if pd.notna(last['OBV']) else None
-    bull_vol=float(last['Bull_Volume']) if pd.notna(last['Bull_Volume']) else None
-    bear_vol=float(last['Bear_Volume']) if pd.notna(last['Bear_Volume']) else None
-    vol_now=float(last['Volume'])
-    vwap=float(last['VWAP']) if pd.notna(last['VWAP']) else None
-    vol_avg=d['Volume'].rolling(20, min_periods=1).mean().iloc[-1]
-    if pd.notna(vol_avg) and vol_avg>0:
-        vr=vol_now/vol_avg
-        if vr>1.5: volume_parts.append(f'حجم التداول مرتفع بنسبة {vr:.1f}x.')
-        elif vr<0.5: volume_parts.append(f'حجم التداول منخفض ({vr:.1f}x).')
-        else: volume_parts.append(f'حجم التداول طبيعي ({vr:.1f}x).')
+
+    # ── 4. Volume Analysis ───────────────────────────────────────────────────
+    obv      = float(last['OBV'])         if pd.notna(last['OBV'])         else None
+    bull_vol = float(last['Bull_Volume']) if pd.notna(last['Bull_Volume']) else None
+    bear_vol = float(last['Bear_Volume']) if pd.notna(last['Bear_Volume']) else None
+    vol_now  = float(last['Volume'])
+    vwap     = float(last['VWAP'])        if pd.notna(last['VWAP'])        else None
+    vol_avg  = d['Volume'].rolling(20, min_periods=1).mean().iloc[-1]
+
+    volume_parts = []
+    if pd.notna(vol_avg) and vol_avg > 0:
+        vr = vol_now / vol_avg
+        if vr > 1.5:
+            volume_parts.append(f'حجم التداول الحالي مرتفع بنسبة {vr:.1f}x فوق متوسط الـ20 يوماً، مما يعكس اهتماماً كبيراً من المشاركين في السوق.')
+        elif vr < 0.5:
+            volume_parts.append(f'حجم التداول منخفض ({vr:.1f}x من المتوسط)، مما يُشير إلى تراجع في النشاط التداولي وانخفاض الاهتمام.')
+        else:
+            volume_parts.append(f'حجم التداول طبيعي عند {vr:.1f}x من المتوسط الـ20 يوماً.')
+    if bull_vol is not None and bear_vol is not None and (bull_vol + bear_vol) > 0:
+        bull_pct = bull_vol / (bull_vol + bear_vol) * 100
+        if bull_pct > 55:
+            volume_parts.append(f'السيولة الشرائية تهيمن بنسبة {bull_pct:.0f}% من إجمالي الحجم الأخير، مؤشر إيجابي على الطلب الفعّال.')
+        elif bull_pct < 45:
+            volume_parts.append(f'السيولة على الجانب الهابط تهيمن بنسبة {100-bull_pct:.0f}%، مما يعكس ضغطاً على الورقة المالية.')
+        else:
+            volume_parts.append(f'توازن نسبي بين السيولة الشرائية ({bull_pct:.0f}%) والبيعية ({100-bull_pct:.0f}%).')
     if vwap is not None:
-        volume_parts.append(f'VWAP عند {vwap:.2f} والسعر {"فوقه" if c_price>vwap else "دونه"}.')
+        if c_price > vwap:
+            volume_parts.append(f'مؤشر VWAP يُسجَّل عند {vwap:.2f} والسعر يتداول فوقه، مما يُشير إلى هيمنة المشترين خلال جلسات التداول.')
+        else:
+            volume_parts.append(f'مؤشر VWAP يُسجَّل عند {vwap:.2f} والسعر يتداول دونه، مما يُشير إلى هيمنة البائعين خلال جلسات التداول.')
+    if len(d) >= 5 and obv is not None:
+        obv_prev = float(d.iloc[-5]['OBV']) if pd.notna(d.iloc[-5]['OBV']) else None
+        if obv_prev is not None:
+            if obv > obv_prev:
+                volume_parts.append('OBV: المؤشر في اتجاه تصاعدي خلال الأسبوع الأخير، مما يدعم صحة الحركة الصعودية.')
+            else:
+                volume_parts.append('OBV: المؤشر في اتجاه تراجعي خلال الأسبوع الأخير، مما يُلمح إلى ضعف خفي رغم الحركة السعرية.')
     sections.append(('تحليل الحجم', ' '.join(volume_parts) if volume_parts else 'لا تتوفر بيانات كافية.'))
-    tenkan=float(last['Tenkan']) if pd.notna(last['Tenkan']) else None
-    kijun=float(last['Kijun']) if pd.notna(last['Kijun']) else None
-    senk_a=float(last['Senkou_A']) if pd.notna(last['Senkou_A']) else None
-    senk_b=float(last['Senkou_B']) if pd.notna(last['Senkou_B']) else None
-    sar=float(last['SAR']) if pd.notna(last['SAR']) else None
-    adv_parts=[]
+
+    # ── 5. Ichimoku & Advanced ───────────────────────────────────────────────
+    tenkan = float(last['Tenkan'])   if pd.notna(last['Tenkan'])   else None
+    kijun  = float(last['Kijun'])    if pd.notna(last['Kijun'])    else None
+    senk_a = float(last['Senkou_A']) if pd.notna(last['Senkou_A']) else None
+    senk_b = float(last['Senkou_B']) if pd.notna(last['Senkou_B']) else None
+    sar    = float(last['SAR'])      if pd.notna(last['SAR'])      else None
+
+    adv_parts = []
     if tenkan is not None and kijun is not None:
-        adv_parts.append(f'خط التنكن ({tenkan:.2f}) {"أعلى" if tenkan>kijun else "أدنى"} من خط الكيجن ({kijun:.2f}).')
+        if tenkan > kijun:
+            adv_parts.append(f'خط التنكن ({tenkan:.2f}) أعلى من خط الكيجن ({kijun:.2f})، إشارة إيجابية في نظام الإيشيموكو.')
+        else:
+            adv_parts.append(f'خط التنكن ({tenkan:.2f}) أدنى من خط الكيجن ({kijun:.2f})، إشارة سلبية في نظام الإيشيموكو.')
     if senk_a is not None and senk_b is not None:
-        kumo_top=max(senk_a,senk_b); kumo_bot=min(senk_a,senk_b)
-        if c_price>kumo_top: adv_parts.append(f'السعر فوق السحابة.')
-        elif c_price<kumo_bot: adv_parts.append(f'السعر دون السحابة.')
-        else: adv_parts.append('السعر داخل السحابة.')
+        kumo_top = max(senk_a, senk_b)
+        kumo_bot = min(senk_a, senk_b)
+        if c_price > kumo_top:
+            adv_parts.append(f'السعر يتداول فوق السحابة السميكة (كوموه) عند {kumo_top:.2f}، مما يُعزز الاتجاه الصعودي.')
+        elif c_price < kumo_bot:
+            adv_parts.append(f'السعر دون السحابة (كوموه) عند {kumo_bot:.2f}، مما يُعزز الاتجاه الهبوطي.')
+        else:
+            adv_parts.append('السعر داخل السحابة (كوموه)، مما يدل على مرحلة تردد وعدم حسم في الاتجاه.')
     if sar is not None:
-        adv_parts.append(f'SAR عند {sar:.2f} {"دون" if c_price>sar else "فوق"} السعر.')
+        if c_price > sar:
+            adv_parts.append(f'مؤشر بارابوليك SAR عند {sar:.2f} يقع دون السعر الحالي، مما يدعم استمرار الاتجاه الصعودي.')
+        else:
+            adv_parts.append(f'مؤشر بارابوليك SAR عند {sar:.2f} يعلو السعر الحالي، مما يشير إلى ضعف الزخم الصعودي.')
     sections.append(('مؤشرات متقدمة (إيشيموكو / SAR)', ' '.join(adv_parts) if adv_parts else 'لا تتوفر بيانات كافية.'))
-    atr_val=float(last['ATR']) if pd.notna(last['ATR']) else None
-    sr_parts=[]
+
+    # ── 6. Support / Resistance + ATR Price Targets ──────────────────────────
+    atr_val = float(last['ATR']) if pd.notna(last['ATR']) else None
+    sr_parts = []
     if sup:
-        for i,s in enumerate(sup[:5]):
-            gap=abs(c_price-s)/c_price*100; side='دون' if s<c_price else 'فوق'
-            rank=['الأول','الثاني','الثالث','الرابع','الخامس'][i]
-            sr_parts.append(f'الدعم {rank}: {s:.2f} ({gap:.1f}% {side} السعر).')
+        for i, s in enumerate(sup[:5]):
+            gap  = abs(c_price - s) / c_price * 100
+            side = 'دون' if s < c_price else 'فوق'
+            rank = ['الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس'][i]
+            sr_parts.append(f'الدعم {rank}: {s:.2f} ({gap:.1f}% {side} السعر الحالي).')
     if res:
-        for i,r in enumerate(res[:5]):
-            gap=abs(r-c_price)/c_price*100; side='فوق' if r>c_price else 'دون'
-            rank=['الأولى','الثانية','الثالثة','الرابعة','الخامسة'][i]
-            sr_parts.append(f'المقاومة {rank}: {r:.2f} ({gap:.1f}% {side} السعر).')
+        for i, r in enumerate(res[:5]):
+            gap  = abs(r - c_price) / c_price * 100
+            side = 'فوق' if r > c_price else 'دون'
+            rank = ['الأولى', 'الثانية', 'الثالثة', 'الرابعة', 'الخامسة'][i]
+            sr_parts.append(f'المقاومة {rank}: {r:.2f} ({gap:.1f}% {side} السعر الحالي).')
+    v_arr   = d['Volume'].values.astype(float)
+    vol_avg2 = np.mean(v_arr) if len(v_arr) > 0 else 1
+    hv_closes = [float(d.iloc[i]['Close']) for i in np.where(v_arr > 1.5 * vol_avg2)[0]]
+    hv_res = sorted([p for p in hv_closes if p > c_price])
+    hv_sup = sorted([p for p in hv_closes if p <= c_price], reverse=True)
+    if hv_sup:
+        sr_parts.append(f'دعم حجمي بارز عند {hv_sup[0]:.2f} — ناتج عن تداولات كثيفة سابقة.')
+    if hv_res:
+        sr_parts.append(f'مقاومة حجمية بارزة عند {hv_res[0]:.2f} — ناتجة عن تداولات كثيفة سابقة.')
     if atr_val is not None:
-        t1_up=c_price+1.0*atr_val; t2_up=c_price+2.0*atr_val
-        t1_dn=c_price-1.0*atr_val; t2_dn=c_price-2.0*atr_val
-        sr_parts.append(f'ATR ({atr_val:.2f}): أهداف صعود {t1_up:.2f} / {t2_up:.2f}. توقف {t1_dn:.2f} / {t2_dn:.2f}.')
-    sections.append(('مستويات الدعم والمقاومة والأهداف السعرية', ' '.join(sr_parts) if sr_parts else 'لا مستويات واضحة.'))
-    rec_txt,_=recommendation(score)
-    if score>=16: outlook=f'الصورة الفنية إيجابية بدرجة عالية ({score}/20).'
-    elif score>=12: outlook=f'القراءة الفنية تميل نحو الإيجابية ({score}/20).'
-    elif score<=4: outlook=f'الصورة الفنية سلبية ({score}/20).'
-    elif score<=8: outlook=f'القراءة الفنية تميل نحو السلبية ({score}/20).'
-    else: outlook=f'قراءة محايدة ({score}/20).'
+        t1_up = c_price + 1.0 * atr_val; t2_up = c_price + 2.0 * atr_val
+        t1_dn = c_price - 1.0 * atr_val; t2_dn = c_price - 2.0 * atr_val
+        sr_parts.append(f'ATR ({atr_val:.2f}): الأهداف الصعودية {t1_up:.2f} و {t2_up:.2f}. مستويات التوقف {t1_dn:.2f} و {t2_dn:.2f}.')
+    nearest_s = sup[0] if sup and sup[0] < c_price else None
+    nearest_r = res[0] if res and res[0] > c_price else None
+    if nearest_s and nearest_r and (c_price - nearest_s) > 0:
+        rr = (nearest_r - c_price) / (c_price - nearest_s)
+        sr_parts.append(f'نسبة العائد إلى المخاطرة (R:R): {rr:.1f}x بين أقرب دعم ومقاومة.')
+    if not sr_parts:
+        sr_parts.append('لم يتم رصد مستويات دعم أو مقاومة واضحة في الفترة المحللة.')
+    sections.append(('مستويات الدعم والمقاومة والأهداف السعرية', ' '.join(sr_parts)))
+
+    # ── 7. Overall Conclusion ────────────────────────────────────────────────
+    rec_txt, _ = recommendation(score)
+    if score >= 16:
+        outlook = (f'الصورة الفنية الشاملة إيجابية بدرجة عالية وفق نتيجة {score}/20، '
+                   f'إذ تتوافق معظم المؤشرات التقنية المدروسة مع الاتجاه الصعودي على مختلف الأطر الزمنية. '
+                   f'مستويات الدعم والمقاومة المرصودة تمثل نقاط مراقبة فنية مهمة.')
+    elif score >= 12:
+        outlook = (f'تميل القراءة الفنية الإجمالية بنتيجة {score}/20 نحو الإيجابية، '
+                   f'وتدعم غالبية المؤشرات الاتجاه الصعودي مع وجود بعض الإشارات المتحفظة '
+                   f'التي تستدعي متابعة مستويات الدعم والمقاومة المذكورة.')
+    elif score <= 4:
+        outlook = (f'الصورة الفنية الشاملة سلبية وفق نتيجة {score}/20، '
+                   f'إذ تُشير معظم المؤشرات التقنية إلى ضغط هبوطي مستمر. '
+                   f'مراقبة إشارات الانعكاس عند مستويات الدعم المرصودة أمر جوهري في هذه المرحلة.')
+    elif score <= 8:
+        outlook = (f'تميل القراءة الفنية بنتيجة {score}/20 نحو السلبية، '
+                   f'ويُلاحَظ تراجع ملموس في قوة الاتجاه الصعودي وفق معظم المؤشرات. '
+                   f'متابعة الأطر الزمنية المختلفة ومستويات الدعم الرئيسية يساعد في تقييم صحة الاتجاه الحالي.')
+    else:
+        outlook = (f'تُعطي المؤشرات الفنية مجتمعةً قراءة محايدة بنتيجة {score}/20، '
+                   f'ولا يوجد اتجاه صعودي أو هبوطي راسخ في الوقت الراهن. '
+                   f'متابعة كسر مستويات الدعم أو المقاومة القريبة سيُحدد مسار الاتجاه القادم.')
     sections.append(('الخلاصة الفنية', outlook))
+
+    # ── 8. Divergences ───────────────────────────────────────────────────────
     if divergences:
-        div_parts=[f'{ind}: {ar_type}' for ind,ar_type,en_type in divergences]
+        div_parts = [f'{ind}: {ar_type} — يُشير إلى احتمال تغيير في الزخم الحالي.' for ind, ar_type, en_type in divergences]
         sections.append(('التباعد بين السعر والمؤشرات', ' '.join(div_parts)))
     else:
-        sections.append(('التباعد بين السعر والمؤشرات','لا يُلاحَظ تباعد واضح.'))
-    cci_val=float(last['CCI']) if pd.notna(last['CCI']) else None
-    willr=float(last['WILLR']) if pd.notna(last['WILLR']) else None
-    osc_parts=[]
+        sections.append(('التباعد بين السعر والمؤشرات',
+                          'لا يُلاحَظ تباعد واضح بين السعر ومؤشري RSI وMACD في الفترة الأخيرة، مما يُشير إلى انسجام الزخم مع حركة السعر.'))
+
+    # ── 9. 52-Week Position ──────────────────────────────────────────────────
+    w52_high = info.get('fiftyTwoWeekHigh') if info else None
+    w52_low  = info.get('fiftyTwoWeekLow')  if info else None
+    if w52_high and w52_low and float(w52_high) != float(w52_low):
+        pos_pct   = (c_price - float(w52_low)) / (float(w52_high) - float(w52_low)) * 100
+        dist_high = (float(w52_high) - c_price) / c_price * 100
+        dist_low  = (c_price - float(w52_low))  / c_price * 100
+        sections.append(('الموقع من نطاق 52 أسبوع',
+                          f'السعر الحالي يقع عند {pos_pct:.1f}% من النطاق السنوي '
+                          f'(أدنى 52 أسبوع: {float(w52_low):.2f} — أعلى 52 أسبوع: {float(w52_high):.2f}). '
+                          f'المسافة من القمة: {dist_high:.1f}%. المسافة من القاع: {dist_low:.1f}%.'))
+
+    # ── 10. CCI & Williams %R ────────────────────────────────────────────────
+    cci_val   = float(last['CCI'])   if pd.notna(last['CCI'])   else None
+    willr     = float(last['WILLR']) if pd.notna(last['WILLR']) else None
+    osc_parts = []
     if cci_val is not None:
-        if cci_val>100: osc_parts.append(f'CCI: {cci_val:.0f} زخم صعودي قوي.')
-        elif cci_val<-100: osc_parts.append(f'CCI: {cci_val:.0f} زخم هبوطي.')
-        else: osc_parts.append(f'CCI: {cci_val:.0f} في النطاق المحايد.')
+        if cci_val > 100:
+            osc_parts.append(f'CCI: القراءة {cci_val:.0f} فوق مستوى +100 تُشير إلى زخم صعودي قوي مع احتمال تشبع.')
+        elif cci_val < -100:
+            osc_parts.append(f'CCI: القراءة {cci_val:.0f} دون مستوى -100 تُشير إلى زخم هبوطي مع احتمال تشبع بيعي.')
+        else:
+            osc_parts.append(f'CCI: القراءة {cci_val:.0f} داخل النطاق المحايد بين -100 و+100.')
     if willr is not None:
-        if willr>-20: osc_parts.append(f'Williams %R: {willr:.0f} قريب من التشبع الشرائي.')
-        elif willr<-80: osc_parts.append(f'Williams %R: {willr:.0f} في التشبع البيعي.')
-        else: osc_parts.append(f'Williams %R: {willr:.0f} في المنطقة المحايدة.')
+        if willr > -20:
+            osc_parts.append(f'Williams %R: القراءة {willr:.0f} قريبة من منطقة التشبع الشرائي (فوق -20).')
+        elif willr < -80:
+            osc_parts.append(f'Williams %R: القراءة {willr:.0f} في منطقة التشبع البيعي (تحت -80).')
+        else:
+            osc_parts.append(f'Williams %R: القراءة {willr:.0f} في المنطقة المحايدة.')
     if osc_parts:
         sections.append(('مؤشرات CCI وWilliams %R', ' '.join(osc_parts)))
+
     return sections
+
 
 # ─────────────────────────────────────────────────────────────
 # 7. CHART FUNCTIONS
@@ -1613,103 +1765,27 @@ class Report:
         self.c.showPage()
 
     def review_page(self, review_sections, score):
-        # ── Section icon & accent colour mapping ────────────────────────
-        _SECTION_META = {
-            'الاتجاه العام':                     ('#0D47A1', '📈'),
-            'تحليل الزخم':                       ('#6A1B9A', '⚡'),
-            'تحليل الحجم':                       ('#00695C', '📊'),
-            'مؤشرات متقدمة':                    ('#E65100', '🔭'),
-            'مستويات الدعم والمقاومة':          ('#B71C1C', '🔒'),
-            'الخلاصة الفنية':                   ('#1B5E20', '✅'),
-            'التباعد بين السعر':                ('#4E342E', '↔'),
-            'مؤشرات CCI':                        ('#37474F', '📉'),
-        }
-        def _section_color(title):
-            for k, (clr, _) in _SECTION_META.items():
-                if k in title:
-                    return HexColor(clr)
-            return NAVY
-
-        font_size_body = 8.8
-        line_h = 13
-        card_pad = 5 * mm
-        max_text_width = CW - 2 * card_pad - 2
-
-        def _new_page(is_first=False):
-            if not is_first:
-                self.c.showPage()
-            lbl = 'المراجعة الفنية الشاملة' if is_first else 'المراجعة الفنية الشاملة (تابع)'
-            self._bar(lbl); self._foot()
-            return PAGE_H - 44*mm
-
-        c = self.c
-        y = _new_page(is_first=True)
-
-        # ── Score banner ─────────────────────────────────────────────────
-        if score >= 14:   banner_fill = HexColor('#1B5E20'); verdict = 'إيجابي +'
-        elif score >= 10: banner_fill = NAVY;                verdict = 'إيجابي'
-        elif score >= 7:  banner_fill = HexColor('#E65100'); verdict = 'حياد'
-        else:             banner_fill = HexColor('#B71C1C'); verdict = 'سلبي'
-
-        banner_h = 14 * mm
-        c.setFillColor(banner_fill)
-        c.roundRect(MG, y - banner_h, CW, banner_h, 6, fill=1, stroke=0)
-        # left badge
-        badge_w = 38 * mm
-        c.setFillColor(WHITE if score >= 7 else HexColor('#FFCDD2'))
-        c.roundRect(MG + 4, y - banner_h + 3, badge_w, banner_h - 6, 4, fill=1, stroke=0)
-        c.setFillColor(banner_fill); self._font(True, 9)
-        c.drawCentredString(MG + 4 + badge_w / 2, y - banner_h + 6, rtl(f'{verdict}  •  {score}/20'))
-        # centre text
-        c.setFillColor(WHITE); self._font(True, 10)
-        c.drawCentredString(PAGE_W / 2, y - banner_h + 5, rtl('نتيجة التحليل الفني الشاملة'))
-        # date right
-        c.setFillColor(HexColor('#B2DFDB')); self._font(False, 7.5)
-        c.drawRightString(PAGE_W - MG - 6, y - banner_h + 8, datetime.now().strftime('%Y-%m-%d'))
-        y -= banner_h + 7 * mm
-
-        # ── Sections ─────────────────────────────────────────────────────
-        for section_title, paragraph in review_sections:
-            lines = self._wrap_arabic_text(paragraph, max_text_width, font_size_body)
-            card_h = card_pad + len(lines) * line_h + card_pad + 2
-
-            # page break if card won't fit (keep ≥30 mm margin for footer)
-            if y - card_h < 30 * mm:
-                y = _new_page()
-
-            accent = _section_color(section_title)
-
-            # Card background
-            c.setFillColor(HexColor('#F8F9FA'))
-            c.roundRect(MG, y - card_h, CW, card_h, 5, fill=1, stroke=0)
-            # Left accent bar
-            c.setFillColor(accent)
-            c.roundRect(MG, y - card_h, 3.5, card_h, 2, fill=1, stroke=0)
-            # Section title inside card
-            c.setFillColor(accent); self._font(True, 9.5)
-            c.drawRightString(PAGE_W - MG - 6, y - card_pad - 1, rtl(section_title))
-            # Thin divider
-            c.setStrokeColor(accent); c.setLineWidth(0.6)
-            c.line(MG + 6, y - card_pad - 6, PAGE_W - MG - 6, y - card_pad - 6)
-            # Paragraph lines
-            ty = y - card_pad - line_h - 2
-            c.setFillColor(TXTDARK); self._font(False, font_size_body)
+        self._bar('المراجعة الفنية الشاملة'); self._foot()
+        c=self.c; y=PAGE_H-44*mm; line_h=13; para_gap=8; section_gap=6; font_size_body=9; max_text_width=CW-4*mm
+        strip_h=10*mm; strip_y=y-strip_h
+        if score>=14:   strip_fill=HexColor('#1B5E20')
+        elif score>=10: strip_fill=HexColor('#1B2A4A')
+        elif score>=7:  strip_fill=HexColor('#E65100')
+        else:           strip_fill=HexColor('#B71C1C')
+        c.setFillColor(strip_fill); c.roundRect(MG, strip_y, CW, strip_h, 5, fill=1, stroke=0)
+        c.setFillColor(WHITE); self._font(True,9); c.drawCentredString(PAGE_W/2, strip_y+3, rtl(f'نتيجة التحليل الفني: {score} من أصل 20 نقطة')); y=strip_y-10*mm
+        for section_title,paragraph in review_sections:
+            if y<40*mm: c.showPage(); self._bar('المراجعة الفنية الشاملة (تابع)'); self._foot(); y=PAGE_H-44*mm
+            y=self._stitle(y,section_title); y+=4
+            lines=self._wrap_arabic_text(paragraph,max_text_width,font_size_body)
+            c.setFillColor(TXTDARK); self._font(False,font_size_body)
             for line in lines:
-                c.drawRightString(PAGE_W - MG - 6, ty, line)
-                ty -= line_h
-
-            y -= card_h + 4 * mm
-
-        # ── Disclaimer footer ────────────────────────────────────────────
-        disc_y = max(y - 6, 24 * mm)
-        c.setFillColor(HexColor('#ECEFF1'))
-        c.roundRect(MG, disc_y - 10 * mm, CW, 10 * mm, 4, fill=1, stroke=0)
-        c.setFillColor(DGRAY); self._font(False, 6.8)
-        c.drawCentredString(PAGE_W/2, disc_y - 5*mm + 3,
-                            rtl('هذا التقرير آلي لأغراض معلوماتية فقط وليس نصيحة استثمارية.'))
-        c.drawCentredString(PAGE_W/2, disc_y - 5*mm - 5,
-                            rtl('الأداء السابق لا يضمن النتائج المستقبلية. قم دائماً ببحثك الخاص قبل اتخاذ أي قرار.'))
-        c.showPage()
+                if y<25*mm: c.showPage(); self._bar('المراجعة الفنية الشاملة (تابع)'); self._foot(); y=PAGE_H-44*mm
+                c.drawRightString(PAGE_W-MG, y, line); y-=line_h
+            y-=para_gap+section_gap
+        c.setFillColor(DGRAY); self._font(False,6.5)
+        c.drawCentredString(PAGE_W/2, 16*mm, rtl('هذا التقرير آلي لأغراض معلوماتية فقط وليس نصيحة استثمارية.'))
+        c.drawCentredString(PAGE_W/2, 12*mm, rtl('الأداء السابق لا يضمن النتائج المستقبلية. قم دائماً ببحثك الخاص.')); c.showPage()
 
     def save(self):
         self.c.save()
