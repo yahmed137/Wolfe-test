@@ -1409,7 +1409,7 @@ def make_volume_chart(d):
     ax.set_ylabel(rtl('الحجم'),fontproperties=MPL_FONT_PROP_BOLD); ax.legend(prop=MPL_FONT_PROP,fontsize=8); ax.grid(True,alpha=.3); ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %y'))
     plt.tight_layout(); return chart_bytes(fig)
 
-## GAUGE ##
+## GAUGE AMETER##
 ###########
 def make_gauge_chart(score):
     fig,(ax_gauge,ax_button)=plt.subplots(1,2,figsize=(12,5),gridspec_kw={'width_ratios':[3,1]})
@@ -1441,7 +1441,7 @@ def make_gauge_chart(score):
     ax_button.axis('off'); ax_button.set_xlim(0,1); ax_button.set_ylim(0,1)
     rec,rec_color=recommendation(score)
     circle=mpatches.Circle((0.5,0.5),0.35,facecolor=rec_color,edgecolor='#333333',linewidth=2,transform=ax_button.transAxes)
-    ax_button.add_patch(circle); ax_button.text(0.5,0.5,rtl(rec),ha='center',va='center',fontsize=18,fontproperties=MPL_FONT_PROP_BOLD,color='white',transform=ax_button.transAxes)
+    ax_button.add_patch(circle); ax_button.text(0.5,0.5,rtl(rec),ha='center',va='center',fontsize=20,fontproperties=MPL_FONT_PROP_BOLD,color='white',transform=ax_button.transAxes)
     ax_button.text(0.5,0.12,f'{score}/20',ha='center',va='center',fontsize=10,fontproperties=MPL_FONT_PROP,transform=ax_button.transAxes)
     plt.tight_layout(); return chart_bytes(fig)
 
