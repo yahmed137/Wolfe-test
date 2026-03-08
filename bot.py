@@ -1688,14 +1688,14 @@ class Report:
             y_table=self._stitle(y_table,f'جدول نقاط النتيجة ({total_score}/20)')
             rows_score=[['النقاط','الحالة','البند']]
             for lbl,(symbol,pt) in score_criteria.items():
-                status=rtl('نعم (+1)') if pt==1 else rtl('لا (0)'); rows_score.append([str(pt),status,rtl(short_text(lbl,35))])
+                status=rtl('✅') if pt==1 else rtl('❌'); rows_score.append([str(pt),status,rtl(short_text(lbl,35))])
             rows_score.append([str(total_score),rtl('من 20'),rtl('الإجمالي')]); self._table(y_table,rows_score,[CW*0.15,CW*0.30,CW*0.55],score_mode=True)
         else:
             self.c.showPage(); self._bar('جدول نقاط النتيجة'); self._foot()
             y_table=PAGE_H-44*mm; y_table=self._stitle(y_table,f'جدول نقاط النتيجة ({total_score}/20)')
             rows_score=[['النقاط','الحالة','البند']]
             for lbl,(symbol,pt) in score_criteria.items():
-                status=rtl('نعم (+1)') if pt==1 else rtl('لا (0)'); rows_score.append([str(pt),status,rtl(short_text(lbl,35))])
+                status=rtl('✅') if pt==1 else rtl('❌'); rows_score.append([str(pt),status,rtl(short_text(lbl,35))])
             rows_score.append([str(total_score),rtl('من 20'),rtl('الإجمالي')]); self._table(y_table,rows_score,[CW*0.15,CW*0.30,CW*0.55],score_mode=True)
         self.c.showPage()
 
