@@ -2295,17 +2295,28 @@ class Report:
         self._foot(); c.showPage()
 
 
-    def main_charts_page(self, main_img, sma_img, ema_img):
+    def main_charts_page(self, main_img, sma_img, ema_img, alli_img, st_img):
+        # شريط العنوان
         self._bar('الرسم البياني')
         self._foot()
-        c = self.c
+    
         y = PAGE_H - 44*mm
-        y = self._stitle(y, 'الرسم البياني الرئيسي مع الدعم والمقاومة')
-        y = self._img(y, main_img, 100*mm)
-        y = self._stitle(y, 'المتوسطات المتحركة (SMA يمين - EMA يسار)')
-
-        sma_img.seek(0); img1 = ImageReader(sma_img)
-        ema_img.seek(0); img2 = ImageReader(ema_img)
+    
+        # ــ 1. الدعوم والمقاومات ــ
+        y = self._stitle(y, 'الدعوم والمقاومات')
+        y = self._img(y, main_img, 96*mm)   # الرسم الرئيسى
+    
+        # ــ 2. SMA يمين – EMA يسار ــ
+        y = self._stitle(y, 'المتوسطات المتحركة')
+        sma_img.seek(0); ema_img.seek(0)
+        dw  = (CW/2) - 3*mm
+        dh1 = dw * (ImageReader(ema_img).getSize()[1] / ImageReader(ema_img).getSize()[0])
+        dh2 = dw * (ImageReader(sma_img).getSize()[1] / ImageReader(sma_img).getSize()[0])
+        x_left  = MG
+        x_right = PAGE_W - MG - dw
+        self.c.drawImage(ImageReader(ema_img), x_left,  y-dh1-2, dw, dh1)   # يسار = EMA
+        self.c.drawImage(ImageReader(sma_img), x_right, y-dh2-2, dw, dh2)   # يمين = SMA
+        y -= max(dh1, dh2) + 10
 
         dw = (CW / 2) - 2*mm
         ratio1 = img1.getSize()[1] / img1.getSize()[0]
