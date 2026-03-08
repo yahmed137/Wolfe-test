@@ -1530,51 +1530,207 @@ def recommendation(score):
 def decision_text(v):
     return 'إيجابي' if v > 0 else 'سلبي' if v < 0 else 'حياد'
 
+# ################الشموع############################
+# def detect_candle_patterns(df):
+#     patterns = []
+#     if len(df) < 3: return patterns
+#     o = df['Open'].values.astype(float); h = df['High'].values.astype(float)
+#     l = df['Low'].values.astype(float);  c = df['Close'].values.astype(float)
+#     dates = df.index
+#     def body(i): return abs(c[i]-o[i])
+#     def candle(i): return h[i]-l[i]
+#     def upper_shadow(i): return h[i]-max(c[i],o[i])
+#     def lower_shadow(i): return min(c[i],o[i])-l[i]
+#     for i in range(2, len(df)):
+#         avg_body = np.mean([body(j) for j in range(max(0,i-5),i)]) or 1e-9
+#         date_lbl = dates[i].strftime('%Y-%m-%d')
+#         if body(i) < 0.05*candle(i) and candle(i) > 0:
+#             patterns.append((date_lbl,'دوجي','Doji',None)); continue
+#         if lower_shadow(i) > 2*body(i) and upper_shadow(i) < 0.3*body(i) and body(i) > 0:
+#             if c[i-1] < o[i-1]: patterns.append((date_lbl,'المطرقة','Hammer',True))
+#             else:                patterns.append((date_lbl,'المشنقة','Hanging Man',False))
+#             continue
+#         if upper_shadow(i) > 2*body(i) and lower_shadow(i) < 0.3*body(i) and body(i) > 0:
+#             if c[i-1] > o[i-1]: patterns.append((date_lbl,'النجمة الساقطة','Shooting Star',False))
+#             else:                patterns.append((date_lbl,'المطرقة المقلوبة','Inverted Hammer',True))
+#             continue
+#         if c[i-1]<o[i-1] and c[i]>o[i] and o[i]<c[i-1] and c[i]>o[i-1]:
+#             patterns.append((date_lbl,'الابتلاع الصعودي','Bullish Engulfing',True)); continue
+#         if c[i-1]>o[i-1] and c[i]<o[i] and o[i]>c[i-1] and c[i]<o[i-1]:
+#             patterns.append((date_lbl,'الابتلاع الهبوطي','Bearish Engulfing',False)); continue
+#         if i >= 2:
+#             if c[i-2]<o[i-2] and body(i-1)<0.3*body(i-2) and c[i]>o[i] and c[i]>(o[i-2]+c[i-2])/2:
+#                 patterns.append((date_lbl,'نجمة الصباح','Morning Star',True)); continue
+#             if c[i-2]>o[i-2] and body(i-1)<0.3*body(i-2) and c[i]<o[i] and c[i]<(o[i-2]+c[i-2])/2:
+#                 patterns.append((date_lbl,'نجمة المساء','Evening Star',False)); continue
+#             if all(c[j]>o[j] for j in [i-2,i-1,i]) and c[i-1]>c[i-2] and c[i]>c[i-1] and all(body(j)>avg_body*0.8 for j in [i-2,i-1,i]):
+#                 patterns.append((date_lbl,'ثلاثة جنود بيض','Three White Soldiers',True)); continue
+#             if all(c[j]<o[j] for j in [i-2,i-1,i]) and c[i-1]<c[i-2] and c[i]<c[i-1] and all(body(j)>avg_body*0.8 for j in [i-2,i-1,i]):
+#                 patterns.append((date_lbl,'ثلاثة غربان سوداء','Three Black Crows',False)); continue
+#     seen = set(); unique = []
+#     for p in reversed(patterns):
+#         if p[2] not in seen:
+#             seen.add(p[2]); unique.append(p)
+#         if len(unique) == 5: break
+#     return list(reversed(unique))
+# ########################
+#YASIR
+def make_candle_pattern_chart(d, patterns):
+    d = d.tail(60).copy()
+    p = d[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
+    mc = mpf.make_marketcolors(up='#26a69a', down='#ef5350', edge='inherit',
+                               wick='inherit', volume={'up': '#80cbc4', 'down': '#ef9a9a'})
+    st = mpf.make_mpf_style(marketcolors=mc, gridstyle=':', gridcolor='#dddddd',
+                             rc={'axes.facecolor': '#FAFAFA'})
+    fig, axlist = mpf.plot(p, type='candle', style=st, volume=False,
+                           figsize=(16, 7), returnfig=True, warn_too_much_data=9999)
+    ax = axlist[0]
 
-def detect_candle_patterns(df):
-    patterns = []
-    if len(df) < 3: return patterns
-    o = df['Open'].values.astype(float); h = df['High'].values.astype(float)
-    l = df['Low'].values.astype(float);  c = df['Close'].values.astype(float)
-    dates = df.index
-    def body(i): return abs(c[i]-o[i])
-    def candle(i): return h[i]-l[i]
-    def upper_shadow(i): return h[i]-max(c[i],o[i])
-    def lower_shadow(i): return min(c[i],o[i])-l[i]
-    for i in range(2, len(df)):
-        avg_body = np.mean([body(j) for j in range(max(0,i-5),i)]) or 1e-9
-        date_lbl = dates[i].strftime('%Y-%m-%d')
-        if body(i) < 0.05*candle(i) and candle(i) > 0:
-            patterns.append((date_lbl,'دوجي','Doji',None)); continue
-        if lower_shadow(i) > 2*body(i) and upper_shadow(i) < 0.3*body(i) and body(i) > 0:
-            if c[i-1] < o[i-1]: patterns.append((date_lbl,'المطرقة','Hammer',True))
-            else:                patterns.append((date_lbl,'المشنقة','Hanging Man',False))
+    date_to_pos = {str(dt.date()): i for i, dt in enumerate(d.index)}
+
+    resolved = []
+    for date_lbl, ar_name, en_name, bullish in patterns:
+        pos = date_to_pos.get(date_lbl)
+        if pos is None:
             continue
-        if upper_shadow(i) > 2*body(i) and lower_shadow(i) < 0.3*body(i) and body(i) > 0:
-            if c[i-1] > o[i-1]: patterns.append((date_lbl,'النجمة الساقطة','Shooting Star',False))
-            else:                patterns.append((date_lbl,'المطرقة المقلوبة','Inverted Hammer',True))
-            continue
-        if c[i-1]<o[i-1] and c[i]>o[i] and o[i]<c[i-1] and c[i]>o[i-1]:
-            patterns.append((date_lbl,'الابتلاع الصعودي','Bullish Engulfing',True)); continue
-        if c[i-1]>o[i-1] and c[i]<o[i] and o[i]>c[i-1] and c[i]<o[i-1]:
-            patterns.append((date_lbl,'الابتلاع الهبوطي','Bearish Engulfing',False)); continue
-        if i >= 2:
-            if c[i-2]<o[i-2] and body(i-1)<0.3*body(i-2) and c[i]>o[i] and c[i]>(o[i-2]+c[i-2])/2:
-                patterns.append((date_lbl,'نجمة الصباح','Morning Star',True)); continue
-            if c[i-2]>o[i-2] and body(i-1)<0.3*body(i-2) and c[i]<o[i] and c[i]<(o[i-2]+c[i-2])/2:
-                patterns.append((date_lbl,'نجمة المساء','Evening Star',False)); continue
-            if all(c[j]>o[j] for j in [i-2,i-1,i]) and c[i-1]>c[i-2] and c[i]>c[i-1] and all(body(j)>avg_body*0.8 for j in [i-2,i-1,i]):
-                patterns.append((date_lbl,'ثلاثة جنود بيض','Three White Soldiers',True)); continue
-            if all(c[j]<o[j] for j in [i-2,i-1,i]) and c[i-1]<c[i-2] and c[i]<c[i-1] and all(body(j)>avg_body*0.8 for j in [i-2,i-1,i]):
-                patterns.append((date_lbl,'ثلاثة غربان سوداء','Three Black Crows',False)); continue
-    seen = set(); unique = []
-    for p in reversed(patterns):
-        if p[2] not in seen:
-            seen.add(p[2]); unique.append(p)
-        if len(unique) == 5: break
-    return list(reversed(unique))
+        row_d = d.iloc[pos]
+        resolved.append({
+            'pos': pos,
+            'high': float(row_d['High']),
+            'low': float(row_d['Low']),
+            'name': ar_name,
+            'bullish': bullish,
+        })
 
+    if not resolved:
+        plt.tight_layout()
+        return chart_bytes(fig)
 
+    # ── Get chart dimensions ──
+    ylo, yhi = ax.get_ylim()
+    xlo, xhi = ax.get_xlim()
+    xspan = xhi - xlo
+    yspan = yhi - ylo
+
+    n = len(resolved)
+
+    # ── Sort resolved by position (left to right on chart) ──
+    resolved.sort(key=lambda a: a['pos'])
+
+    # ── Split into RIGHT side and LEFT side labels ──
+    # First half → right side, second half → left side
+    mid = (n + 1) // 2
+    right_anns = resolved[:mid]
+    left_anns = resolved[mid:]
+
+    # ── Right side: labels go to the right of chart ──
+    # Evenly distribute y-positions from top to bottom
+    right_base_x = xhi + xspan * 0.08
+    right_far_x = xhi + xspan * 0.22
+
+    # ── Left side: labels go to the left of chart ──
+    left_base_x = xlo - xspan * 0.08
+    left_far_x = xlo - xspan * 0.22
+
+    def make_evenly_spaced_ys(count, y_top, y_bottom):
+        """Distribute label y positions evenly from top to bottom."""
+        if count == 0:
+            return []
+        if count == 1:
+            return [(y_top + y_bottom) / 2]
+        step = (y_top - y_bottom) / (count - 1)
+        return [y_top - step * k for k in range(count)]
+
+    # Label y-positions: spread across full chart height with padding
+    pad = yspan * 0.08
+    right_ys = make_evenly_spaced_ys(len(right_anns), yhi - pad, ylo + pad)
+    left_ys = make_evenly_spaced_ys(len(left_anns), yhi - pad, ylo + pad)
+
+    # ── Collision detection helper ──
+    label_half_h = yspan * 0.035
+
+    def line_hits_label(price_from, ly_to, all_label_ys, skip_idx):
+        """Check if line from candle to label crosses another label box."""
+        for j, other_ly in enumerate(all_label_ys):
+            if j == skip_idx:
+                continue
+            band_lo = other_ly - label_half_h
+            band_hi = other_ly + label_half_h
+            for t in (0.25, 0.5, 0.75):
+                y_at_t = price_from + t * (ly_to - price_from)
+                if band_lo <= y_at_t <= band_hi:
+                    return True
+        return False
+
+    def draw_annotations(anns, label_ys, base_x, far_x, align, side):
+        """Draw labels on one side with stagger to avoid crossing."""
+        if not anns:
+            return
+
+        # Determine which labels need far column
+        use_far = [False] * len(anns)
+        for k in range(len(anns)):
+            ann = anns[k]
+            anchor_y = ann['high'] if ann['bullish'] is not False else ann['low']
+            if line_hits_label(anchor_y, label_ys[k], label_ys, k):
+                use_far[k] = True
+
+        # Alternate adjacent far labels
+        for k in range(1, len(anns)):
+            if use_far[k] and use_far[k - 1]:
+                use_far[k - 1] = False
+
+        for k, ann in enumerate(anns):
+            pos = ann['pos']
+            bullish = ann['bullish']
+            color = ('#1B5E20' if bullish is True
+                     else '#B71C1C' if bullish is False
+                     else '#E65100')
+            label = rtl(ann['name'])
+            anchor_y = ann['high'] if bullish is not False else ann['low']
+            ly = label_ys[k]
+            lx = far_x if use_far[k] else base_x
+
+            ax.annotate(
+                label,
+                xy=(pos, anchor_y),
+                xytext=(lx, ly),
+                fontsize=8.5,
+                color=color,
+                ha=align,
+                va='center',
+                fontproperties=MPL_FONT_PROP,
+                arrowprops=dict(
+                    arrowstyle='-|>',
+                    color=color,
+                    lw=1.1,
+                    mutation_scale=9,
+                    shrinkA=0,
+                    shrinkB=0,
+                ),
+                bbox=dict(
+                    boxstyle='round,pad=0.32',
+                    facecolor='white',
+                    edgecolor=color,
+                    alpha=0.95,
+                    linewidth=1.0,
+                ),
+                clip_on=False,
+                zorder=10,
+            )
+
+    # ── Draw both sides ──
+    draw_annotations(right_anns, right_ys, right_base_x, right_far_x, 'left', 'right')
+    draw_annotations(left_anns, left_ys, left_base_x, left_far_x, 'right', 'left')
+
+    # ── Expand axes to show all labels ──
+    margin_right = right_far_x + xspan * 0.15
+    margin_left = left_far_x - xspan * 0.15
+    ax.set_xlim(min(xlo, margin_left), max(xhi, margin_right))
+    fig.subplots_adjust(left=0.10, right=0.90)
+
+    return chart_bytes(fig)
+###################################
 def detect_divergences(d):
     divergences = []
     df = d.tail(60).copy()
