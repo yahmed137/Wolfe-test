@@ -2697,29 +2697,32 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
     if n == 1:
         label_ys = [items[0][0]]
     else:
-        step = (label_top - label_bottom) / (n - 1)
-        label_ys = [label_bottom + step * i for i in range(n)]
+        step_y = (label_top - label_bottom) / (n - 1)
+        label_ys = [label_bottom + step_y * i for i in range(n)]
 
-    # ── X-coordinates: push labels FAR right ──
-    # Arrow starts from the right edge of the price line
-    label_x = xmax - 0.5
+    # ── Convert label y from data to axes fraction ──
+    ylo, yhi = ax.get_ylim()
+    y_span = (yhi - ylo) if (yhi - ylo) != 0 else 1.0
 
-    # Push labels to ~20% of chart width outside the plot area
-    # This aligns them roughly with the page heading / margin
-    base_offset = xmax * 0.22
-    if base_offset < 14:
-        base_offset = 14.0
+    def to_y_frac(y_val):
+        return (y_val - ylo) / y_span
 
-    # Two stagger columns: near and far
-    text_x_near = xmax + base_offset
-    text_x_far  = xmax + base_offset * 1.45
+    # ── Label x in axes fraction: outside the right border ──
+    # 1.0 = right edge of axes. >1.0 = in the existing margin space.
+    # No chart resize, no xlim change — labels just overflow into
+    # the empty area that already exists on the right side.
+    near_frac = 1.03
+    far_frac  = 1.15
+
+    # Arrow starts at right edge of data
+    arrow_x = xmax - 0.5
 
     # ── Collision detection ──
-    label_box_half_h = price_range * 0.025
+    label_half_h = price_range * 0.025
 
     def line_crosses_label(price_from, ly_to, other_ly):
-        band_lo = other_ly - label_box_half_h
-        band_hi = other_ly + label_box_half_h
+        band_lo = other_ly - label_half_h
+        band_hi = other_ly + label_half_h
         for t in (0.2, 0.4, 0.6, 0.8):
             y_at_t = price_from + t * (ly_to - price_from)
             if band_lo <= y_at_t <= band_hi:
@@ -2733,25 +2736,25 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
         for j in range(n):
             if i == j:
                 continue
-            ly_j = label_ys[j]
-            if line_crosses_label(price_i, ly_i, ly_j):
+            if line_crosses_label(price_i, ly_i, label_ys[j]):
                 use_far[i] = True
                 break
 
-    # Alternate adjacent far labels so they don't stack
     for i in range(1, n):
         if use_far[i] and use_far[i - 1]:
             use_far[i - 1] = False
 
     # ── Draw annotations ──
     for idx, (price, text, color, bg, edge_clr, fsize) in enumerate(items):
-        ly = label_ys[idx]
-        tx = text_x_far if use_far[idx] else text_x_near
+        ly_frac = to_y_frac(label_ys[idx])
+        x_frac = far_frac if use_far[idx] else near_frac
 
         ax.annotate(
             text,
-            xy=(label_x, price),
-            xytext=(tx, ly),
+            xy=(arrow_x, price),
+            xycoords='data',
+            xytext=(x_frac, ly_frac),
+            textcoords='axes fraction',
             fontsize=fsize,
             color=color,
             ha='left',
@@ -2774,13 +2777,6 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
             clip_on=False,
             zorder=8,
         )
-
-    # ── Expand axes so labels are fully visible ──
-    # Push right boundary far enough to show the far-column labels
-    current_xlim = ax.get_xlim()
-    needed_right = text_x_far + base_offset * 0.6
-    if current_xlim[1] < needed_right:
-        ax.set_xlim(current_xlim[0], needed_right)
 
 ###########
 
