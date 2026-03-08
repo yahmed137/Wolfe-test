@@ -3135,8 +3135,11 @@ class Report:
         self._font(False,11); c.drawRightString(PAGE_W-MG, PAGE_H-52*mm, tx(f'{self.display_tk} | {safe(info,"exchange","-")}'))
         self._font(False,9); c.drawString(MG, PAGE_H-18*mm, datetime.now().strftime('%Y-%m-%d'))
         c.setFillColor(HexColor(rec_color)); c.roundRect(MG, PAGE_H-58*mm, 60*mm, 14*mm, 8, fill=1, stroke=0)
-        c.setFillColor(WHITE); self._font(True,11); c.drawCentredString(MG+30*mm, PAGE_H-53*mm, rtl(rec_txt))
-        self._font(False,8); c.drawCentredString(MG+30*mm, PAGE_H-57*mm, rtl(f'النتيجة {score}/20'))
+        # c.setFillColor(WHITE); self._font(True,11); c.drawCentredString(MG+30*mm, PAGE_H-53*mm, rtl(rec_txt))
+        # self._font(False,8); c.drawCentredString(MG+30*mm, PAGE_H-57*mm, rtl(f'النتيجة {score}/20'))
+        c.setFillColor(WHITE); self._font(True,11); c.drawCentredString(PAGE_W/2, PAGE_H-53*mm, rtl(rec_txt))
+        self._font(False,8); c.drawCentredString(PAGE_W/2, PAGE_H-57*mm, rtl(f'النتيجة {score}/20'))
+        
         col_bw=CW/3-4*mm; col_bh=18*mm; col_gap=4*mm
         x1=MG; x2=MG+col_bw+col_gap; x3=MG+2*(col_bw+col_gap)
         y1=PAGE_H-110*mm; y2=y1-col_bh-col_gap; y3=y2-col_bh-col_gap; y4=y3-col_bh-col_gap
@@ -3364,7 +3367,8 @@ class Report:
         elif score>=7:  strip_fill=HexColor('#E65100')
         else:           strip_fill=HexColor('#B71C1C')
         c.setFillColor(strip_fill); c.roundRect(MG, strip_y, CW, strip_h, 5, fill=1, stroke=0)
-        c.setFillColor(WHITE); self._font(True,9); c.drawCentredString(PAGE_W/2, strip_y+3, rtl(f'نتيجة التحليل الفني: {score} من أصل 20 نقطة')); y=strip_y-10*mm
+        #yasir c.setFillColor(WHITE); self._font(True,9); c.drawCentredString(PAGE_W/2, strip_y+3, rtl(f'نتيجة التحليل الفني: {score} من أصل 20 نقطة')); y=strip_y-10*mm
+        c.setFillColor(WHITE); self._font(True,12); c.drawCentredString(PAGE_W/2, strip_y + (strip_h - font_size_body) / 2, rtl(f'نتيجة التحليل الفني: {score} من أصل 20 نقطة')); y=strip_y-10*mm
         for section_title,paragraph in review_sections:
             if y<40*mm: c.showPage(); self._bar('المراجعة الفنية الشاملة (تابع)'); self._foot(); y=PAGE_H-44*mm
             y=self._stitle(y,section_title); y+=4
