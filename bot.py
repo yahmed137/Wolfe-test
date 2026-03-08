@@ -905,61 +905,38 @@ def _argaam_scrape(company_id: str, driver) -> dict:
 
 
 def _enrich_with_argaam(ticker: str, info: dict) -> None:
-    """
-    Fetch fundamental data from Argaam and update `info` in-place.
-    Argaam values take priority over yfinance for the fields it covers.
-    Silently skips if Chrome / network unavailable.
-    """
     if not ARGAAM_AVAILABLE:
         return
-
-    # Normalise ticker: strip .SR suffix
     code = ticker.replace(".SR", "").strip()
     company_id = ARGAAM_TICKER_TO_ID.get(code)
     if not company_id:
         logger.info(f"Argaam: no mapping for ticker {code} – skipping enrichment")
         return
-
     driver = None
     try:
         driver = _argaam_setup_driver()
         raw = _argaam_scrape(company_id, driver)
         if not raw:
             return
-
-        # ── Map Argaam fields → yfinance info keys ────────────
-        # Market cap (Argaam gives millions of SAR)
         mc = _argaam_parse_num(raw.get("القيمة السوقية (مليون ريال)"))
         if mc is not None:
             info["marketCap"] = mc * 1_000_000
-
-        # Shares outstanding (Argaam gives millions)
         sh = _argaam_parse_num(raw.get("عدد الأسهم (مليون)"))
         if sh is not None:
             info["sharesOutstanding"] = sh * 1_000_000
-            info["floatShares"]       = sh * 1_000_000   # approximation
-
-        # EPS trailing twelve months
+            info["floatShares"]       = sh * 1_000_000
         eps = _argaam_parse_num(raw.get("ربح السهم ( ريال) (أخر 12 شهر)"))
         if eps is not None:
             info["trailingEps"] = eps
-
-        # Book value per share
         bv = _argaam_parse_num(raw.get("القيمة الدفترية ( ريال) (لأخر فترة معلنة)"))
         if bv is not None:
             info["bookValue"] = bv
-
-        # Trailing P/E
         pe = _argaam_parse_num(raw.get("مكرر الربح المتكرر"))
         if pe is not None and pe > 0:
             info["trailingPE"] = pe
-
-        # Price-to-book
         pb = _argaam_parse_num(raw.get("مضاعف القيمة الدفترية"))
         if pb is not None and pb > 0:
             info["priceToBook"] = pb
-
-        # Recalculate price-to-book if we now have bookValue but no priceToBook
         if not info.get("priceToBook") and info.get("bookValue") and info.get("bookValue") > 0:
             try:
                 price_now = float(info.get("currentPrice") or info.get("regularMarketPrice", 0))
@@ -967,36 +944,27 @@ def _enrich_with_argaam(ticker: str, info: dict) -> None:
                     info["priceToBook"] = round(price_now / float(info["bookValue"]), 4)
             except Exception:
                 pass
-
-        # Average 3-month volume
-# Avg Vol
         avg_vol = _argaam_parse_num(raw.get("م. حجم التداول (3 أشهر)"))
         if avg_vol is not None:
             info["averageVolume"] = int(avg_vol)
-
-        # Added fields
+        # ── حجم التداول ──
         vol = _argaam_parse_num(raw.get("حجم التداول"))
         if vol is not None:
             info["volume"] = int(vol)
-
+        # ── قيمة التداول ──
         val = _argaam_parse_num(raw.get("قيمة التداول"))
         if val is not None:
             info["tradingValue"] = val
-
+        # ── عدد الصفقات ──
         trades = _argaam_parse_num(raw.get("عدد الصفقات"))
         if trades is not None:
             info["tradesCount"] = int(trades)
-
-        # Currency / exchange defaults for Saudi stocks
-        if not info.get("volume") and "Volume" in df.columns and not df["Volume"].empty:
-            info["volume"] = float(df["Volume"].iloc[-1])
+        # ── ربحية السهم (already set above via trailingEps) ──
         if not info.get("currency"):
             info["currency"] = "SAR"
         if not info.get("exchange"):
             info["exchange"] = "Tadawul"
-
         logger.info(f"Argaam enrichment OK for {ticker} (Argaam ID {company_id})")
-
     except Exception as exc:
         logger.warning(f"Argaam enrichment failed for {ticker}: {exc}")
     finally:
@@ -1258,12 +1226,65 @@ def fetch_data(ticker):
         except Exception as _ae:
             logger.warning(f"Argaam enrichment skipped: {_ae}")
 
+        # ── ADDED: volume fallback from yfinance data ──
+        if not info.get('volume') and len(df) > 0 and 'Volume' in df.columns:
+            try:
+                info['volume'] = float(df['Volume'].iloc[-1])
+            except Exception:
+                pass
+
         return df, df2, info
-    except Exception as e:
-        logger.error(f"fetch_data error: {e}")
-        return None, None, {}
 
-
+def _compute_supertrend(df, period=10, multiplier=3.0):
+    """Compute Supertrend indicator. Returns (supertrend_series, direction_series).
+       direction: 1 = bullish, -1 = bearish."""
+    h = df['High'].values.astype(float)
+    l = df['Low'].values.astype(float)
+    c = df['Close'].values.astype(float)
+    n = len(c)
+    if n == 0:
+        empty = pd.Series(dtype=float, index=df.index)
+        return empty, empty.astype(int)
+    tr = np.zeros(n)
+    tr[0] = h[0] - l[0]
+    for i in range(1, n):
+        tr[i] = max(h[i] - l[i], abs(h[i] - c[i - 1]), abs(l[i] - c[i - 1]))
+    atr = pd.Series(tr).rolling(period, min_periods=1).mean().values
+    hl2 = (h + l) / 2.0
+    upper_basic = hl2 + multiplier * atr
+    lower_basic = hl2 - multiplier * atr
+    upper_band = np.zeros(n)
+    lower_band = np.zeros(n)
+    supertrend = np.zeros(n)
+    direction = np.zeros(n, dtype=int)
+    upper_band[0] = upper_basic[0]
+    lower_band[0] = lower_basic[0]
+    if c[0] <= upper_band[0]:
+        supertrend[0] = upper_band[0]; direction[0] = -1
+    else:
+        supertrend[0] = lower_band[0]; direction[0] = 1
+    for i in range(1, n):
+        if upper_basic[i] < upper_band[i - 1] or c[i - 1] > upper_band[i - 1]:
+            upper_band[i] = upper_basic[i]
+        else:
+            upper_band[i] = upper_band[i - 1]
+        if lower_basic[i] > lower_band[i - 1] or c[i - 1] < lower_band[i - 1]:
+            lower_band[i] = lower_basic[i]
+        else:
+            lower_band[i] = lower_band[i - 1]
+        if supertrend[i - 1] == upper_band[i - 1]:
+            if c[i] > upper_band[i]:
+                supertrend[i] = lower_band[i]; direction[i] = 1
+            else:
+                supertrend[i] = upper_band[i]; direction[i] = -1
+        else:
+            if c[i] < lower_band[i]:
+                supertrend[i] = upper_band[i]; direction[i] = -1
+            else:
+                supertrend[i] = lower_band[i]; direction[i] = 1
+    return (pd.Series(supertrend, index=df.index),
+            pd.Series(direction, index=df.index))
+    
 def compute_indicators(df):
     d = df.copy()
     c, h, l, v = d['Close'], d['High'], d['Low'], d['Volume']
@@ -2146,7 +2167,59 @@ def make_cci_willr_chart(d):
     a2.fill_between(x,wr,-20,where=(wr>-20),alpha=0.2,color=RED_HEX); a2.fill_between(x,wr,-80,where=(wr<-80),alpha=0.2,color='#43A047')
     a2.set_ylabel('Williams %R',fontproperties=MPL_FONT_PROP_BOLD); a2.set_ylim(-105,5); a2.grid(True,alpha=0.3); a2.xaxis.set_major_formatter(mdates.DateFormatter('%b %y'))
     plt.tight_layout(); return chart_bytes(fig)
+def make_alligator_chart(d):
+    d = d.tail(180).copy()
+    p = d[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
+    aps = []; labels = []
+    for col, clr, lbl in [
+        ('Alligator_Jaw',   '#1565C0', rtl('الفك (13,8)')),
+        ('Alligator_Teeth', '#E91E63', rtl('الأسنان (8,5)')),
+        ('Alligator_Lips',  '#4CAF50', rtl('الشفاه (5,3)')),
+    ]:
+        if col in d and d[col].notna().sum() > 10:
+            aps.append(mpf.make_addplot(d[col], color=clr, width=1.2))
+            labels.append(lbl)
+    mc = mpf.make_marketcolors(up='#26a69a', down='#ef5350', edge='inherit',
+                               wick='inherit', volume={'up': '#80cbc4', 'down': '#ef9a9a'})
+    st = mpf.make_mpf_style(marketcolors=mc, gridstyle=':', gridcolor='#dddddd',
+                             rc={'axes.facecolor': '#FAFAFA'})
+    kw = dict(type='candle', style=st, volume=False, figsize=(14, 7),
+              returnfig=True, warn_too_much_data=9999)
+    if aps:
+        kw['addplot'] = aps
+    fig, ax = mpf.plot(p, **kw)
+    if labels:
+        ax[0].legend(labels, loc='upper left', fontsize=8, prop=MPL_FONT_PROP)
+    fig.subplots_adjust(right=0.95, left=0.05)
+    return chart_bytes(fig)
 
+
+def make_supertrend_chart(d):
+    d = d.tail(180).copy()
+    p = d[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
+    st_val, st_dir = _compute_supertrend(d)
+    st_up   = st_val.where(st_dir == 1,  other=np.nan)
+    st_down = st_val.where(st_dir == -1, other=np.nan)
+    aps = []; labels = []
+    if st_up.notna().any():
+        aps.append(mpf.make_addplot(st_up, color='#4CAF50', width=1.8))
+        labels.append(rtl('صاعد'))
+    if st_down.notna().any():
+        aps.append(mpf.make_addplot(st_down, color='#E53935', width=1.8))
+        labels.append(rtl('هابط'))
+    mc = mpf.make_marketcolors(up='#26a69a', down='#ef5350', edge='inherit',
+                               wick='inherit', volume={'up': '#80cbc4', 'down': '#ef9a9a'})
+    sty = mpf.make_mpf_style(marketcolors=mc, gridstyle=':', gridcolor='#dddddd',
+                              rc={'axes.facecolor': '#FAFAFA'})
+    kw = dict(type='candle', style=sty, volume=False, figsize=(14, 7),
+              returnfig=True, warn_too_much_data=9999)
+    if aps:
+        kw['addplot'] = aps
+    fig, ax = mpf.plot(p, **kw)
+    if labels:
+        ax[0].legend(labels, loc='upper left', fontsize=8, prop=MPL_FONT_PROP)
+    fig.subplots_adjust(right=0.95, left=0.05)
+    return chart_bytes(fig)
 # ─────────────────────────────────────────────────────────────
 # 8. PDF REPORT CLASS
 # ─────────────────────────────────────────────────────────────
@@ -2294,40 +2367,76 @@ class Report:
         c.setFillColor(DGRAY); self._font(False,7); c.drawCentredString(PAGE_W/2, 14*mm, rtl('هذا التقرير لأغراض معلوماتية فقط وليس توصية استثمارية.'))
         self._foot(); c.showPage()
 
-
-    def main_charts_page(self, main_img, sma_img, ema_img):
+    def main_charts_page(self, main_img, sma_img, ema_img, alligator_img, supertrend_img):
         self._bar('الرسم البياني')
         self._foot()
         c = self.c
-        y = PAGE_H - 44*mm
-        y = self._stitle(y, 'الرسم البياني الرئيسي مع الدعم والمقاومة')
-        y = self._img(y, main_img, 100*mm)
-        y = self._stitle(y, 'المتوسطات المتحركة (SMA يمين - EMA يسار)')
+        y = PAGE_H - 44 * mm
 
-        sma_img.seek(0); img1 = ImageReader(sma_img)
-        ema_img.seek(0); img2 = ImageReader(ema_img)
+        # ── Section 1: الدعوم والمقاومات (full-width) ──
+        y = self._stitle(y, 'الدعوم والمقاومات')
+        y = self._img(y, main_img, 78 * mm)
 
-        dw = (CW / 2) - 2*mm
-        ratio1 = img1.getSize()[1] / img1.getSize()[0]
-        dh1 = dw * ratio1
-        ratio2 = img2.getSize()[1] / img2.getSize()[0]
-        dh2 = dw * ratio2
+        # ── Section 2: SMA (right) | EMA (left) side-by-side ──
+        mid_x = MG + CW / 2
+        right_title_x = PAGE_W - MG
+        left_title_x  = mid_x - 4 * mm
 
-        maxh = 75*mm
-        if dh1 > maxh:
-            dh1 = maxh
-            dw = dh1 / ratio1
-            dh2 = dw * ratio2
-        if dh2 > maxh:
-            dh2 = maxh
-            dw = dh2 / ratio2
-            dh1 = dw * ratio1
+        c.setFillColor(NAVY); self._font(True, 9)
+        c.drawRightString(right_title_x, y,
+                          rtl('المتوسطات المتحركة البسيطة (SMA)'))
+        c.drawRightString(left_title_x, y,
+                          rtl('المتوسطات المتحركة الأسية (EMA)'))
+        c.setStrokeColor(TEAL); c.setLineWidth(1.0)
+        c.line(mid_x + 2 * mm, y - 3, PAGE_W - MG, y - 3)
+        c.line(MG,             y - 3, mid_x - 2 * mm, y - 3)
+        y -= 8 * mm
 
-        x1 = PAGE_W - MG - dw
-        x2 = MG
+        sma_img.seek(0); img_sma = ImageReader(sma_img)
+        ema_img.seek(0); img_ema = ImageReader(ema_img)
+        dw = (CW / 2) - 3 * mm
+        maxh = 58 * mm
 
-        c.drawImage(img1, x1, y - dh1 - 2, dw, dh1)
-        c.drawImage(img2, x2, y - dh2 - 2, dw, dh2)
+        ratio_sma = img_sma.getSize()[1] / img_sma.getSize()[0]
+        dh_sma = min(dw * ratio_sma, maxh)
+        dw_sma = dh_sma / ratio_sma
+
+        ratio_ema = img_ema.getSize()[1] / img_ema.getSize()[0]
+        dh_ema = min(dw * ratio_ema, maxh)
+        dw_ema = dh_ema / ratio_ema
+
+        x_sma = PAGE_W - MG - dw_sma          # right
+        x_ema = MG                              # left
+        c.drawImage(img_sma, x_sma, y - dh_sma, dw_sma, dh_sma)
+        c.drawImage(img_ema, x_ema, y - dh_ema, dw_ema, dh_ema)
+        y -= max(dh_sma, dh_ema) + 5 * mm
+
+        # ── Section 3: Alligator (right) | Supertrend (left) side-by-side ──
+        c.setFillColor(NAVY); self._font(True, 9)
+        c.drawRightString(right_title_x, y,
+                          rtl('مؤشر التمساح (Alligator)'))
+        c.drawRightString(left_title_x, y,
+                          rtl('مؤشر السوبر تريند (Supertrend)'))
+        c.setStrokeColor(TEAL); c.setLineWidth(1.0)
+        c.line(mid_x + 2 * mm, y - 3, PAGE_W - MG, y - 3)
+        c.line(MG,             y - 3, mid_x - 2 * mm, y - 3)
+        y -= 8 * mm
+
+        alligator_img.seek(0);  img_alg = ImageReader(alligator_img)
+        supertrend_img.seek(0); img_st  = ImageReader(supertrend_img)
+
+        ratio_alg = img_alg.getSize()[1] / img_alg.getSize()[0]
+        dh_alg = min(dw * ratio_alg, maxh)
+        dw_alg = dh_alg / ratio_alg
+
+        ratio_st = img_st.getSize()[1] / img_st.getSize()[0]
+        dh_st = min(dw * ratio_st, maxh)
+        dw_st = dh_st / ratio_st
+
+        x_alg = PAGE_W - MG - dw_alg           # right
+        x_st  = MG                               # left
+        c.drawImage(img_alg, x_alg, y - dh_alg, dw_alg, dh_alg)
+        c.drawImage(img_st,  x_st,  y - dh_st,  dw_st,  dh_st)
 
         self.c.showPage()
 
@@ -2469,17 +2578,16 @@ def _build_report_sync(ticker_input: str):
     ti = ticker_input.strip()
     if not ti:
         raise ValueError('رمز فارغ')
-
     if ti.replace('.', '').isdigit() and '.' not in ti:
-        ticker = ti + '.SR'
-        display_ticker = ti
+        ticker = ti + '.SR'; display_ticker = ti
     else:
-        ticker = ti.upper()
-        display_ticker = ticker
+        ticker = ti.upper(); display_ticker = ticker
 
     df, df2, info = fetch_data(ticker)
     if df is None or len(df) < 30:
-        raise ValueError(f'❌ البيانات غير كافية للرمز: {display_ticker}\nتأكد من صحة رقم الشركة.')
+        raise ValueError(
+            f'❌ البيانات غير كافية للرمز: {display_ticker}\n'
+            'تأكد من صحة رقم الشركة.')
 
     d = compute_indicators(df)
     pers, risk, dd = compute_performance(df, df2)
@@ -2489,19 +2597,24 @@ def _build_report_sync(ticker_input: str):
     rec_txt, rec_color = recommendation(score)
     patterns = detect_candle_patterns(df)
     divergences = detect_divergences(d)
-    review_sections = gen_technical_review(d, sig, score, sup, res, info, patterns=patterns, divergences=divergences)
+    review_sections = gen_technical_review(
+        d, sig, score, sup, res, info,
+        patterns=patterns, divergences=divergences)
 
-    main_img = make_main_chart(d, sup=sup, res=res)
-    p_img    = make_price_chart(d, sup=sup, res=res)
-    ema_img  = make_ema_chart(d, sup=sup, res=res)
-    t_img    = make_tech_chart(d)
-    bb_img   = make_bb_chart(d)
-    dd_img   = make_dd_chart(dd)
-    v_img    = make_volume_chart(d)
-    g_img    = make_gauge_chart(score)
-    ichi_img = make_ichimoku_chart(d)
-    cpat_img = make_candle_pattern_chart(d, patterns)
-    cci_img  = make_cci_willr_chart(d)
+    # ── Generate all chart images ──
+    main_img       = make_main_chart(d, sup=sup, res=res)
+    p_img          = make_price_chart(d, sup=sup, res=res)
+    ema_img        = make_ema_chart(d, sup=sup, res=res)
+    alligator_img  = make_alligator_chart(d)          # ← NEW
+    supertrend_img = make_supertrend_chart(d)          # ← NEW
+    t_img          = make_tech_chart(d)
+    bb_img         = make_bb_chart(d)
+    dd_img         = make_dd_chart(dd)
+    v_img          = make_volume_chart(d)
+    g_img          = make_gauge_chart(score)
+    ichi_img       = make_ichimoku_chart(d)
+    cpat_img       = make_candle_pattern_chart(d, patterns)
+    cci_img        = make_cci_willr_chart(d)
 
     price = float(df['Close'].iloc[-1])
     prev  = float(df['Close'].iloc[-2]) if len(df) > 1 else price
@@ -2510,7 +2623,8 @@ def _build_report_sync(ticker_input: str):
     pdf_buf = BytesIO()
     rpt = Report(pdf_buf, ticker, info, display_ticker)
     rpt.cover(price, chg, info, rec_txt, rec_color, score)
-    rpt.main_charts_page(main_img, p_img, ema_img)
+    rpt.main_charts_page(main_img, p_img, ema_img,
+                         alligator_img, supertrend_img)       # ← CHANGED
     rpt.tech_page(t_img, bb_img)
     rpt.ichimoku_page(ichi_img, cpat_img)
     rpt.perf_page(pers, risk, dd_img, v_img, score_criteria, score)
