@@ -3461,6 +3461,17 @@ def decision_text(v):
 #     return list(reversed(unique))
 #YASIR
 # ################الشموع محدثة############################
+import io
+import numpy as np
+import matplotlib.pyplot as plt
+import mplfinance as mpf
+
+# Assumed available in your project:
+# - rtl(text)
+# - MPL_FONT_PROP
+# - chart_bytes(fig)
+
+
 def detect_candle_patterns(df):
     patterns = []
     if len(df) < 4:
@@ -3525,23 +3536,19 @@ def detect_candle_patterns(df):
 
         # ── Doji ──
         if body(i) < 0.05 * cr and cr > 0:
-            # Dragonfly Doji: long lower shadow, tiny upper shadow
             if lower_shadow(i) > 2 * body(i) and upper_shadow(i) < cr * 0.1:
                 patterns.append((date_lbl, 'دوجي اليعسوب', 'Dragonfly Doji', True))
                 continue
-            # Gravestone Doji: long upper shadow, tiny lower shadow
             if upper_shadow(i) > 2 * body(i) and lower_shadow(i) < cr * 0.1:
                 patterns.append((date_lbl, 'دوجي شاهد القبر', 'Gravestone Doji', False))
                 continue
-            # Long-legged Doji: both shadows long
             if upper_shadow(i) > cr * 0.3 and lower_shadow(i) > cr * 0.3:
                 patterns.append((date_lbl, 'دوجي طويل الأرجل', 'Long-Legged Doji', None))
                 continue
-            # Standard Doji
             patterns.append((date_lbl, 'دوجي', 'Doji', None))
             continue
 
-        # ── Hammer (in downtrend) ──
+        # ── Hammer / Hanging Man ──
         if (lower_shadow(i) > 2 * body(i) and
                 upper_shadow(i) < 0.3 * body(i) and body(i) > 0):
             if in_downtrend(i):
@@ -3559,7 +3566,7 @@ def detect_candle_patterns(df):
                 patterns.append((date_lbl, 'النجمة الساقطة', 'Shooting Star', False))
             continue
 
-        # ── Marubozu (full body, no/tiny shadows) ──
+        # ── Marubozu ──
         if (upper_shadow(i) < body(i) * 0.05 and
                 lower_shadow(i) < body(i) * 0.05 and
                 is_large_body(i, avg_body)):
@@ -3569,7 +3576,7 @@ def detect_candle_patterns(df):
                 patterns.append((date_lbl, 'ماروبوزو هابط', 'Bearish Marubozu', False))
             continue
 
-        # ── Spinning Top (small body, both shadows > body) ──
+        # ── Spinning Top ──
         if (is_small_body(i, avg_body) and
                 upper_shadow(i) > body(i) and
                 lower_shadow(i) > body(i) and
@@ -3639,7 +3646,7 @@ def detect_candle_patterns(df):
             patterns.append((date_lbl, 'الغطاء السحابي', 'Dark Cloud Cover', False))
             continue
 
-        # ── On-Neck (bearish continuation) ──
+        # ── On-Neck ──
         if (is_bear(i - 1) and is_bull(i) and
                 is_large_body(i - 1, avg_body) and
                 o[i] < c[i - 1] and
@@ -3702,7 +3709,7 @@ def detect_candle_patterns(df):
                 patterns.append((date_lbl, 'ثلاثة غربان سوداء', 'Three Black Crows', False))
                 continue
 
-            # ── Three Inside Up (Bullish) ──
+            # ── Three Inside Up ──
             if (is_bear(i - 2) and is_bull(i - 1) and is_bull(i) and
                     body_top(i - 1) < body_top(i - 2) and
                     body_bot(i - 1) > body_bot(i - 2) and
@@ -3710,7 +3717,7 @@ def detect_candle_patterns(df):
                 patterns.append((date_lbl, 'ثلاثة من الداخل صاعد', 'Three Inside Up', True))
                 continue
 
-            # ── Three Inside Down (Bearish) ──
+            # ── Three Inside Down ──
             if (is_bull(i - 2) and is_bear(i - 1) and is_bear(i) and
                     body_top(i - 1) < body_top(i - 2) and
                     body_bot(i - 1) > body_bot(i - 2) and
@@ -3734,7 +3741,7 @@ def detect_candle_patterns(df):
                 patterns.append((date_lbl, 'ثلاثة من الخارج هابط', 'Three Outside Down', False))
                 continue
 
-            # ── Abandoned Baby (Bullish) ──
+            # ── Abandoned Baby Bull ──
             if (is_bear(i - 2) and
                     body(i - 1) < 0.05 * candle(i - 1) and candle(i - 1) > 0 and
                     is_bull(i) and
@@ -3742,7 +3749,7 @@ def detect_candle_patterns(df):
                 patterns.append((date_lbl, 'الطفل المتروك صاعد', 'Abandoned Baby Bull', True))
                 continue
 
-            # ── Abandoned Baby (Bearish) ──
+            # ── Abandoned Baby Bear ──
             if (is_bull(i - 2) and
                     body(i - 1) < 0.05 * candle(i - 1) and candle(i - 1) > 0 and
                     is_bear(i) and
@@ -3750,7 +3757,7 @@ def detect_candle_patterns(df):
                 patterns.append((date_lbl, 'الطفل المتروك هابط', 'Abandoned Baby Bear', False))
                 continue
 
-            # ── Rising Three Methods (bullish continuation, 5-candle) ──
+            # ── 5 candle patterns ──
             if i >= 4:
                 if (is_bull(i - 4) and is_large_body(i - 4, avg_body) and
                         all(is_bear(j) and body(j) < body(i - 4) for j in [i - 3, i - 2, i - 1]) and
@@ -3759,7 +3766,6 @@ def detect_candle_patterns(df):
                     patterns.append((date_lbl, 'ثلاث طرق صاعدة', 'Rising Three Methods', True))
                     continue
 
-                # ── Falling Three Methods (bearish continuation, 5-candle) ──
                 if (is_bear(i - 4) and is_large_body(i - 4, avg_body) and
                         all(is_bull(j) and body(j) < body(i - 4) for j in [i - 3, i - 2, i - 1]) and
                         all(h[j] < h[i - 4] for j in [i - 3, i - 2, i - 1]) and
@@ -3777,16 +3783,39 @@ def detect_candle_patterns(df):
         if len(unique) == 8:
             break
     return list(reversed(unique))
-### الجزء الثاني للشموع    
+
+
+# =========================================================
+# CORRECTED CHART FUNCTION
+# No connector line should cross candle area or other lines
+# =========================================================
 def make_candle_pattern_chart(d, patterns):
     d = d.tail(60).copy()
     p = d[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
-    mc = mpf.make_marketcolors(up='#26a69a', down='#ef5350', edge='inherit',
-                               wick='inherit', volume={'up': '#80cbc4', 'down': '#ef9a9a'})
-    st = mpf.make_mpf_style(marketcolors=mc, gridstyle=':', gridcolor='#dddddd',
-                             rc={'axes.facecolor': '#FAFAFA'})
-    fig, axlist = mpf.plot(p, type='candle', style=st, volume=False,
-                           figsize=(16, 7), returnfig=True, warn_too_much_data=9999)
+
+    mc = mpf.make_marketcolors(
+        up='#26a69a',
+        down='#ef5350',
+        edge='inherit',
+        wick='inherit',
+        volume={'up': '#80cbc4', 'down': '#ef9a9a'}
+    )
+    st = mpf.make_mpf_style(
+        marketcolors=mc,
+        gridstyle=':',
+        gridcolor='#dddddd',
+        rc={'axes.facecolor': '#FAFAFA'}
+    )
+
+    fig, axlist = mpf.plot(
+        p,
+        type='candle',
+        style=st,
+        volume=False,
+        figsize=(16, 7),
+        returnfig=True,
+        warn_too_much_data=9999
+    )
     ax = axlist[0]
 
     date_to_pos = {str(dt.date()): i for i, dt in enumerate(d.index)}
@@ -3796,11 +3825,14 @@ def make_candle_pattern_chart(d, patterns):
         pos = date_to_pos.get(date_lbl)
         if pos is None:
             continue
+
         row_d = d.iloc[pos]
         resolved.append({
             'pos': pos,
             'high': float(row_d['High']),
             'low': float(row_d['Low']),
+            'open': float(row_d['Open']),
+            'close': float(row_d['Close']),
             'name': ar_name,
             'bullish': bullish,
         })
@@ -3809,128 +3841,174 @@ def make_candle_pattern_chart(d, patterns):
         plt.tight_layout()
         return chart_bytes(fig)
 
-    # ── Get chart dimensions ──
+    # Chart limits
     ylo, yhi = ax.get_ylim()
     xlo, xhi = ax.get_xlim()
     xspan = xhi - xlo
     yspan = yhi - ylo
 
-    n = len(resolved)
-
-    # ── Sort resolved by position (left to right on chart) ──
+    # Sort by x position
     resolved.sort(key=lambda a: a['pos'])
 
-    # ── Split into RIGHT side and LEFT side labels ──
-    # First half → right side, second half → left side
-    mid = (n + 1) // 2
-    right_anns = resolved[:mid]
-    left_anns = resolved[mid:]
+    # Split left/right by candle position relative to chart center
+    xmid = (xlo + xhi) / 2.0
+    left_anns = []
+    right_anns = []
 
-    # ── Right side: labels go to the right of chart ──
-    # Evenly distribute y-positions from top to bottom
-    right_base_x = xhi + xspan * 0.08
-    right_far_x = xhi + xspan * 0.22
+    for ann in resolved:
+        if ann['pos'] <= xmid:
+            left_anns.append(ann)
+        else:
+            right_anns.append(ann)
 
-    # ── Left side: labels go to the left of chart ──
-    left_base_x = xlo - xspan * 0.08
-    left_far_x = xlo - xspan * 0.22
+    # Balance if one side is too crowded
+    while abs(len(left_anns) - len(right_anns)) > 1:
+        if len(left_anns) > len(right_anns):
+            right_anns.append(left_anns.pop())
+        else:
+            left_anns.insert(0, right_anns.pop(0))
 
-    def make_evenly_spaced_ys(count, y_top, y_bottom):
-        """Distribute label y positions evenly from top to bottom."""
-        if count == 0:
+    # Label X positions well outside the candle area
+    left_lane_x = xlo - xspan * 0.10
+    left_label_x = xlo - xspan * 0.23
+
+    right_lane_x = xhi + xspan * 0.10
+    right_label_x = xhi + xspan * 0.23
+
+    # Vertical slots for labels
+    def spaced_slots(n, top, bottom):
+        if n <= 0:
             return []
-        if count == 1:
-            return [(y_top + y_bottom) / 2]
-        step = (y_top - y_bottom) / (count - 1)
-        return [y_top - step * k for k in range(count)]
+        if n == 1:
+            return [(top + bottom) / 2.0]
+        return np.linspace(top, bottom, n).tolist()
 
-    # Label y-positions: spread across full chart height with padding
     pad = yspan * 0.08
-    right_ys = make_evenly_spaced_ys(len(right_anns), yhi - pad, ylo + pad)
-    left_ys = make_evenly_spaced_ys(len(left_anns), yhi - pad, ylo + pad)
+    top_y = yhi - pad
+    bot_y = ylo + pad
 
-    # ── Collision detection helper ──
-    label_half_h = yspan * 0.035
+    left_label_ys = spaced_slots(len(left_anns), top_y, bot_y)
+    right_label_ys = spaced_slots(len(right_anns), top_y, bot_y)
 
-    def line_hits_label(price_from, ly_to, all_label_ys, skip_idx):
-        """Check if line from candle to label crosses another label box."""
-        for j, other_ly in enumerate(all_label_ys):
-            if j == skip_idx:
-                continue
-            band_lo = other_ly - label_half_h
-            band_hi = other_ly + label_half_h
-            for t in (0.25, 0.5, 0.75):
-                y_at_t = price_from + t * (ly_to - price_from)
-                if band_lo <= y_at_t <= band_hi:
-                    return True
-        return False
+    # For best visual result: sort by anchor y descending before assigning slots
+    def anchor_price(ann):
+        if ann['bullish'] is True:
+            return ann['high']
+        elif ann['bullish'] is False:
+            return ann['low']
+        else:
+            return ann['high']
 
-    def draw_annotations(anns, label_ys, base_x, far_x, align, side):
-        """Draw labels on one side with stagger to avoid crossing."""
-        if not anns:
-            return
+    left_anns.sort(key=anchor_price, reverse=True)
+    right_anns.sort(key=anchor_price, reverse=True)
 
-        # Determine which labels need far column
-        use_far = [False] * len(anns)
-        for k in range(len(anns)):
-            ann = anns[k]
-            anchor_y = ann['high'] if ann['bullish'] is not False else ann['low']
-            if line_hits_label(anchor_y, label_ys[k], label_ys, k):
-                use_far[k] = True
+    # Candle-safe routing:
+    # bullish/neutral labels route upward above chart candles
+    # bearish labels route downward below chart candles
+    upper_bus_y = yhi + yspan * 0.06
+    lower_bus_y = ylo - yspan * 0.06
 
-        # Alternate adjacent far labels
-        for k in range(1, len(anns)):
-            if use_far[k] and use_far[k - 1]:
-                use_far[k - 1] = False
+    def draw_routed_annotation(ann, label_y, side):
+        pos = ann['pos']
+        high = ann['high']
+        low = ann['low']
+        bullish = ann['bullish']
 
-        for k, ann in enumerate(anns):
-            pos = ann['pos']
-            bullish = ann['bullish']
-            color = ('#1B5E20' if bullish is True
-                     else '#B71C1C' if bullish is False
-                     else '#E65100')
-            label = rtl(ann['name'])
-            anchor_y = ann['high'] if bullish is not False else ann['low']
-            ly = label_ys[k]
-            lx = far_x if use_far[k] else base_x
+        color = (
+            '#1B5E20' if bullish is True
+            else '#B71C1C' if bullish is False
+            else '#E65100'
+        )
 
-            ax.annotate(
-                label,
-                xy=(pos, anchor_y),
-                xytext=(lx, ly),
-                fontsize=8.5,
-                color=color,
-                ha=align,
-                va='center',
-                fontproperties=MPL_FONT_PROP,
-                arrowprops=dict(
-                    arrowstyle='-|>',
-                    color=color,
-                    lw=1.1,
-                    mutation_scale=9,
-                    shrinkA=0,
-                    shrinkB=0,
-                ),
-                bbox=dict(
-                    boxstyle='round,pad=0.32',
-                    facecolor='white',
-                    edgecolor=color,
-                    alpha=0.95,
-                    linewidth=1.0,
-                ),
-                clip_on=False,
-                zorder=10,
-            )
+        label = rtl(ann['name'])
 
-    # ── Draw both sides ──
-    draw_annotations(right_anns, right_ys, right_base_x, right_far_x, 'left', 'right')
-    draw_annotations(left_anns, left_ys, left_base_x, left_far_x, 'right', 'left')
+        # anchor point on candle edge
+        if bullish is False:
+            x0 = pos
+            y0 = low
+            bus_y = lower_bus_y
+        else:
+            x0 = pos
+            y0 = high
+            bus_y = upper_bus_y
 
-    # ── Expand axes to show all labels ──
-    margin_right = right_far_x + xspan * 0.15
-    margin_left = left_far_x - xspan * 0.15
-    ax.set_xlim(min(xlo, margin_left), max(xhi, margin_right))
-    fig.subplots_adjust(left=0.10, right=0.90)
+        if side == 'left':
+            lane_x = left_lane_x
+            label_x = left_label_x
+            text_ha = 'right'
+            final_x = label_x + xspan * 0.01
+        else:
+            lane_x = right_lane_x
+            label_x = right_label_x
+            text_ha = 'left'
+            final_x = label_x - xspan * 0.01
+
+        # Draw segmented path:
+        # (1) vertical from candle to bus outside chart
+        # (2) horizontal to side lane
+        # (3) vertical to label y
+        # (4) short horizontal to label edge
+        xs = [x0, x0, lane_x, lane_x, final_x]
+        ys = [y0, bus_y, bus_y, label_y, label_y]
+
+        ax.plot(
+            xs, ys,
+            color=color,
+            lw=1.2,
+            solid_capstyle='round',
+            clip_on=False,
+            zorder=8
+        )
+
+        # Small endpoint marker near candle
+        ax.plot(
+            [x0], [y0],
+            marker='o',
+            markersize=2.8,
+            color=color,
+            clip_on=False,
+            zorder=9
+        )
+
+        # Label box
+        ax.text(
+            label_x,
+            label_y,
+            label,
+            fontsize=8.5,
+            color=color,
+            ha=text_ha,
+            va='center',
+            fontproperties=MPL_FONT_PROP,
+            bbox=dict(
+                boxstyle='round,pad=0.32',
+                facecolor='white',
+                edgecolor=color,
+                alpha=0.96,
+                linewidth=1.0,
+            ),
+            clip_on=False,
+            zorder=10
+        )
+
+    # Draw left side
+    for ann, ly in zip(left_anns, left_label_ys):
+        draw_routed_annotation(ann, ly, 'left')
+
+    # Draw right side
+    for ann, ly in zip(right_anns, right_label_ys):
+        draw_routed_annotation(ann, ly, 'right')
+
+    # Expand chart limits so labels and buses are visible
+    new_xmin = left_label_x - xspan * 0.10
+    new_xmax = right_label_x + xspan * 0.10
+    new_ymin = lower_bus_y - yspan * 0.05
+    new_ymax = upper_bus_y + yspan * 0.05
+
+    ax.set_xlim(new_xmin, new_xmax)
+    ax.set_ylim(new_ymin, new_ymax)
+
+    fig.subplots_adjust(left=0.08, right=0.92, top=0.92, bottom=0.12)
 
     return chart_bytes(fig)
 ###################################نهاية الشموع
