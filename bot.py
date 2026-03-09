@@ -264,7 +264,6 @@ def get_name(ticker: str) -> str:
     return COMPANY_NAMES.get(ticker, ticker)
 #############################
 def find_ticker(query):
-def find_ticker(query):
     """
     Search by any format → returns the full ticker symbol
     e.g. 'tasi', 'TASI', '^TASI.SR', 'تاسي', 'تاسى' → '^TASI.SR'
