@@ -1779,12 +1779,12 @@ NAVY_HEX, TEAL_HEX, GREEN_HEX = '#1B2A4A', '#00897B', '#4CAF50'
 RED_HEX, ORANGE_HEX, LGRAY_HEX = '#E53935', '#FF9800', '#F0F3F7'
 DGRAY_HEX, TXTDARK_HEX, WHITE_HEX = '#5A6272', '#1A1A2E', '#FFFFFF'
 BLUE_HEX, Rainbow_Violet, BLACK_HEX = '#2196F3', '#C620F8', '#000000'
-##BLUE_HEX = '#2196F3', Rainbow_Violet = '#C620F8', BLACK_HEX = '#FF0000'
+##BLUE_HEX = '#2196F3', VIOLET_HEX = '#C620F8', BLACK_HEX = '#FF0000'
 
 NAVY, TEAL, GREEN = HexColor(NAVY_HEX), HexColor(TEAL_HEX), HexColor(GREEN_HEX)
 RED, ORANGE, LGRAY = HexColor(RED_HEX), HexColor(ORANGE_HEX), HexColor(LGRAY_HEX)
 DGRAY, TXTDARK, WHITE = HexColor(DGRAY_HEX), HexColor(TXTDARK_HEX), HexColor(WHITE_HEX)
-BLUE = HexColor(BLUE_HEX)
+BLUE, VILOET, BLACK = HexColor(BLUE_HEX), HexColor(VIOLET_HEX) , HexColor(BLACK_HEX)
 
 PAGE_W, PAGE_H = A4
 MG = 18 * mm
@@ -3259,10 +3259,10 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
     sup_color = '#1565C0'
     res_color = '#B71C1C'
     ema_colors = {
-        'EMA20':  ('BLUE_HEX', 'EMA 20'),
-        'EMA50':  ('RED_HEX', 'EMA 50'),
-        'EMA100': ('Rainbow_Violet', 'EMA 100'),
-        'EMA200': ('#BLACK_HEX', 'EMA 200'),
+        'EMA20':  ('BLUE', 'EMA 20'),
+        'EMA50':  ('RED', 'EMA 50'),
+        'EMA100': ('VIOLET', 'EMA 100'),
+        'EMA200': ('BLACK', 'EMA 200'),
     }
 
     # ── Draw pivot markers ──
