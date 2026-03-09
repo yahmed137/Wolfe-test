@@ -5062,7 +5062,7 @@ class Report:
     def ichimoku_page(self, ichimoku_img, pattern_img):
         self._bar('الإيشيموكو ونماذج الشموع'); self._foot()
         y=PAGE_H-44*mm; y=self._stitle(y,'مخطط الإيشيموكو (Ichimoku Cloud)'); y=self._img(y,ichimoku_img,100*mm)
-        y=self._stitle(y,'الشموع اليابانية (آخر 60 يوماً) مع النماذج المرصودة'); self._img(y,pattern_img,95*mm); self.c.showPage()
+        y=self._stitle(y,'الشموع اليابانية (آخر 60 يوماً) مع النماذج المرصودة'); self._img(y,pattern_img,100*mm); self.c.showPage()
 
     def cci_willr_page(self, cci_img, patterns, divergences, d):
         self._bar('مؤشرات إضافية: CCI وWilliams %R'); self._foot()
