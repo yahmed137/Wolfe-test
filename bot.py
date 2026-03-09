@@ -1778,7 +1778,7 @@ def _enrich_with_argaam(ticker: str, info: dict) -> None:
 NAVY_HEX, TEAL_HEX, GREEN_HEX = '#1B2A4A', '#00897B', '#4CAF50'
 RED_HEX, ORANGE_HEX, LGRAY_HEX = '#E53935', '#FF9800', '#F0F3F7'
 DGRAY_HEX, TXTDARK_HEX, WHITE_HEX = '#5A6272', '#1A1A2E', '#FFFFFF'
-BLUE_HEX = '#2196F3'
+BLUE_HEX = '#2196F3', Rainbow_Violet = '#c620f8', BLACK_HEX = '#000000'
 
 NAVY, TEAL, GREEN = HexColor(NAVY_HEX), HexColor(TEAL_HEX), HexColor(GREEN_HEX)
 RED, ORANGE, LGRAY = HexColor(RED_HEX), HexColor(ORANGE_HEX), HexColor(LGRAY_HEX)
@@ -3258,10 +3258,10 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
     sup_color = '#1565C0'
     res_color = '#B71C1C'
     ema_colors = {
-        'EMA20':  ('#00897B', 'EMA 20'),
-        'EMA50':  ('#F57F17', 'EMA 50'),
-        'EMA100': ('#6A1B9A', 'EMA 100'),
-        'EMA200': ('#C62828', 'EMA 200'),
+        'EMA20':  ('BLUE_HEX', 'EMA 20'),
+        'EMA50':  ('RED_HEX', 'EMA 50'),
+        'EMA100': ('Rainbow_Violet', 'EMA 100'),
+        'EMA200': ('#BLACK_HEX', 'EMA 200'),
     }
 
     # ── Draw pivot markers ──
@@ -3430,7 +3430,7 @@ def make_main_chart(d, sup=None, res=None):
     fig,ax=mpf.plot(p,**plot_kwargs); main_ax=ax[0]
     xmax=len(d); pivots=_get_pivots(d,order=5)
     _draw_sr_lines(main_ax,sup,res,xmax,d_ind=d,pivots=pivots)
-    fig.subplots_adjust(right=0.90); return chart_bytes(fig)
+    fig.subplots_adjust(right=0.80); return chart_bytes(fig)
 
 def make_price_chart(d, sup=None, res=None):
     sup=sup or []; res=res or []; d=d.tail(180).copy()
@@ -3453,7 +3453,7 @@ def make_ema_chart(d, sup=None, res=None):
     sup=sup or []; res=res or []; d=d.tail(180).copy()
     p=d[['Open','High','Low','Close','Volume']].copy()
     aps,labels=[],[]
-    for col,clr,lbl in [('EMA20',BLUE_HEX,'EMA 20'),('EMA50',ORANGE_HEX,'EMA 50'),('EMA100','#6A1B9A','EMA 100'),('EMA200','#E91E63','EMA 200')]:
+    for col,clr,lbl in [('EMA20',BLUE_HEX,'EMA 20'),('EMA50',BEUE_HEX,'EMA 50'),('EMA100','Rainbow_Violet','EMA 100'),('EMA200','BLACK_HEX','EMA 200')]:
         if col in d and d[col].notna().sum()>10:
             aps.append(mpf.make_addplot(d[col],color=clr,width=1.2)); labels.append(lbl)
     mc=mpf.make_marketcolors(up='#26a69a',down='#ef5350',edge='inherit',wick='inherit',volume={'up':'#80cbc4','down':'#ef9a9a'})
