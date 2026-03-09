@@ -4635,7 +4635,7 @@ def make_alligator_chart(d):
         ('Alligator_Lips',  '#4CAF50', rtl('الشفاه (5,3)')),
     ]:
         if col in d and d[col].notna().sum() > 10:
-            aps.append(mpf.make_addplot(d[col], color=clr, width=1.2))
+            aps.append(mpf.make_addplot(d[col], color=clr, width=1))
             labels.append(lbl)
     mc = mpf.make_marketcolors(up='#26a69a', down='#ef5350', edge='inherit',
                                wick='inherit', volume={'up': '#80cbc4', 'down': '#ef9a9a'})
@@ -4660,10 +4660,10 @@ def make_supertrend_chart(d):
     st_down = st_val.where(st_dir == -1, other=np.nan)
     aps = []; labels = []
     if st_up.notna().any():
-        aps.append(mpf.make_addplot(st_up, color='#4CAF50', width=1.8))
+        aps.append(mpf.make_addplot(st_up, color='#4CAF50', width=1))
         labels.append(rtl('صاعد'))
     if st_down.notna().any():
-        aps.append(mpf.make_addplot(st_down, color='#E53935', width=1.8))
+        aps.append(mpf.make_addplot(st_down, color='#E53935', width=1))
         labels.append(rtl('هابط'))
     mc = mpf.make_marketcolors(up='#26a69a', down='#ef5350', edge='inherit',
                                wick='inherit', volume={'up': '#80cbc4', 'down': '#ef9a9a'})
