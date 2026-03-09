@@ -341,7 +341,6 @@ tests = ["tasi", "TASI", "^TASI.SR", "تاسي", "تاسى", "Tasi", "tAsI", "^t
 for t in tests:
     result = find_ticker(t)
     print(f"  '{t}'  →  {result}  ({get_name(result) if result else '?'})")
-```
     #print(f"  '{t}'  →  {result}  ({COMPANY_NAMES.get(result, '?')})")
 ##############################
 ############ القطاعات ########
