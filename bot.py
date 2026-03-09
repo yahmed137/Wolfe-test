@@ -4447,7 +4447,7 @@ def make_price_chart(d, sup=None, res=None):
     sup=sup or []; res=res or []; d=d.tail(180).copy()
     p=d[['Open','High','Low','Close','Volume']].copy()
     aps,labels=[],[]
-    for col,clr,lbl in [('SMA20',BLUE_HEX,'SMA 20'),('SMA50',RED_HEX,'SMA 50'),('SMA100',VIOLET_HEX,'SMA 100'),('SMA200','BLACK_HEX','SMA 200')]:
+    for col,clr,lbl in [('SMA20',BLUE_HEX,'SMA 20'),('SMA50',RED_HEX,'SMA 50'),('SMA100',VIOLET_HEX,'SMA 100'),('SMA200',BLACK_HEX,'SMA 200')]:
         if col in d and d[col].notna().sum()>10:
             aps.append(mpf.make_addplot(d[col],color=clr,width=1)); labels.append(lbl)
     mc=mpf.make_marketcolors(up='#26a69a',down='#ef5350',edge='inherit',wick='inherit',volume={'up':'#80cbc4','down':'#ef9a9a'})
