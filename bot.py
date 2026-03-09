@@ -4445,7 +4445,7 @@ def make_price_chart(d, sup=None, res=None):
     sup=sup or []; res=res or []; d=d.tail(180).copy()
     p=d[['Open','High','Low','Close','Volume']].copy()
     aps,labels=[],[]
-    for col,clr,lbl in [('SMA20','#2196F3','SMA 20'),('SMA50','#E53935','SMA 50'),('SMA200','#000000','SMA 200')]:
+    for col,clr,lbl in [('SMA20',BLUE_HEX,'SMA 20'),('SMA50',ORANGE_HEX,'SMA 50'),('SMA200','#E91E63','SMA 200')]:
         if col in d and d[col].notna().sum()>10:
             aps.append(mpf.make_addplot(d[col],color=clr,width=1.2)); labels.append(lbl)
     mc=mpf.make_marketcolors(up='#26a69a',down='#ef5350',edge='inherit',wick='inherit',volume={'up':'#80cbc4','down':'#ef9a9a'})
@@ -4462,7 +4462,7 @@ def make_ema_chart(d, sup=None, res=None):
     sup=sup or []; res=res or []; d=d.tail(180).copy()
     p=d[['Open','High','Low','Close','Volume']].copy()
     aps,labels=[],[]
-    for col,clr,lbl in [('EMA20',BLUE,'EMA 20'),('EMA50',RED,'EMA 50'),('EMA100','VIOLET','EMA 100'),('EMA200','BLACK','EMA 200')]:
+    for col,clr,lbl in [('EMA20',BLUE_HEX,'EMA 20'),('EMA50',ORANGE_HEX,'EMA 50'),('EMA100',VIOLET_HEX,'EMA 100'),('EMA200',BLACK_HEX,'EMA 200')]:
         if col in d and d[col].notna().sum()>10:
             aps.append(mpf.make_addplot(d[col],color=clr,width=1.2)); labels.append(lbl)
     mc=mpf.make_marketcolors(up='#26a69a',down='#ef5350',edge='inherit',wick='inherit',volume={'up':'#80cbc4','down':'#ef9a9a'})
