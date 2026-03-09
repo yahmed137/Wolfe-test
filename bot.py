@@ -2452,13 +2452,13 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
 
     for i, s in enumerate(sup):
         ax.axhline(s, color=sup_color, lw=0.7, ls='--',
-                   alpha=0.70, zorder=5)
+                   alpha=0.70, zorder=8)
         items.append((s, rtl(f'دعم {i+1}   {s:.2f}'),
                        sup_color, '#E8F4FD', sup_color, 6.8))
 
     for i, r in enumerate(res):
         ax.axhline(r, color=res_color, lw=0.7, ls='--',
-                   alpha=0.70, zorder=5)
+                   alpha=0.70, zorder=10)
         items.append((r, rtl(f'مقاومة {i+1}   {r:.2f}'),
                        res_color, '#FDEDED', res_color, 6.8))
 
