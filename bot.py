@@ -3736,227 +3736,235 @@ def detect_candle_patterns(df):
     return list(reversed(unique))
 
 
-# ============================================================
-#  CHART WITH GUARANTEED NON‑CROSSING CONNECTORS  (Version 2)
-# ============================================================
-def make_candle_pattern_chart(d, patterns):
-    # last 60 bars
-    d = d.tail(60).copy()
-    p = d[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
+# ---------------------------------------------------------------------
+# CHART WITH GUARANTEED NON‑CROSSING CONNECTORS (Final Corrected Version)
+# ---------------------------------------------------------------------
+def make_candle_pattern_chart(df, patterns):
+    """
+    Generates a candlestick chart with pattern annotations using
+    ORTHOGONAL ROUTED CONNECTORS (no crossings!).
+    """
+    # Use last 60 candles
+    df = df.tail(60).copy()
+    df_plot = df[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
 
+    # ---------- Chart Style ----------
     mc = mpf.make_marketcolors(
         up='#26a69a', down='#ef5350', edge='inherit',
         wick='inherit', volume={'up': '#80cbc4', 'down': '#ef9a9a'}
     )
     st = mpf.make_mpf_style(
-        marketcolors=mc, gridstyle=':', gridcolor='#dddddd',
+        marketcolors=mc,
+        gridstyle=':',
+        gridcolor='#dddddd',
         rc={'axes.facecolor': '#FAFAFA'}
     )
 
+    # Plot candles (return fig/ax)
     fig, axlist = mpf.plot(
-        p, type='candle', style=st, volume=False,
-        figsize=(16, 7), returnfig=True, warn_too_much_data=9999
+        df_plot,
+        type='candle',
+        style=st,
+        volume=False,
+        figsize=(16, 7),
+        returnfig=True,
+        warn_too_much_data=10_000
     )
     ax = axlist[0]
 
-    date_to_pos = {str(dt.date()): i for i, dt in enumerate(d.index)}
+    # Map date → x‑position
+    date_to_pos = {pd.Timestamp(dt).date(): i for i, dt in enumerate(df.index)}
 
-    # Resolve patterns -> candle positions
+    # -------- Resolve pattern positions --------
     resolved = []
     for date_lbl, ar_name, en_name, bullish in patterns:
-        pos = date_to_pos.get(date_lbl)
+        pos = date_to_pos.get(pd.to_datetime(date_lbl).date())
         if pos is None:
             continue
-        row_d = d.iloc[pos]
+        row = df.iloc[pos]
         resolved.append({
-            'pos': float(pos),
-            'high': float(row_d['High']),
-            'low': float(row_d['Low']),
-            'name': ar_name,
+            'pos': float(pos),               # x‑coordinate (candle index)
+            'high': float(row['High']),
+            'low':  float(row['Low']),
+            'name': ar_name,                 # Arabic name (used for label)
             'bullish': bullish
         })
 
     if not resolved:
         plt.tight_layout()
-        return chart_bytes(fig)
+        buf = BytesIO()
+        fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+        plt.close(fig)
+        buf.seek(0)
+        return buf.read()
 
-    # Basic chart extents
+    # ---------- Chart extents ----------
     ylo, yhi = ax.get_ylim()
     xlo, xhi = ax.get_xlim()
     xspan = xhi - xlo
     yspan = yhi - ylo
     xmid = (xlo + xhi) / 2.0
 
-    # Helper: anchor price
-    def anchor_y(ann):
-        if ann['bullish'] is False:
-            return ann['low']
-        else:
-            return ann['high']
+    # ---------- Routing Geometry ----------
+    # Horizontal lanes (outside chart)
+    LEFT_LANE_X   = xlo - xspan * 0.12      # Left routing lane
+    RIGHT_LANE_X  = xhi + xspan * 0.12      # Right routing lane
 
-    # -------- Split to quadrants -------------------------------------
-    top_right = []
-    top_left = []
-    bot_right = []
-    bot_left = []
+    # "Bus" lines (vertical jump points) – WELL OUTSIDE candles
+    TOP_BUS_Y     = yhi + yspan * 0.10      # All TOP connectors jump to this Y
+    BOTTOM_BUS_Y  = ylo - yspan * 0.10      # All BOTTOM connectors jump to this Y
+
+    # Label columns (where text boxes live)
+    LEFT_LABEL_X  = LEFT_LANE_X - xspan * 0.15
+    RIGHT_LABEL_X = RIGHT_LANE_X + xspan * 0.15
+
+    # Vertical label lanes (stacked to avoid overlap)
+    LABEL_PAD = yspan * 0.08
+
+    # ---------- Quadrant Splitting ----------
+    top_right, top_left, bot_right, bot_left = [], [], [], []
 
     for ann in resolved:
         pos = ann['pos']
-        bull = ann['bullish']
-
-        if bull is False:    # bearish -> bottom quadrants
-            if pos >= xmid:
-                bot_right.append(ann)
-            else:
-                bot_left.append(ann)
-        else:                # bullish or neutral -> top quadrants
+        if ann['bullish'] is True or ann['bullish'] is None:   # Bullish/Neutral → TOP
             if pos >= xmid:
                 top_right.append(ann)
             else:
                 top_left.append(ann)
-
-    # keep some balance: if one side empty move some from other side
-    def balance_side(top_side, bot_side, prefer_left):
-        if len(top_side) == 0 and len(bot_side) > 1:
-            if prefer_left:
-                top_side.append(bot_side.pop(0))
+        else:                                                   # Bearish → BOTTOM
+            if pos >= xmid:
+                bot_right.append(ann)
             else:
-                top_side.append(bot_side.pop())
-        if len(bot_side) == 0 and len(top_side) > 1:
-            if prefer_left:
-                bot_side.append(top_side.pop())
-            else:
-                bot_side.append(top_side.pop(0))
+                bot_left.append(ann)
 
-    balance_side(top_left, bot_left, prefer_left=True)
-    balance_side(top_right, bot_right, prefer_left=False)
+    # Balance quadrants (prevent empty quadrant)
+    def balance(top_lst, bot_lst):
+        if len(top_lst) == 0 and len(bot_lst) > 1:
+            top_lst.append(bot_lst.pop())
+        if len(bot_lst) == 0 and len(top_lst) > 1:
+            bot_lst.append(top_lst.pop())
 
-    # ----------------- geometry for routing --------------------------
-    # horizontal margins for lanes and labels
-    left_lane_x = xlo - xspan * 0.09
-    left_label_x = xlo - xspan * 0.22
+    balance(top_left,  bot_left)
+    balance(top_right, bot_right)
 
-    right_lane_x = xhi + xspan * 0.09
-    right_label_x = xhi + xspan * 0.22
-
-    # top/bottom "bus" lines above/below candles (all horizontal here)
-    top_bus_y = yhi + yspan * 0.06       # all top connectors go through here
-    bottom_bus_y = ylo - yspan * 0.06    # all bottom connectors go through here
-
-    # final label vertical ranges (where boxes are stacked)
-    pad = yspan * 0.06
-    top_label_top = top_bus_y + yspan * 0.20
-    top_label_bot = yhi + pad
-
-    bot_label_top = ylo - pad
-    bot_label_bot = bottom_bus_y - yspan * 0.20
-
-    def evenly_spaced(n, top, bottom):
-        if n <= 0:
+    # ---------- Assign Y‑positions for labels (non‑overlapping) ----------
+    def vertical_slots(count, top_y, bottom_y):
+        if count <= 0:
             return []
-        if n == 1:
-            return [(top + bottom) / 2.0]
-        return np.linspace(top, bottom, n).tolist()
+        return np.linspace(top_y, bottom_y, count).tolist()
 
-    # final Y positions for each quadrant (sorted so no overlap)
-    tr_ys = evenly_spaced(len(top_right), top_label_top, top_label_bot)
-    tl_ys = evenly_spaced(len(top_left), top_label_top, top_label_bot)
-    br_ys = evenly_spaced(len(bot_right), bot_label_top, bot_label_bot)
-    bl_ys = evenly_spaced(len(bot_left), bot_label_top, bot_label_bot)
+    # Top labels: stack **above** TOP_BUS_Y
+    top_label_top = TOP_BUS_Y + LABEL_PAD
+    top_label_bot = TOP_BUS_Y + yspan * 0.30
+    tl_ys = vertical_slots(len(top_left),  top_label_top, top_label_bot)
+    tr_ys = vertical_slots(len(top_right), top_label_top, top_label_bot)
 
-    # sort each quadrant by candle x to keep visual order
-    top_right.sort(key=lambda a: a['pos'])
+    # Bottom labels: stack **below** BOTTOM_BUS_Y
+    bot_label_top = BOTTOM_BUS_Y - yspan * 0.30
+    bot_label_bot = BOTTOM_BUS_Y - LABEL_PAD
+    bl_ys = vertical_slots(len(bot_left),  bot_label_top, bot_label_bot)
+    br_ys = vertical_slots(len(bot_right), bot_label_top, bot_label_bot)
+
+    # Sort each quadrant by candle position (ensures connectors don't cross!)
+    top_right.sort(key=lambda a: a['pos'])      # Right side: left→right
     bot_right.sort(key=lambda a: a['pos'])
-    top_left.sort(key=lambda a: a['pos'], reverse=True)
+    top_left.sort(key=lambda a: a['pos'], reverse=True)   # Left side: right→left
     bot_left.sort(key=lambda a: a['pos'], reverse=True)
 
-    # ----------------- drawing helper --------------------------------
+    # ---------- Draw Connector & Label ----------
+    MPL_FONT_PROP = {'family': 'sans-serif', 'size': 9}
+
     def draw_connector(ann, label_y, side, region):
         """
-        side: 'left' or 'right'
-        region: 'top' or 'bottom'
-        path is piecewise:
-          candle tap -> vertical to bus
-          bus -> lane_x
-          lane_x -> vertical to label_y
-          label_y -> into label box
-        This keeps all connectors parallel; no crossings are possible
-        within a quadrant.
+        Draws an ORTHOGONAL ROUTE:
+        1. Candle → vertical to BUS
+        2. Horizontal to LANE
+        3. Vertical to LABEL_Y
+        4. Horizontal into LABEL
         """
-        pos = ann['pos']
-        bull = ann['bullish']
+        pos   = ann['pos']
+        name  = ann['name']
+        bull  = ann['bullish']
 
-        color = (
-            '#1B5E20' if bull is True
-            else '#B71C1C' if bull is False
-            else '#E65100'
-        )
-        label = rtl(ann['name'])
+        # Colors
+        color = '#1B5E20' if bull is True else '#B71C1C' if bull is False else '#E65100'
 
-        if region == 'top':
-            start_y = ann['high']
-            bus_y = top_bus_y
-        else:
-            start_y = ann['low']
-            bus_y = bottom_bus_y
+        # Start point (candle tip)
+        start_y = ann['high'] if region == 'top' else ann['low']
+        bus_y   = TOP_BUS_Y  if region == 'top' else BOTTOM_BUS_Y
 
-        if side == 'left':
-            lane_x = left_lane_x
-            label_x = left_label_x
-            text_ha = 'right'
-            end_x = label_x + xspan * 0.01
-        else:
-            lane_x = right_lane_x
-            label_x = right_label_x
-            text_ha = 'left'
-            end_x = label_x - xspan * 0.01
+        # Lane & label X‑coords
+        lane_x    = LEFT_LANE_X  if side == 'left'  else RIGHT_LANE_X
+        label_x   = LEFT_LABEL_X if side == 'left'  else RIGHT_LABEL_X
+        text_ha   = 'right'      if side == 'left'  else 'left'
+        end_x     = label_x + (0.01*xspan if side=='left' else -0.01*xspan)
 
+        # ---------- PATH: 5 orthogonal segments ----------
         xs = [pos, pos, lane_x, lane_x, end_x]
-        ys = [start_y, bus_y, bus_y, label_y, label_y]
+        ys = [start_y, bus_y,  bus_y,  label_y, label_y]
 
-        ax.plot(xs, ys, color=color, lw=1.15,
-                solid_capstyle='round', clip_on=False, zorder=8)
-        ax.plot([pos], [start_y], marker='o', markersize=2.8,
-                color=color, clip_on=False, zorder=9)
+        # Draw connector line
+        ax.plot(
+            xs, ys,
+            color=color,
+            lw=1.2,
+            solid_capstyle='round',
+            clip_on=False,
+            zorder=5
+        )
 
+        # Draw candle‑tap dot
+        ax.plot(
+            pos, start_y,
+            marker='o',
+            markersize=3,
+            color=color,
+            clip_on=False,
+            zorder=6
+        )
+
+        # Draw label
         ax.text(
-            label_x, label_y, label,
-            fontsize=8.5, color=color,
-            ha=text_ha, va='center',
+            label_x, label_y,
+            name,
+            fontsize=9,
+            color=color,
+            ha=text_ha,
+            va='center',
             fontproperties=MPL_FONT_PROP,
             bbox=dict(
-                boxstyle='round,pad=0.32',
+                boxstyle='round,pad=0.35',
                 facecolor='white',
                 edgecolor=color,
-                alpha=0.96,
-                linewidth=1.0,
+                alpha=0.95,
+                linewidth=0.9
             ),
             clip_on=False,
             zorder=10
         )
 
-    # ----------------- draw all quadrants ----------------------------
-    for ann, ly in zip(top_right, tr_ys):
-        draw_connector(ann, ly, side='right', region='top')
-    for ann, ly in zip(top_left, tl_ys):
-        draw_connector(ann, ly, side='left', region='top')
-    for ann, ly in zip(bot_right, br_ys):
-        draw_connector(ann, ly, side='right', region='bottom')
-    for ann, ly in zip(bot_left, bl_ys):
-        draw_connector(ann, ly, side='left', region='bottom')
+    # ---------- Render all quadrants ----------
+    for ann, y in zip(top_right, tr_ys):
+        draw_connector(ann, y, side='right', region='top')
+    for ann, y in zip(top_left,  tl_ys):
+        draw_connector(ann, y, side='left',  region='top')
+    for ann, y in zip(bot_right, br_ys):
+        draw_connector(ann, y, side='right', region='bottom')
+    for ann, y in zip(bot_left,  bl_ys):
+        draw_connector(ann, y, side='left',  region='bottom')
 
-    # ----------------- adjust axes so everything is visible ----------
-    new_xmin = left_label_x - xspan * 0.10
-    new_xmax = right_label_x + xspan * 0.10
-    new_ymin = bottom_bus_y - yspan * 0.15
-    new_ymax = top_bus_y + yspan * 0.25
+    # ---------- Adjust axes to SHOW everything ----------
+    ax.set_xlim(LEFT_LABEL_X - xspan*0.07, RIGHT_LABEL_X + xspan*0.07)
+    ax.set_ylim(BOTTOM_BUS_Y - yspan*0.15, TOP_BUS_Y + yspan*0.25)
 
-    ax.set_xlim(new_xmin, new_xmax)
-    ax.set_ylim(new_ymin, new_ymax)
+    fig.tight_layout(rect=[0.05, 0.05, 0.95, 0.95])
 
-    fig.subplots_adjust(left=0.08, right=0.92, top=0.92, bottom=0.12)
-
-    return chart_bytes(fig)
+    # Return image as bytes
+    buf = BytesIO()
+    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    buf.seek(0)
+    return buf.read()
 ###################################نهاية الشموع
 def detect_divergences(d):
     divergences = []
