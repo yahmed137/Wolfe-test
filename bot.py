@@ -946,12 +946,12 @@ def _enrich_with_argaam(ticker: str, info: dict) -> None:
         #             pass
         ###################
         # ── EPS: Argaam first → Yahoo fallback → "لاحقا" ──
-        eps = _argaam_parse_num(raw.get("ربح السهم ( ريال) (أخر 12 شهر)"))
+        eps = _argaam_extract_eps(soup)  # ← use targeted extraction
         
         if eps is not None:
             info["trailingEps"] = eps
             # Format: wrap negative EPS in double brackets
-            info["trailingEpsFormatted"] = f"(({eps}))" if eps < 0 else str(eps)
+            info["trailingEpsFormatted"] = f"(({abs(eps)}))" if eps < 0 else str(eps)
         
             # Recalculate P/E from Argaam EPS if P/E not already set
             if not info.get("trailingPE") and eps != 0:
@@ -961,18 +961,16 @@ def _enrich_with_argaam(ticker: str, info: dict) -> None:
                         info["trailingPE"] = round(price_now / eps, 4)
                 except Exception:
                     pass
-        
         else:
             # Argaam EPS not available → try Yahoo Finance fallback
-            yahoo_eps = info.get("trailingEps")  # already populated by yfinance earlier
+            yahoo_eps = info.get("trailingEps")
             if yahoo_eps is not None:
                 try:
                     yahoo_eps = float(yahoo_eps)
-                    info["trailingEpsFormatted"] = f"(({yahoo_eps}))" if yahoo_eps < 0 else str(yahoo_eps)
+                    info["trailingEpsFormatted"] = f"(({abs(yahoo_eps)}))" if yahoo_eps < 0 else str(yahoo_eps)
                 except (ValueError, TypeError):
                     info["trailingEpsFormatted"] = "لاحقا"
             else:
-                # Neither source has EPS
                 info["trailingEpsFormatted"] = "لاحقا"
         ###################
         bv = _argaam_parse_num(raw.get("القيمة الدفترية ( ريال) (لأخر فترة معلنة)"))
