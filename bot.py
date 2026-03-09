@@ -2564,8 +2564,8 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
     # 1.0 = right edge of axes. >1.0 = in the existing margin space.
     # No chart resize, no xlim change — labels just overflow into
     # the empty area that already exists on the right side.
-    near_frac = 1.03
-    far_frac  = 1.15
+    near_frac = 1.10 #1.03 /موقع
+    far_frac  = 1.10 #1.03 /موقع
 
     # Arrow starts at right edge of data
     arrow_x = xmax - 0.5
@@ -2601,6 +2601,7 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
     for idx, (price, text, color, bg, edge_clr, fsize) in enumerate(items):
         ly_frac = to_y_frac(label_ys[idx])
         x_frac = far_frac if use_far[idx] else near_frac
+        
 
         ax.annotate(
             text,
