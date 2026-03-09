@@ -2447,20 +2447,20 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
                 if pd.notna(val):
                     ev = float(val)
                     ax.axhline(ev, color=clr, lw=0.9, ls='-.',
-                               alpha=0.55, zorder=5)
-                    items.append((ev, lbl, clr, 'white', clr, 6.2))
+                               alpha=0.55, zorder=8)
+                    items.append((ev, lbl, clr, 'white', clr, 6.5))
 
     for i, s in enumerate(sup):
         ax.axhline(s, color=sup_color, lw=0.7, ls='--',
                    alpha=0.70, zorder=8)
         items.append((s, rtl(f'دعم {i+1}   {s:.2f}'),
-                       sup_color, '#E8F4FD', sup_color, 6.8))
+                       sup_color, '#E8F4FD', sup_color, 6.5))
 
     for i, r in enumerate(res):
         ax.axhline(r, color=res_color, lw=0.7, ls='--',
-                   alpha=0.70, zorder=10)
+                   alpha=0.70, zorder=8)
         items.append((r, rtl(f'مقاومة {i+1}   {r:.2f}'),
-                       res_color, '#FDEDED', res_color, 6.8))
+                       res_color, '#FDEDED', res_color, 6.5))
 
     if not items:
         return
@@ -2593,7 +2593,7 @@ def make_main_chart(d, sup=None, res=None):
     fig,ax=mpf.plot(p,**plot_kwargs); main_ax=ax[0]
     xmax=len(d); pivots=_get_pivots(d,order=5)
     _draw_sr_lines(main_ax,sup,res,xmax,d_ind=d,pivots=pivots)
-    fig.subplots_adjust(right=0.80); return chart_bytes(fig)
+    fig.subplots_adjust(right=0.90); return chart_bytes(fig)
 
 def make_price_chart(d, sup=None, res=None):
     sup=sup or []; res=res or []; d=d.tail(180).copy()
