@@ -873,6 +873,38 @@ def _argaam_extract_regex(full_text: str, results: dict):
             results[field] = m.group(1).strip()
 
 
+# def _argaam_scrape(company_id: str, driver) -> dict:
+#     """Scrape one company from Argaam. Returns raw field dict."""
+#     url = (
+#         f"https://www.argaam.com/ar/company/companyoverview"
+#         f"/marketid/3/companyid/{company_id}"
+#     )
+#     try:
+#         driver.get(url)
+#         try:
+#             WebDriverWait(driver, 25).until(
+#                 EC.presence_of_element_located((
+#                     By.XPATH,
+#                     "//*[contains(text(),'آخر سعر') or "
+#                     "    contains(text(),'القيمة السوقية') or "
+#                     "    contains(text(),'عدد الأسهم')]"
+#                 ))
+#             )
+#         except Exception:
+#             time.sleep(6)
+#         time.sleep(3)
+#         soup = BeautifulSoup(driver.page_source, "lxml")
+#         results: dict = {}
+#         full_text = soup.get_text(separator=" ")
+#         _argaam_extract_table(soup, results)
+#         _argaam_extract_dl(soup, results)
+#         _argaam_extract_siblings(soup, results)
+#         _argaam_extract_spans(soup, results)
+#         _argaam_extract_regex(full_text, results)
+#         return results
+#     except Exception as exc:
+#         logger.warning(f"Argaam scrape error for {company_id}: {exc}")
+#         return {}
 def _argaam_scrape(company_id: str, driver) -> dict:
     """Scrape one company from Argaam. Returns raw field dict."""
     url = (
@@ -901,11 +933,20 @@ def _argaam_scrape(company_id: str, driver) -> dict:
         _argaam_extract_siblings(soup, results)
         _argaam_extract_spans(soup, results)
         _argaam_extract_regex(full_text, results)
+
+        # ── Direct EPS extraction from attribute ──
+        td = soup.find("td", attrs={"showformula-popup": "ربح السهم"})
+        if td:
+            raw_val = td.get("currency-current-value", "").strip()
+            parsed = _argaam_parse_num(raw_val)
+            if parsed is not None:
+                results["__eps_direct__"] = parsed
+
         return results
     except Exception as exc:
         logger.warning(f"Argaam scrape error for {company_id}: {exc}")
         return {}
-
+#############################################################        
 
 def _enrich_with_argaam(ticker: str, info: dict) -> None:
     if not ARGAAM_AVAILABLE:
@@ -946,12 +987,11 @@ def _enrich_with_argaam(ticker: str, info: dict) -> None:
         #             pass
         ###################
         # ── EPS: Argaam first → Yahoo fallback → "لاحقا" ──
-        eps = _argaam_extract_eps(soup)  # ← use targeted extraction
+        eps = raw.get("__eps_direct__")  # direct from currency-current-value attribute
         
         if eps is not None:
             info["trailingEps"] = eps
-            # Format: wrap negative EPS in double brackets
-            info["trailingEpsFormatted"] = f"(({abs(eps)}))" if eps < 0 else str(eps)
+            info["trailingEpsFormatted"] = f"({eps})" if eps < 0 else str(eps)
         
             # Recalculate P/E from Argaam EPS if P/E not already set
             if not info.get("trailingPE") and eps != 0:
@@ -967,7 +1007,7 @@ def _enrich_with_argaam(ticker: str, info: dict) -> None:
             if yahoo_eps is not None:
                 try:
                     yahoo_eps = float(yahoo_eps)
-                    info["trailingEpsFormatted"] = f"(({abs(yahoo_eps)}))" if yahoo_eps < 0 else str(yahoo_eps)
+                    info["trailingEpsFormatted"] = f"({yahoo_eps})" if yahoo_eps < 0 else str(yahoo_eps)
                 except (ValueError, TypeError):
                     info["trailingEpsFormatted"] = "لاحقا"
             else:
