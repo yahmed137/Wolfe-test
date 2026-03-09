@@ -307,6 +307,7 @@ for t in tests:
     result = find_ticker(t)
     print(f"  '{t}'  →  {result}  ({COMPANY_NAMES.get(result, '?')})")
 ##############################
+############ القطاعات ########
 SECTOR_MAP = {
     '1010.SR':('المالية','البنوك'),'1020.SR':('المالية','البنوك'),'1030.SR':('المالية','البنوك'),
     '1050.SR':('المالية','البنوك'),'1060.SR':('المالية','البنوك'),'1080.SR':('المالية','البنوك'),
@@ -423,6 +424,8 @@ def get_sector_industry(ticker):
 # ─────────────────────────────────────────────────────────────
 
 # Argaam company ID → Tadawul ticker mapping
+##############################
+############# ARGAAM #########
 ARGAAM_COMPANY_MAPPING = {
     "3509":    {"ticker":"2222", "name":"أرامكو السعودية"},
     "4434":    {"ticker":"2381", "name":"الحفر العربية"},
@@ -1292,7 +1295,7 @@ def _compute_supertrend(df, period=10, multiplier=3.0):
     return (pd.Series(supertrend, index=df.index),
             pd.Series(direction, index=df.index))
 
-
+####معايير المؤشرات####
 def compute_indicators(df):
     d = df.copy()
     c, h, l, v = d['Close'], d['High'], d['Low'], d['Volume']
@@ -1574,8 +1577,8 @@ def decision_text(v):
 #             seen.add(p[2]); unique.append(p)
 #         if len(unique) == 5: break
 #     return list(reversed(unique))
-# ########################الشموع محدث
 #YASIR
+# ################الشموع محدثة############################
 def detect_candle_patterns(df):
     patterns = []
     if len(df) < 4:
@@ -2444,7 +2447,7 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
                 if pd.notna(val):
                     ev = float(val)
                     ax.axhline(ev, color=clr, lw=0.9, ls='-.',
-                               alpha=0.55, zorder=4)
+                               alpha=0.55, zorder=5)
                     items.append((ev, lbl, clr, 'white', clr, 6.2))
 
     for i, s in enumerate(sup):
@@ -2572,7 +2575,7 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
             zorder=8,
         )
 
-###########
+########################################################################################################
 
 def _get_pivots(d, order=5):
     d=d.tail(180).copy().reset_index(drop=True)
