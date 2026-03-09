@@ -308,8 +308,8 @@ tests = ["tasi", "TASI", "^TASI.SR", "تاسي", "تاسى", "Tasi", "tAsI"]
 
 for t in tests:
     result = find_ticker(t)
-    #print(f"  '{t}'  →  {result}")
-    print(f"  '{t}'  →  {result}  ({COMPANY_NAMES.get(result, '?')})")
+    print(f"  '{t}'  →  {result}")
+    #print(f"  '{t}'  →  {result}  ({COMPANY_NAMES.get(result, '?')})")
 ##############################
 ############ القطاعات ########
 SECTOR_MAP = {
