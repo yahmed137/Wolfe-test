@@ -263,17 +263,36 @@ COMPANY_NAMES = {
 def get_name(ticker: str) -> str:
     return COMPANY_NAMES.get(ticker, ticker)
 #############################
-def find_ticker(query):
+# Optional: hardcoded aliases for well-known tickers
+TICKER_ALIASES = {
+    "TASI":    "^TASI.SR",
+    "^TASI":   "^TASI.SR",
+    "تاسي":    "^TASI.SR",
+    "تاسى":    "^TASI.SR",
+    # add more as needed...
+}
+
+def _normalize_arabic(text: str) -> str:
+    """Normalize Arabic text: strip whitespace and unify ى → ي"""
+    return text.strip().replace("ى", "ي")
+
+
+def find_ticker(query: str) -> str | None:
     """
-    Search by any format → returns the full ticker symbol
+    Search by any format → returns the full ticker symbol.
     e.g. 'tasi', 'TASI', '^TASI.SR', 'تاسي', 'تاسى' → '^TASI.SR'
     """
     query = query.strip()
     query_upper = query.upper()
+    query_normalized = _normalize_arabic(query)
 
-    # Normalize Arabic: replace ى with ي
-    query_normalized = query.replace("ى", "ي")
+    # ── 0) Alias lookup (fast path for known indices/tickers) ──────────────
+    alias_key = _normalize_arabic(query_upper)  # normalize the uppercased form
+    for alias, canonical in TICKER_ALIASES.items():
+        if alias_key == _normalize_arabic(alias.upper()):
+            return canonical
 
+    # ── Iterate COMPANY_NAMES ──────────────────────────────────────────────
     for ticker, name in COMPANY_NAMES.items():
         ticker_upper = ticker.upper()
 
@@ -281,30 +300,33 @@ def find_ticker(query):
         if query_upper == ticker_upper:
             return ticker
 
-        # 2) Without .SR: "^TASI"
-        code = ticker_upper.replace('.SR', '')
+        # 2) Without .SR suffix: "^TASI"
+        code = ticker_upper[:-3] if ticker_upper.endswith(".SR") else ticker_upper
         if query_upper == code:
             return ticker
 
         # 3) Without ^ and .SR: "TASI" or "1120"
-        code_clean = code.lstrip('^')
+        code_clean = code.lstrip("^")
         if query_upper == code_clean:
             return ticker
 
-        # 4) Arabic name match (normalized: ى = ي)
-        name_normalized = name.replace("ى", "ي")
+        # 4) Exact Arabic name match (normalized)
+        name_normalized = _normalize_arabic(name)
         if query_normalized == name_normalized:
             return ticker
 
-        # 5) Partial Arabic match
-        if query_normalized in name_normalized:
+    # ── 5) Partial Arabic match (last resort, exact word boundary) ─────────
+    for ticker, name in COMPANY_NAMES.items():
+        name_normalized = _normalize_arabic(name)
+        # Only match if query is at least 2 chars to avoid false positives
+        if len(query_normalized) >= 2 and query_normalized in name_normalized:
             return ticker
 
     return None
 
 
 # ───────────────────── TEST ─────────────────────
-tests = ["tasi", "TASI", "^TASI.SR", "تاسي", "تاسى", "Tasi", "tAsI"]
+tests = ["tasi", "TASI", "^TASI.SR", "تاسي", "تاسى", "Tasi", "tAsI", "^tasi.sr"]
 
 for t in tests:
     result = find_ticker(t)
