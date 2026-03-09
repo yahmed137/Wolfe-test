@@ -286,7 +286,7 @@ def find_ticker(query):
         if query_upper == code:
             return ticker
 
-        # 3) Without ^ and .SR: "TASI"
+        # 3) Without ^ and .SR: "TASI" or "1120"
         code_clean = code.lstrip('^')
         if query_upper == code_clean:
             return ticker
