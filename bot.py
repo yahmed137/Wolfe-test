@@ -3461,323 +3461,480 @@ def decision_text(v):
 #     return list(reversed(unique))
 #YASIR
 # ################الشموع محدثة############################
-def detect_candle_patterns(df):
-    patterns = []
-    if len(df) < 4:
-        return patterns
+# def detect_candle_patterns(df):
+#     patterns = []
+#     if len(df) < 4:
+#         return patterns
 
-    o = df['Open'].values.astype(float)
-    h = df['High'].values.astype(float)
-    l = df['Low'].values.astype(float)
-    c = df['Close'].values.astype(float)
-    dates = df.index
+#     o = df['Open'].values.astype(float)
+#     h = df['High'].values.astype(float)
+#     l = df['Low'].values.astype(float)
+#     c = df['Close'].values.astype(float)
+#     dates = df.index
 
-    def body(i):
-        return abs(c[i] - o[i])
+#     def body(i):
+#         return abs(c[i] - o[i])
 
-    def candle(i):
-        return h[i] - l[i]
+#     def candle(i):
+#         return h[i] - l[i]
 
-    def upper_shadow(i):
-        return h[i] - max(c[i], o[i])
+#     def upper_shadow(i):
+#         return h[i] - max(c[i], o[i])
 
-    def lower_shadow(i):
-        return min(c[i], o[i]) - l[i]
+#     def lower_shadow(i):
+#         return min(c[i], o[i]) - l[i]
 
-    def is_bull(i):
-        return c[i] > o[i]
+#     def is_bull(i):
+#         return c[i] > o[i]
 
-    def is_bear(i):
-        return c[i] < o[i]
+#     def is_bear(i):
+#         return c[i] < o[i]
 
-    def mid_body(i):
-        return (o[i] + c[i]) / 2.0
+#     def mid_body(i):
+#         return (o[i] + c[i]) / 2.0
 
-    def body_top(i):
-        return max(o[i], c[i])
+#     def body_top(i):
+#         return max(o[i], c[i])
 
-    def body_bot(i):
-        return min(o[i], c[i])
+#     def body_bot(i):
+#         return min(o[i], c[i])
 
-    def is_small_body(i, avg):
-        return body(i) < avg * 0.3
+#     def is_small_body(i, avg):
+#         return body(i) < avg * 0.3
 
-    def is_large_body(i, avg):
-        return body(i) > avg * 0.8
+#     def is_large_body(i, avg):
+#         return body(i) > avg * 0.8
 
-    # Trend helpers: simple lookback
-    def in_downtrend(i, lookback=5):
-        start = max(0, i - lookback)
-        return c[i] < c[start] and sum(1 for j in range(start, i) if c[j] < o[j]) >= lookback * 0.6
+#     # Trend helpers: simple lookback
+#     def in_downtrend(i, lookback=5):
+#         start = max(0, i - lookback)
+#         return c[i] < c[start] and sum(1 for j in range(start, i) if c[j] < o[j]) >= lookback * 0.6
 
-    def in_uptrend(i, lookback=5):
-        start = max(0, i - lookback)
-        return c[i] > c[start] and sum(1 for j in range(start, i) if c[j] > o[j]) >= lookback * 0.6
+#     def in_uptrend(i, lookback=5):
+#         start = max(0, i - lookback)
+#         return c[i] > c[start] and sum(1 for j in range(start, i) if c[j] > o[j]) >= lookback * 0.6
 
-    for i in range(2, len(df)):
-        avg_body = np.mean([body(j) for j in range(max(0, i - 10), i)]) or 1e-9
-        date_lbl = dates[i].strftime('%Y-%m-%d')
-        cr = candle(i)
+#     for i in range(2, len(df)):
+#         avg_body = np.mean([body(j) for j in range(max(0, i - 10), i)]) or 1e-9
+#         date_lbl = dates[i].strftime('%Y-%m-%d')
+#         cr = candle(i)
 
-        # ═══════════════════════════════════════════
-        # SINGLE CANDLE PATTERNS
-        # ═══════════════════════════════════════════
+#         # ═══════════════════════════════════════════
+#         # SINGLE CANDLE PATTERNS
+#         # ═══════════════════════════════════════════
 
-        # ── Doji ──
-        if body(i) < 0.05 * cr and cr > 0:
-            # Dragonfly Doji: long lower shadow, tiny upper shadow
-            if lower_shadow(i) > 2 * body(i) and upper_shadow(i) < cr * 0.1:
-                patterns.append((date_lbl, 'دوجي اليعسوب', 'Dragonfly Doji', True))
-                continue
-            # Gravestone Doji: long upper shadow, tiny lower shadow
-            if upper_shadow(i) > 2 * body(i) and lower_shadow(i) < cr * 0.1:
-                patterns.append((date_lbl, 'دوجي شاهد القبر', 'Gravestone Doji', False))
-                continue
-            # Long-legged Doji: both shadows long
-            if upper_shadow(i) > cr * 0.3 and lower_shadow(i) > cr * 0.3:
-                patterns.append((date_lbl, 'دوجي طويل الأرجل', 'Long-Legged Doji', None))
-                continue
-            # Standard Doji
-            patterns.append((date_lbl, 'دوجي', 'Doji', None))
-            continue
+#         # ── Doji ──
+#         if body(i) < 0.05 * cr and cr > 0:
+#             # Dragonfly Doji: long lower shadow, tiny upper shadow
+#             if lower_shadow(i) > 2 * body(i) and upper_shadow(i) < cr * 0.1:
+#                 patterns.append((date_lbl, 'دوجي اليعسوب', 'Dragonfly Doji', True))
+#                 continue
+#             # Gravestone Doji: long upper shadow, tiny lower shadow
+#             if upper_shadow(i) > 2 * body(i) and lower_shadow(i) < cr * 0.1:
+#                 patterns.append((date_lbl, 'دوجي شاهد القبر', 'Gravestone Doji', False))
+#                 continue
+#             # Long-legged Doji: both shadows long
+#             if upper_shadow(i) > cr * 0.3 and lower_shadow(i) > cr * 0.3:
+#                 patterns.append((date_lbl, 'دوجي طويل الأرجل', 'Long-Legged Doji', None))
+#                 continue
+#             # Standard Doji
+#             patterns.append((date_lbl, 'دوجي', 'Doji', None))
+#             continue
 
-        # ── Hammer (in downtrend) ──
-        if (lower_shadow(i) > 2 * body(i) and
-                upper_shadow(i) < 0.3 * body(i) and body(i) > 0):
-            if in_downtrend(i):
-                patterns.append((date_lbl, 'المطرقة', 'Hammer', True))
-            else:
-                patterns.append((date_lbl, 'المشنقة', 'Hanging Man', False))
-            continue
+#         # ── Hammer (in downtrend) ──
+#         if (lower_shadow(i) > 2 * body(i) and
+#                 upper_shadow(i) < 0.3 * body(i) and body(i) > 0):
+#             if in_downtrend(i):
+#                 patterns.append((date_lbl, 'المطرقة', 'Hammer', True))
+#             else:
+#                 patterns.append((date_lbl, 'المشنقة', 'Hanging Man', False))
+#             continue
 
-        # ── Inverted Hammer / Shooting Star ──
-        if (upper_shadow(i) > 2 * body(i) and
-                lower_shadow(i) < 0.3 * body(i) and body(i) > 0):
-            if in_downtrend(i):
-                patterns.append((date_lbl, 'المطرقة المقلوبة', 'Inverted Hammer', True))
-            else:
-                patterns.append((date_lbl, 'النجمة الساقطة', 'Shooting Star', False))
-            continue
+#         # ── Inverted Hammer / Shooting Star ──
+#         if (upper_shadow(i) > 2 * body(i) and
+#                 lower_shadow(i) < 0.3 * body(i) and body(i) > 0):
+#             if in_downtrend(i):
+#                 patterns.append((date_lbl, 'المطرقة المقلوبة', 'Inverted Hammer', True))
+#             else:
+#                 patterns.append((date_lbl, 'النجمة الساقطة', 'Shooting Star', False))
+#             continue
 
-        # ── Marubozu (full body, no/tiny shadows) ──
-        if (upper_shadow(i) < body(i) * 0.05 and
-                lower_shadow(i) < body(i) * 0.05 and
-                is_large_body(i, avg_body)):
-            if is_bull(i):
-                patterns.append((date_lbl, 'ماروبوزو صاعد', 'Bullish Marubozu', True))
-            else:
-                patterns.append((date_lbl, 'ماروبوزو هابط', 'Bearish Marubozu', False))
-            continue
+#         # ── Marubozu (full body, no/tiny shadows) ──
+#         if (upper_shadow(i) < body(i) * 0.05 and
+#                 lower_shadow(i) < body(i) * 0.05 and
+#                 is_large_body(i, avg_body)):
+#             if is_bull(i):
+#                 patterns.append((date_lbl, 'ماروبوزو صاعد', 'Bullish Marubozu', True))
+#             else:
+#                 patterns.append((date_lbl, 'ماروبوزو هابط', 'Bearish Marubozu', False))
+#             continue
 
-        # ── Spinning Top (small body, both shadows > body) ──
-        if (is_small_body(i, avg_body) and
-                upper_shadow(i) > body(i) and
-                lower_shadow(i) > body(i) and
-                cr > avg_body * 0.5):
-            patterns.append((date_lbl, 'القمة الدوارة', 'Spinning Top', None))
-            continue
+#         # ── Spinning Top (small body, both shadows > body) ──
+#         if (is_small_body(i, avg_body) and
+#                 upper_shadow(i) > body(i) and
+#                 lower_shadow(i) > body(i) and
+#                 cr > avg_body * 0.5):
+#             patterns.append((date_lbl, 'القمة الدوارة', 'Spinning Top', None))
+#             continue
 
-        # ═══════════════════════════════════════════
-        # TWO-CANDLE PATTERNS
-        # ═══════════════════════════════════════════
+#         # ═══════════════════════════════════════════
+#         # TWO-CANDLE PATTERNS
+#         # ═══════════════════════════════════════════
 
-        # ── Bullish Engulfing ──
-        if (is_bear(i - 1) and is_bull(i) and
-                o[i] <= c[i - 1] and c[i] >= o[i - 1] and
-                body(i) > body(i - 1)):
-            patterns.append((date_lbl, 'الابتلاع الصعودي', 'Bullish Engulfing', True))
-            continue
+#         # ── Bullish Engulfing ──
+#         if (is_bear(i - 1) and is_bull(i) and
+#                 o[i] <= c[i - 1] and c[i] >= o[i - 1] and
+#                 body(i) > body(i - 1)):
+#             patterns.append((date_lbl, 'الابتلاع الصعودي', 'Bullish Engulfing', True))
+#             continue
 
-        # ── Bearish Engulfing ──
-        if (is_bull(i - 1) and is_bear(i) and
-                o[i] >= c[i - 1] and c[i] <= o[i - 1] and
-                body(i) > body(i - 1)):
-            patterns.append((date_lbl, 'الابتلاع الهبوطي', 'Bearish Engulfing', False))
-            continue
+#         # ── Bearish Engulfing ──
+#         if (is_bull(i - 1) and is_bear(i) and
+#                 o[i] >= c[i - 1] and c[i] <= o[i - 1] and
+#                 body(i) > body(i - 1)):
+#             patterns.append((date_lbl, 'الابتلاع الهبوطي', 'Bearish Engulfing', False))
+#             continue
 
-        # ── Bullish Harami ──
-        if (is_bear(i - 1) and is_bull(i) and
-                is_large_body(i - 1, avg_body) and
-                body_top(i) < body_top(i - 1) and
-                body_bot(i) > body_bot(i - 1)):
-            patterns.append((date_lbl, 'الحرامي الصعودي', 'Bullish Harami', True))
-            continue
+#         # ── Bullish Harami ──
+#         if (is_bear(i - 1) and is_bull(i) and
+#                 is_large_body(i - 1, avg_body) and
+#                 body_top(i) < body_top(i - 1) and
+#                 body_bot(i) > body_bot(i - 1)):
+#             patterns.append((date_lbl, 'الحرامي الصعودي', 'Bullish Harami', True))
+#             continue
 
-        # ── Bearish Harami ──
-        if (is_bull(i - 1) and is_bear(i) and
-                is_large_body(i - 1, avg_body) and
-                body_top(i) < body_top(i - 1) and
-                body_bot(i) > body_bot(i - 1)):
-            patterns.append((date_lbl, 'الحرامي الهبوطي', 'Bearish Harami', False))
-            continue
+#         # ── Bearish Harami ──
+#         if (is_bull(i - 1) and is_bear(i) and
+#                 is_large_body(i - 1, avg_body) and
+#                 body_top(i) < body_top(i - 1) and
+#                 body_bot(i) > body_bot(i - 1)):
+#             patterns.append((date_lbl, 'الحرامي الهبوطي', 'Bearish Harami', False))
+#             continue
 
-        # ── Tweezer Bottom ──
-        if (is_bear(i - 1) and is_bull(i) and
-                abs(l[i] - l[i - 1]) < avg_body * 0.1 and
-                in_downtrend(i)):
-            patterns.append((date_lbl, 'قاع الملقط', 'Tweezer Bottom', True))
-            continue
+#         # ── Tweezer Bottom ──
+#         if (is_bear(i - 1) and is_bull(i) and
+#                 abs(l[i] - l[i - 1]) < avg_body * 0.1 and
+#                 in_downtrend(i)):
+#             patterns.append((date_lbl, 'قاع الملقط', 'Tweezer Bottom', True))
+#             continue
 
-        # ── Tweezer Top ──
-        if (is_bull(i - 1) and is_bear(i) and
-                abs(h[i] - h[i - 1]) < avg_body * 0.1 and
-                in_uptrend(i)):
-            patterns.append((date_lbl, 'قمة الملقط', 'Tweezer Top', False))
-            continue
+#         # ── Tweezer Top ──
+#         if (is_bull(i - 1) and is_bear(i) and
+#                 abs(h[i] - h[i - 1]) < avg_body * 0.1 and
+#                 in_uptrend(i)):
+#             patterns.append((date_lbl, 'قمة الملقط', 'Tweezer Top', False))
+#             continue
 
-        # ── Piercing Line ──
-        if (is_bear(i - 1) and is_bull(i) and
-                o[i] < l[i - 1] and
-                c[i] > mid_body(i - 1) and c[i] < o[i - 1]):
-            patterns.append((date_lbl, 'خط الاختراق', 'Piercing Line', True))
-            continue
+#         # ── Piercing Line ──
+#         if (is_bear(i - 1) and is_bull(i) and
+#                 o[i] < l[i - 1] and
+#                 c[i] > mid_body(i - 1) and c[i] < o[i - 1]):
+#             patterns.append((date_lbl, 'خط الاختراق', 'Piercing Line', True))
+#             continue
 
-        # ── Dark Cloud Cover ──
-        if (is_bull(i - 1) and is_bear(i) and
-                o[i] > h[i - 1] and
-                c[i] < mid_body(i - 1) and c[i] > o[i - 1]):
-            patterns.append((date_lbl, 'الغطاء السحابي', 'Dark Cloud Cover', False))
-            continue
+#         # ── Dark Cloud Cover ──
+#         if (is_bull(i - 1) and is_bear(i) and
+#                 o[i] > h[i - 1] and
+#                 c[i] < mid_body(i - 1) and c[i] > o[i - 1]):
+#             patterns.append((date_lbl, 'الغطاء السحابي', 'Dark Cloud Cover', False))
+#             continue
 
-        # ── On-Neck (bearish continuation) ──
-        if (is_bear(i - 1) and is_bull(i) and
-                is_large_body(i - 1, avg_body) and
-                o[i] < c[i - 1] and
-                abs(c[i] - c[i - 1]) < avg_body * 0.1):
-            patterns.append((date_lbl, 'على العنق', 'On-Neck', False))
-            continue
+#         # ── On-Neck (bearish continuation) ──
+#         if (is_bear(i - 1) and is_bull(i) and
+#                 is_large_body(i - 1, avg_body) and
+#                 o[i] < c[i - 1] and
+#                 abs(c[i] - c[i - 1]) < avg_body * 0.1):
+#             patterns.append((date_lbl, 'على العنق', 'On-Neck', False))
+#             continue
 
-        # ═══════════════════════════════════════════
-        # THREE-CANDLE PATTERNS
-        # ═══════════════════════════════════════════
+#         # ═══════════════════════════════════════════
+#         # THREE-CANDLE PATTERNS
+#         # ═══════════════════════════════════════════
 
-        if i >= 2:
-            # ── Morning Star ──
-            if (is_bear(i - 2) and
-                    is_small_body(i - 1, avg_body) and
-                    is_bull(i) and
-                    c[i] > mid_body(i - 2) and
-                    body_top(i - 1) < body_bot(i - 2)):
-                patterns.append((date_lbl, 'نجمة الصباح', 'Morning Star', True))
-                continue
+#         if i >= 2:
+#             # ── Morning Star ──
+#             if (is_bear(i - 2) and
+#                     is_small_body(i - 1, avg_body) and
+#                     is_bull(i) and
+#                     c[i] > mid_body(i - 2) and
+#                     body_top(i - 1) < body_bot(i - 2)):
+#                 patterns.append((date_lbl, 'نجمة الصباح', 'Morning Star', True))
+#                 continue
 
-            # ── Evening Star ──
-            if (is_bull(i - 2) and
-                    is_small_body(i - 1, avg_body) and
-                    is_bear(i) and
-                    c[i] < mid_body(i - 2) and
-                    body_bot(i - 1) > body_top(i - 2)):
-                patterns.append((date_lbl, 'نجمة المساء', 'Evening Star', False))
-                continue
+#             # ── Evening Star ──
+#             if (is_bull(i - 2) and
+#                     is_small_body(i - 1, avg_body) and
+#                     is_bear(i) and
+#                     c[i] < mid_body(i - 2) and
+#                     body_bot(i - 1) > body_top(i - 2)):
+#                 patterns.append((date_lbl, 'نجمة المساء', 'Evening Star', False))
+#                 continue
 
-            # ── Morning Doji Star ──
-            if (is_bear(i - 2) and
-                    body(i - 1) < 0.05 * candle(i - 1) and candle(i - 1) > 0 and
-                    is_bull(i) and
-                    c[i] > mid_body(i - 2)):
-                patterns.append((date_lbl, 'نجمة الصباح دوجي', 'Morning Doji Star', True))
-                continue
+#             # ── Morning Doji Star ──
+#             if (is_bear(i - 2) and
+#                     body(i - 1) < 0.05 * candle(i - 1) and candle(i - 1) > 0 and
+#                     is_bull(i) and
+#                     c[i] > mid_body(i - 2)):
+#                 patterns.append((date_lbl, 'نجمة الصباح دوجي', 'Morning Doji Star', True))
+#                 continue
 
-            # ── Evening Doji Star ──
-            if (is_bull(i - 2) and
-                    body(i - 1) < 0.05 * candle(i - 1) and candle(i - 1) > 0 and
-                    is_bear(i) and
-                    c[i] < mid_body(i - 2)):
-                patterns.append((date_lbl, 'نجمة المساء دوجي', 'Evening Doji Star', False))
-                continue
+#             # ── Evening Doji Star ──
+#             if (is_bull(i - 2) and
+#                     body(i - 1) < 0.05 * candle(i - 1) and candle(i - 1) > 0 and
+#                     is_bear(i) and
+#                     c[i] < mid_body(i - 2)):
+#                 patterns.append((date_lbl, 'نجمة المساء دوجي', 'Evening Doji Star', False))
+#                 continue
 
-            # ── Three White Soldiers ──
-            if (all(is_bull(j) for j in [i - 2, i - 1, i]) and
-                    c[i - 1] > c[i - 2] and c[i] > c[i - 1] and
-                    all(is_large_body(j, avg_body) for j in [i - 2, i - 1, i]) and
-                    o[i - 1] > o[i - 2] and o[i] > o[i - 1]):
-                patterns.append((date_lbl, 'ثلاثة جنود بيض', 'Three White Soldiers', True))
-                continue
+#             # ── Three White Soldiers ──
+#             if (all(is_bull(j) for j in [i - 2, i - 1, i]) and
+#                     c[i - 1] > c[i - 2] and c[i] > c[i - 1] and
+#                     all(is_large_body(j, avg_body) for j in [i - 2, i - 1, i]) and
+#                     o[i - 1] > o[i - 2] and o[i] > o[i - 1]):
+#                 patterns.append((date_lbl, 'ثلاثة جنود بيض', 'Three White Soldiers', True))
+#                 continue
 
-            # ── Three Black Crows ──
-            if (all(is_bear(j) for j in [i - 2, i - 1, i]) and
-                    c[i - 1] < c[i - 2] and c[i] < c[i - 1] and
-                    all(is_large_body(j, avg_body) for j in [i - 2, i - 1, i]) and
-                    o[i - 1] < o[i - 2] and o[i] < o[i - 1]):
-                patterns.append((date_lbl, 'ثلاثة غربان سوداء', 'Three Black Crows', False))
-                continue
+#             # ── Three Black Crows ──
+#             if (all(is_bear(j) for j in [i - 2, i - 1, i]) and
+#                     c[i - 1] < c[i - 2] and c[i] < c[i - 1] and
+#                     all(is_large_body(j, avg_body) for j in [i - 2, i - 1, i]) and
+#                     o[i - 1] < o[i - 2] and o[i] < o[i - 1]):
+#                 patterns.append((date_lbl, 'ثلاثة غربان سوداء', 'Three Black Crows', False))
+#                 continue
 
-            # ── Three Inside Up (Bullish) ──
-            if (is_bear(i - 2) and is_bull(i - 1) and is_bull(i) and
-                    body_top(i - 1) < body_top(i - 2) and
-                    body_bot(i - 1) > body_bot(i - 2) and
-                    c[i] > body_top(i - 2)):
-                patterns.append((date_lbl, 'ثلاثة من الداخل صاعد', 'Three Inside Up', True))
-                continue
+#             # ── Three Inside Up (Bullish) ──
+#             if (is_bear(i - 2) and is_bull(i - 1) and is_bull(i) and
+#                     body_top(i - 1) < body_top(i - 2) and
+#                     body_bot(i - 1) > body_bot(i - 2) and
+#                     c[i] > body_top(i - 2)):
+#                 patterns.append((date_lbl, 'ثلاثة من الداخل صاعد', 'Three Inside Up', True))
+#                 continue
 
-            # ── Three Inside Down (Bearish) ──
-            if (is_bull(i - 2) and is_bear(i - 1) and is_bear(i) and
-                    body_top(i - 1) < body_top(i - 2) and
-                    body_bot(i - 1) > body_bot(i - 2) and
-                    c[i] < body_bot(i - 2)):
-                patterns.append((date_lbl, 'ثلاثة من الداخل هابط', 'Three Inside Down', False))
-                continue
+#             # ── Three Inside Down (Bearish) ──
+#             if (is_bull(i - 2) and is_bear(i - 1) and is_bear(i) and
+#                     body_top(i - 1) < body_top(i - 2) and
+#                     body_bot(i - 1) > body_bot(i - 2) and
+#                     c[i] < body_bot(i - 2)):
+#                 patterns.append((date_lbl, 'ثلاثة من الداخل هابط', 'Three Inside Down', False))
+#                 continue
 
-            # ── Three Outside Up ──
-            if (is_bear(i - 2) and is_bull(i - 1) and is_bull(i) and
-                    body(i - 1) > body(i - 2) and
-                    o[i - 1] <= c[i - 2] and c[i - 1] >= o[i - 2] and
-                    c[i] > c[i - 1]):
-                patterns.append((date_lbl, 'ثلاثة من الخارج صاعد', 'Three Outside Up', True))
-                continue
+#             # ── Three Outside Up ──
+#             if (is_bear(i - 2) and is_bull(i - 1) and is_bull(i) and
+#                     body(i - 1) > body(i - 2) and
+#                     o[i - 1] <= c[i - 2] and c[i - 1] >= o[i - 2] and
+#                     c[i] > c[i - 1]):
+#                 patterns.append((date_lbl, 'ثلاثة من الخارج صاعد', 'Three Outside Up', True))
+#                 continue
 
-            # ── Three Outside Down ──
-            if (is_bull(i - 2) and is_bear(i - 1) and is_bear(i) and
-                    body(i - 1) > body(i - 2) and
-                    o[i - 1] >= c[i - 2] and c[i - 1] <= o[i - 2] and
-                    c[i] < c[i - 1]):
-                patterns.append((date_lbl, 'ثلاثة من الخارج هابط', 'Three Outside Down', False))
-                continue
+#             # ── Three Outside Down ──
+#             if (is_bull(i - 2) and is_bear(i - 1) and is_bear(i) and
+#                     body(i - 1) > body(i - 2) and
+#                     o[i - 1] >= c[i - 2] and c[i - 1] <= o[i - 2] and
+#                     c[i] < c[i - 1]):
+#                 patterns.append((date_lbl, 'ثلاثة من الخارج هابط', 'Three Outside Down', False))
+#                 continue
 
-            # ── Abandoned Baby (Bullish) ──
-            if (is_bear(i - 2) and
-                    body(i - 1) < 0.05 * candle(i - 1) and candle(i - 1) > 0 and
-                    is_bull(i) and
-                    h[i - 1] < l[i - 2] and h[i - 1] < l[i]):
-                patterns.append((date_lbl, 'الطفل المتروك صاعد', 'Abandoned Baby Bull', True))
-                continue
+#             # ── Abandoned Baby (Bullish) ──
+#             if (is_bear(i - 2) and
+#                     body(i - 1) < 0.05 * candle(i - 1) and candle(i - 1) > 0 and
+#                     is_bull(i) and
+#                     h[i - 1] < l[i - 2] and h[i - 1] < l[i]):
+#                 patterns.append((date_lbl, 'الطفل المتروك صاعد', 'Abandoned Baby Bull', True))
+#                 continue
 
-            # ── Abandoned Baby (Bearish) ──
-            if (is_bull(i - 2) and
-                    body(i - 1) < 0.05 * candle(i - 1) and candle(i - 1) > 0 and
-                    is_bear(i) and
-                    l[i - 1] > h[i - 2] and l[i - 1] > h[i]):
-                patterns.append((date_lbl, 'الطفل المتروك هابط', 'Abandoned Baby Bear', False))
-                continue
+#             # ── Abandoned Baby (Bearish) ──
+#             if (is_bull(i - 2) and
+#                     body(i - 1) < 0.05 * candle(i - 1) and candle(i - 1) > 0 and
+#                     is_bear(i) and
+#                     l[i - 1] > h[i - 2] and l[i - 1] > h[i]):
+#                 patterns.append((date_lbl, 'الطفل المتروك هابط', 'Abandoned Baby Bear', False))
+#                 continue
 
-            # ── Rising Three Methods (bullish continuation, 5-candle) ──
-            if i >= 4:
-                if (is_bull(i - 4) and is_large_body(i - 4, avg_body) and
-                        all(is_bear(j) and body(j) < body(i - 4) for j in [i - 3, i - 2, i - 1]) and
-                        all(l[j] > l[i - 4] for j in [i - 3, i - 2, i - 1]) and
-                        is_bull(i) and c[i] > c[i - 4] and is_large_body(i, avg_body)):
-                    patterns.append((date_lbl, 'ثلاث طرق صاعدة', 'Rising Three Methods', True))
-                    continue
+#             # ── Rising Three Methods (bullish continuation, 5-candle) ──
+#             if i >= 4:
+#                 if (is_bull(i - 4) and is_large_body(i - 4, avg_body) and
+#                         all(is_bear(j) and body(j) < body(i - 4) for j in [i - 3, i - 2, i - 1]) and
+#                         all(l[j] > l[i - 4] for j in [i - 3, i - 2, i - 1]) and
+#                         is_bull(i) and c[i] > c[i - 4] and is_large_body(i, avg_body)):
+#                     patterns.append((date_lbl, 'ثلاث طرق صاعدة', 'Rising Three Methods', True))
+#                     continue
 
-                # ── Falling Three Methods (bearish continuation, 5-candle) ──
-                if (is_bear(i - 4) and is_large_body(i - 4, avg_body) and
-                        all(is_bull(j) and body(j) < body(i - 4) for j in [i - 3, i - 2, i - 1]) and
-                        all(h[j] < h[i - 4] for j in [i - 3, i - 2, i - 1]) and
-                        is_bear(i) and c[i] < c[i - 4] and is_large_body(i, avg_body)):
-                    patterns.append((date_lbl, 'ثلاث طرق هابطة', 'Falling Three Methods', False))
-                    continue
+#                 # ── Falling Three Methods (bearish continuation, 5-candle) ──
+#                 if (is_bear(i - 4) and is_large_body(i - 4, avg_body) and
+#                         all(is_bull(j) and body(j) < body(i - 4) for j in [i - 3, i - 2, i - 1]) and
+#                         all(h[j] < h[i - 4] for j in [i - 3, i - 2, i - 1]) and
+#                         is_bear(i) and c[i] < c[i - 4] and is_large_body(i, avg_body)):
+#                     patterns.append((date_lbl, 'ثلاث طرق هابطة', 'Falling Three Methods', False))
+#                     continue
 
-    # ── Deduplicate: keep last 8 unique patterns ──
-    seen = set()
-    unique = []
-    for p in reversed(patterns):
-        if p[2] not in seen:
-            seen.add(p[2])
-            unique.append(p)
-        if len(unique) == 8:
-            break
-    return list(reversed(unique))
-### الجزء الثاني للشموع    
+#     # ── Deduplicate: keep last 8 unique patterns ──
+#     seen = set()
+#     unique = []
+#     for p in reversed(patterns):
+#         if p[2] not in seen:
+#             seen.add(p[2])
+#             unique.append(p)
+#         if len(unique) == 8:
+#             break
+#     return list(reversed(unique))
+# ### الجزء الثاني للشموع    
+# def make_candle_pattern_chart(d, patterns):
+#     d = d.tail(60).copy()
+#     p = d[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
+#     mc = mpf.make_marketcolors(up='#26a69a', down='#ef5350', edge='inherit',
+#                                wick='inherit', volume={'up': '#80cbc4', 'down': '#ef9a9a'})
+#     st = mpf.make_mpf_style(marketcolors=mc, gridstyle=':', gridcolor='#dddddd',
+#                              rc={'axes.facecolor': '#FAFAFA'})
+#     fig, axlist = mpf.plot(p, type='candle', style=st, volume=False,
+#                            figsize=(16, 7), returnfig=True, warn_too_much_data=9999)
+#     ax = axlist[0]
+
+#     date_to_pos = {str(dt.date()): i for i, dt in enumerate(d.index)}
+
+#     resolved = []
+#     for date_lbl, ar_name, en_name, bullish in patterns:
+#         pos = date_to_pos.get(date_lbl)
+#         if pos is None:
+#             continue
+#         row_d = d.iloc[pos]
+#         resolved.append({
+#             'pos': pos,
+#             'high': float(row_d['High']),
+#             'low': float(row_d['Low']),
+#             'name': ar_name,
+#             'bullish': bullish,
+#         })
+
+#     if not resolved:
+#         plt.tight_layout()
+#         return chart_bytes(fig)
+
+#     # ── Get chart dimensions ──
+#     ylo, yhi = ax.get_ylim()
+#     xlo, xhi = ax.get_xlim()
+#     xspan = xhi - xlo
+#     yspan = yhi - ylo
+
+#     n = len(resolved)
+
+#     # ── Sort resolved by position (left to right on chart) ──
+#     resolved.sort(key=lambda a: a['pos'])
+
+#     # ── Split into RIGHT side and LEFT side labels ──
+#     # First half → right side, second half → left side
+#     mid = (n + 1) // 2
+#     right_anns = resolved[:mid]
+#     left_anns = resolved[mid:]
+
+#     # ── Right side: labels go to the right of chart ──
+#     # Evenly distribute y-positions from top to bottom
+#     right_base_x = xhi + xspan * 0.08
+#     right_far_x = xhi + xspan * 0.22
+
+#     # ── Left side: labels go to the left of chart ──
+#     left_base_x = xlo - xspan * 0.08
+#     left_far_x = xlo - xspan * 0.22
+
+#     def make_evenly_spaced_ys(count, y_top, y_bottom):
+#         """Distribute label y positions evenly from top to bottom."""
+#         if count == 0:
+#             return []
+#         if count == 1:
+#             return [(y_top + y_bottom) / 2]
+#         step = (y_top - y_bottom) / (count - 1)
+#         return [y_top - step * k for k in range(count)]
+
+#     # Label y-positions: spread across full chart height with padding
+#     pad = yspan * 0.08
+#     right_ys = make_evenly_spaced_ys(len(right_anns), yhi - pad, ylo + pad)
+#     left_ys = make_evenly_spaced_ys(len(left_anns), yhi - pad, ylo + pad)
+
+#     # ── Collision detection helper ──
+#     label_half_h = yspan * 0.035
+
+#     def line_hits_label(price_from, ly_to, all_label_ys, skip_idx):
+#         """Check if line from candle to label crosses another label box."""
+#         for j, other_ly in enumerate(all_label_ys):
+#             if j == skip_idx:
+#                 continue
+#             band_lo = other_ly - label_half_h
+#             band_hi = other_ly + label_half_h
+#             for t in (0.25, 0.5, 0.75):
+#                 y_at_t = price_from + t * (ly_to - price_from)
+#                 if band_lo <= y_at_t <= band_hi:
+#                     return True
+#         return False
+
+#     def draw_annotations(anns, label_ys, base_x, far_x, align, side):
+#         """Draw labels on one side with stagger to avoid crossing."""
+#         if not anns:
+#             return
+
+#         # Determine which labels need far column
+#         use_far = [False] * len(anns)
+#         for k in range(len(anns)):
+#             ann = anns[k]
+#             anchor_y = ann['high'] if ann['bullish'] is not False else ann['low']
+#             if line_hits_label(anchor_y, label_ys[k], label_ys, k):
+#                 use_far[k] = True
+
+#         # Alternate adjacent far labels
+#         for k in range(1, len(anns)):
+#             if use_far[k] and use_far[k - 1]:
+#                 use_far[k - 1] = False
+
+#         for k, ann in enumerate(anns):
+#             pos = ann['pos']
+#             bullish = ann['bullish']
+#             color = ('#1B5E20' if bullish is True
+#                      else '#B71C1C' if bullish is False
+#                      else '#E65100')
+#             label = rtl(ann['name'])
+#             anchor_y = ann['high'] if bullish is not False else ann['low']
+#             ly = label_ys[k]
+#             lx = far_x if use_far[k] else base_x
+
+#             ax.annotate(
+#                 label,
+#                 xy=(pos, anchor_y),
+#                 xytext=(lx, ly),
+#                 fontsize=8.5,
+#                 color=color,
+#                 ha=align,
+#                 va='center',
+#                 fontproperties=MPL_FONT_PROP,
+#                 arrowprops=dict(
+#                     arrowstyle='-|>',
+#                     color=color,
+#                     lw=1.1,
+#                     mutation_scale=9,
+#                     shrinkA=0,
+#                     shrinkB=0,
+#                 ),
+#                 bbox=dict(
+#                     boxstyle='round,pad=0.32',
+#                     facecolor='white',
+#                     edgecolor=color,
+#                     alpha=0.95,
+#                     linewidth=1.0,
+#                 ),
+#                 clip_on=False,
+#                 zorder=10,
+#             )
+
+#     # ── Draw both sides ──
+#     draw_annotations(right_anns, right_ys, right_base_x, right_far_x, 'left', 'right')
+#     draw_annotations(left_anns, left_ys, left_base_x, left_far_x, 'right', 'left')
+
+#     # ── Expand axes to show all labels ──
+#     margin_right = right_far_x + xspan * 0.15
+#     margin_left = left_far_x - xspan * 0.15
+#     ax.set_xlim(min(xlo, margin_left), max(xhi, margin_right))
+#     fig.subplots_adjust(left=0.10, right=0.90)
+
+#     return chart_bytes(fig)
+###################################################
+######################################################
 def make_candle_pattern_chart(d, patterns):
     d = d.tail(60).copy()
     p = d[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
@@ -3809,7 +3966,7 @@ def make_candle_pattern_chart(d, patterns):
         plt.tight_layout()
         return chart_bytes(fig)
 
-    # ── Get chart dimensions ──
+    # Get chart dimensions
     ylo, yhi = ax.get_ylim()
     xlo, xhi = ax.get_xlim()
     xspan = xhi - xlo
@@ -3817,26 +3974,22 @@ def make_candle_pattern_chart(d, patterns):
 
     n = len(resolved)
 
-    # ── Sort resolved by position (left to right on chart) ──
+    # Sort resolved by position (left to right on chart)
     resolved.sort(key=lambda a: a['pos'])
 
-    # ── Split into RIGHT side and LEFT side labels ──
-    # First half → right side, second half → left side
+    # Split into RIGHT side and LEFT side labels
     mid = (n + 1) // 2
     right_anns = resolved[:mid]
     left_anns = resolved[mid:]
 
-    # ── Right side: labels go to the right of chart ──
-    # Evenly distribute y-positions from top to bottom
+    # Label positions
     right_base_x = xhi + xspan * 0.08
     right_far_x = xhi + xspan * 0.22
-
-    # ── Left side: labels go to the left of chart ──
     left_base_x = xlo - xspan * 0.08
     left_far_x = xlo - xspan * 0.22
 
+    # Create evenly spaced y positions
     def make_evenly_spaced_ys(count, y_top, y_bottom):
-        """Distribute label y positions evenly from top to bottom."""
         if count == 0:
             return []
         if count == 1:
@@ -3844,29 +3997,51 @@ def make_candle_pattern_chart(d, patterns):
         step = (y_top - y_bottom) / (count - 1)
         return [y_top - step * k for k in range(count)]
 
-    # Label y-positions: spread across full chart height with padding
+    # Label y-positions with padding
     pad = yspan * 0.08
     right_ys = make_evenly_spaced_ys(len(right_anns), yhi - pad, ylo + pad)
     left_ys = make_evenly_spaced_ys(len(left_anns), yhi - pad, ylo + pad)
 
-    # ── Collision detection helper ──
-    label_half_h = yspan * 0.035
+    # Improved collision detection
+    label_half_h = yspan * 0.025  # Reduced label height for better spacing
+
+    def line_hits_candle(price_from, ly_to, pos, skip_pos=None):
+        """Check if line from candle to label crosses any candle"""
+        for i in range(max(0, pos-2), min(len(d), pos+3)):  # Check nearby candles
+            if i == skip_pos:
+                continue
+            candle = d.iloc[i]
+            candle_top = max(candle['Open'], candle['Close'])
+            candle_bottom = min(candle['Open'], candle['Close'])
+            candle_high = candle['High']
+            candle_low = candle['Low']
+
+            # Check if line crosses candle body
+            for t in [0.25, 0.5, 0.75]:
+                y_at_t = price_from + t * (ly_to - price_from)
+                if (candle_bottom <= y_at_t <= candle_top) and i != pos:
+                    return True
+
+            # Check if line crosses candle wick
+            if (min(price_from, ly_to) <= candle_high and
+                max(price_from, ly_to) >= candle_low and i != pos):
+                return True
+        return False
 
     def line_hits_label(price_from, ly_to, all_label_ys, skip_idx):
-        """Check if line from candle to label crosses another label box."""
+        """Check if line from candle to label crosses another label"""
         for j, other_ly in enumerate(all_label_ys):
             if j == skip_idx:
                 continue
             band_lo = other_ly - label_half_h
             band_hi = other_ly + label_half_h
-            for t in (0.25, 0.5, 0.75):
+            for t in [0.25, 0.5, 0.75]:
                 y_at_t = price_from + t * (ly_to - price_from)
                 if band_lo <= y_at_t <= band_hi:
                     return True
         return False
 
     def draw_annotations(anns, label_ys, base_x, far_x, align, side):
-        """Draw labels on one side with stagger to avoid crossing."""
         if not anns:
             return
 
@@ -3875,13 +4050,18 @@ def make_candle_pattern_chart(d, patterns):
         for k in range(len(anns)):
             ann = anns[k]
             anchor_y = ann['high'] if ann['bullish'] is not False else ann['low']
-            if line_hits_label(anchor_y, label_ys[k], label_ys, k):
+
+            # First check if line would cross any candle
+            if line_hits_candle(anchor_y, label_ys[k], ann['pos']):
+                use_far[k] = True
+            # Then check if line would cross another label
+            elif line_hits_label(anchor_y, label_ys[k], label_ys, k):
                 use_far[k] = True
 
-        # Alternate adjacent far labels
+        # Alternate adjacent far labels to prevent clustering
         for k in range(1, len(anns)):
-            if use_far[k] and use_far[k - 1]:
-                use_far[k - 1] = False
+            if use_far[k] and use_far[k-1]:
+                use_far[k-1] = False
 
         for k, ann in enumerate(anns):
             pos = ann['pos']
@@ -3893,6 +4073,10 @@ def make_candle_pattern_chart(d, patterns):
             anchor_y = ann['high'] if bullish is not False else ann['low']
             ly = label_ys[k]
             lx = far_x if use_far[k] else base_x
+
+            # Add small vertical offset to prevent exact overlaps
+            if k > 0 and abs(label_ys[k] - label_ys[k-1]) < label_half_h:
+                ly += label_half_h * 0.5 if side == 'right' else -label_half_h * 0.5
 
             ax.annotate(
                 label,
@@ -3910,6 +4094,7 @@ def make_candle_pattern_chart(d, patterns):
                     mutation_scale=9,
                     shrinkA=0,
                     shrinkB=0,
+                    connectionstyle=f"arc3,rad={0.2 if side == 'right' else -0.2}",  # Curved lines
                 ),
                 bbox=dict(
                     boxstyle='round,pad=0.32',
@@ -3922,17 +4107,18 @@ def make_candle_pattern_chart(d, patterns):
                 zorder=10,
             )
 
-    # ── Draw both sides ──
+    # Draw both sides
     draw_annotations(right_anns, right_ys, right_base_x, right_far_x, 'left', 'right')
     draw_annotations(left_anns, left_ys, left_base_x, left_far_x, 'right', 'left')
 
-    # ── Expand axes to show all labels ──
+    # Expand axes to show all labels
     margin_right = right_far_x + xspan * 0.15
     margin_left = left_far_x - xspan * 0.15
     ax.set_xlim(min(xlo, margin_left), max(xhi, margin_right))
     fig.subplots_adjust(left=0.10, right=0.90)
 
     return chart_bytes(fig)
+############################################################
 ###################################نهاية الشموع
 def detect_divergences(d):
     divergences = []
