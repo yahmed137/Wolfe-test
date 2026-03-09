@@ -928,9 +928,23 @@ def _enrich_with_argaam(ticker: str, info: dict) -> None:
         if sh is not None:
             info["sharesOutstanding"] = sh * 1_000_000
             info["floatShares"]       = sh * 1_000_000
+        ########################## YASIR TO CHECK
+        # eps = _argaam_parse_num(raw.get("ربح السهم ( ريال) (أخر 12 شهر)"))
+        # if eps is not None:
+        #     info["trailingEps"] = eps
+        ##########################
         eps = _argaam_parse_num(raw.get("ربح السهم ( ريال) (أخر 12 شهر)"))
         if eps is not None:
             info["trailingEps"] = eps
+            # ── ADDED: recalculate P/E from Argaam EPS if P/E not already set ──
+            if not info.get("trailingPE") and eps != 0:
+                try:
+                    price_now = float(info.get("currentPrice") or info.get("regularMarketPrice") or 0)
+                    if price_now > 0:
+                        info["trailingPE"] = round(price_now / eps, 4)
+                except Exception:
+                    pass
+        ###################
         bv = _argaam_parse_num(raw.get("القيمة الدفترية ( ريال) (لأخر فترة معلنة)"))
         if bv is not None:
             info["bookValue"] = bv
