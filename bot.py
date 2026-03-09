@@ -4507,14 +4507,12 @@ def make_ema_chart(d, sup=None, res=None):
     plot_kwargs=dict(type='candle',style=st,volume=True,figsize=(14,7),returnfig=True,warn_too_much_data=9999)
     if aps: plot_kwargs['addplot']=aps
     fig,ax=mpf.plot(p,**plot_kwargs); main_ax=ax[0]
-    #new below 3 line if labels: main_ax.legend(labels,loc='upper left',fontsize=8,prop=MPL_FONT_PROP)
     if labels:
-    leg = main_ax.legend(labels, loc='upper left', fontsize=8, prop=MPL_FONT_PROP)
-    for line in leg.get_lines():
-        line.set_linewidth(2)  # ← change thickness here
+        leg = main_ax.legend(labels, loc='upper left', fontsize=8, prop=MPL_FONT_PROP)
+        for line in leg.get_lines():
+            line.set_linewidth(2)
     xmax=len(d); pivots=_get_pivots(d,order=5)
     fig.subplots_adjust(right=0.95, left=0.05); return chart_bytes(fig)
-
 
 def make_tech_chart(d):
     d=d.tail(180).copy(); fig,(a1,a2,a3)=plt.subplots(3,1,figsize=(14,8.5),sharex=True); x=d.index
