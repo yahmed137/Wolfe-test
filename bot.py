@@ -2787,7 +2787,7 @@ NAVY_HEX, TEAL_HEX, GREEN_HEX = '#1B2A4A', '#00897B', '#4CAF50'
 RED_HEX, ORANGE_HEX, LGRAY_HEX = '#E53935', '#FF9800', '#F0F3F7'
 DGRAY_HEX, TXTDARK_HEX, WHITE_HEX = '#5A6272', '#1A1A2E', '#FFFFFF'
 BLUE_HEX, VIOLET_HEX, BLACK_HEX = '#2196F3', '#C620F8', '#000000'
-##BLUE_HEX = '#2196F3', VIOLET_HEX = '#C620F8', BLACK_HEX = '#FF0000'
+
 
 NAVY, TEAL, GREEN = HexColor(NAVY_HEX), HexColor(TEAL_HEX), HexColor(GREEN_HEX)
 RED, ORANGE, LGRAY = HexColor(RED_HEX), HexColor(ORANGE_HEX), HexColor(LGRAY_HEX)
@@ -3144,8 +3144,10 @@ def _compute_supertrend(df, period=10, multiplier=3.0):
 def compute_indicators(df):
     d = df.copy()
     c, h, l, v = d['Close'], d['High'], d['Low'], d['Volume']
+    d['SMA7'] = c.rolling(7, min_periods=1).mean()    
     d['SMA20'] = c.rolling(20, min_periods=1).mean()
     d['SMA50'] = c.rolling(50, min_periods=1).mean()
+    d['SMA100'] = c.rolling(100, min_periods=1).mean()
     d['SMA200'] = c.rolling(200, min_periods=1).mean()
     d['EMA7'] = c.ewm(span=7, adjust=False, min_periods=1).mean()
     d['EMA20'] = c.ewm(span=20, adjust=False, min_periods=1).mean()
@@ -4445,9 +4447,9 @@ def make_price_chart(d, sup=None, res=None):
     sup=sup or []; res=res or []; d=d.tail(180).copy()
     p=d[['Open','High','Low','Close','Volume']].copy()
     aps,labels=[],[]
-    for col,clr,lbl in [('SMA20',BLUE_HEX,'SMA 20'),('SMA50',ORANGE_HEX,'SMA 50'),('SMA200','#E91E63','SMA 200')]:
+    for col,clr,lbl in [('SMA20',BLUE_HEX,'SMA 20'),('SMA50',RED_HEX,'SMA 50'),('SMA100',VIOLET_HEX,'SMA 100'),('SMA200','BLACK_HEX','SMA 200')]:
         if col in d and d[col].notna().sum()>10:
-            aps.append(mpf.make_addplot(d[col],color=clr,width=1.2)); labels.append(lbl)
+            aps.append(mpf.make_addplot(d[col],color=clr,width=1)); labels.append(lbl)
     mc=mpf.make_marketcolors(up='#26a69a',down='#ef5350',edge='inherit',wick='inherit',volume={'up':'#80cbc4','down':'#ef9a9a'})
     st=mpf.make_mpf_style(marketcolors=mc,gridstyle=':',gridcolor='#dddddd',rc={'axes.facecolor':'#FAFAFA'})
     plot_kwargs=dict(type='candle',style=st,volume=True,figsize=(14,7),returnfig=True,warn_too_much_data=9999)
@@ -4462,9 +4464,9 @@ def make_ema_chart(d, sup=None, res=None):
     sup=sup or []; res=res or []; d=d.tail(180).copy()
     p=d[['Open','High','Low','Close','Volume']].copy()
     aps,labels=[],[]
-    for col,clr,lbl in [('EMA20',BLUE_HEX,'EMA 20'),('EMA50',ORANGE_HEX,'EMA 50'),('EMA100',VIOLET_HEX,'EMA 100'),('EMA200',BLACK_HEX,'EMA 200')]:
+    for col,clr,lbl in [('EMA20',BLUE_HEX,'EMA 20'),('EMA50',RED_HEX,'EMA 50'),('EMA100',VIOLET_HEX,'EMA 100'),('EMA200',BLACK_HEX,'EMA 200')]:
         if col in d and d[col].notna().sum()>10:
-            aps.append(mpf.make_addplot(d[col],color=clr,width=1.2)); labels.append(lbl)
+            aps.append(mpf.make_addplot(d[col],color=clr,width=1)); labels.append(lbl)
     mc=mpf.make_marketcolors(up='#26a69a',down='#ef5350',edge='inherit',wick='inherit',volume={'up':'#80cbc4','down':'#ef9a9a'})
     st=mpf.make_mpf_style(marketcolors=mc,gridstyle=':',gridcolor='#dddddd',rc={'axes.facecolor':'#FAFAFA'})
     plot_kwargs=dict(type='candle',style=st,volume=True,figsize=(14,7),returnfig=True,warn_too_much_data=9999)
