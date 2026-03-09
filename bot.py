@@ -260,72 +260,77 @@ COMPANY_NAMES = {
 }
 
 
-def get_name(ticker: str) -> str:
-    return COMPANY_NAMES.get(ticker, ticker)
-#############################
-#```python
-# ───────────────────── CONSTANTS ────────────────────────────────────────────
+COMPANY_NAMES = {
+    '^TASI.SR': 'تاسي',
+    '1010.SR':  'الرياض'
+}
 
-
-TICKER_ALIASES: dict[str, str] = {
-    "TASI":  "^TASI.SR",
-    "^TASI": "^TASI.SR",
-    "تاسي":  "^TASI.SR",
-    "تاسى":  "^TASI.SR",
-    # add more as needed...
+TICKER_ALIASES = {
+    "TASI":     "^TASI.SR",
+    "^TASI":    "^TASI.SR",
+    "^TASI.SR": "^TASI.SR",
+    "تاسي":     "^TASI.SR",
+    "تاسى":     "^TASI.SR",
+    "1010":     "1010.SR",
+    "الرياض":   "1010.SR",
 }
 
 # ───────────────────── HELPERS ───────────────────────────────────────────────
 
 def _normalize_arabic(text: str) -> str:
-    """Normalize Arabic text: strip whitespace and unify ى → ي"""
-    return text.strip().replace("ى", "ي")
+    text = text.strip()
+    text = text.replace("ى", "ي")
+    text = text.replace("أ", "ا")
+    text = text.replace("إ", "ا")
+    text = text.replace("آ", "ا")
+    return text
 
+def _normalize_key(text: str) -> str:
+    return _normalize_arabic(text.upper())
 
 def get_name(ticker: str) -> str:
     return COMPANY_NAMES.get(ticker, ticker)
 
+# Build normalized alias map once at startup
+_ALIAS_MAP = {
+    _normalize_key(alias): canonical
+    for alias, canonical in TICKER_ALIASES.items()
+}
 
 # ───────────────────── MAIN LOOKUP ──────────────────────────────────────────
 
 def find_ticker(query: str) -> str | None:
-    """
-    Search by any format → returns the full ticker symbol.
-    e.g. 'tasi', 'TASI', '^TASI.SR', 'تاسي', 'تاسى' → '^TASI.SR'
-    """
     query = query.strip()
-    query_upper = query.upper()
+    query_key = _normalize_key(query)
     query_normalized = _normalize_arabic(query)
 
-    # ── 0) Alias lookup (fast path for known indices/tickers) ──────────────
-    alias_key = _normalize_arabic(query_upper)
-    for alias, canonical in TICKER_ALIASES.items():
-        if alias_key == _normalize_arabic(alias.upper()):
-            return canonical
+    # 0) Alias lookup (fast path)
+    if query_key in _ALIAS_MAP:
+        return _ALIAS_MAP[query_key]
 
-    # ── Iterate COMPANY_NAMES ──────────────────────────────────────────────
+    # Iterate COMPANY_NAMES
     for ticker, name in COMPANY_NAMES.items():
         ticker_upper = ticker.upper()
 
-        # 1) Direct match (case-insensitive): "^TASI.SR"
-        if query_upper == ticker_upper:
+        # 1) Direct match (case-insensitive)
+        if query_key == ticker_upper:
             return ticker
 
-        # 2) Without .SR suffix: "^TASI"
+        # 2) Without .SR suffix
         code = ticker_upper[:-3] if ticker_upper.endswith(".SR") else ticker_upper
-        if query_upper == code:
+        if query_key == code:
             return ticker
 
-        # 3) Without ^ and .SR: "TASI" or "1120"
+        # 3) Without ^ and .SR
         code_clean = code.lstrip("^")
-        if query_upper == code_clean:
+        if query_key == code_clean:
             return ticker
 
-        # 4) Exact Arabic name match (normalized)
+        # 4) Exact Arabic name match
         if query_normalized == _normalize_arabic(name):
             return ticker
 
-    # ── 5) Partial Arabic match (last resort) ─────────────────────────────
+    # 5) Partial Arabic match (last resort)
     if len(query_normalized) >= 2:
         for ticker, name in COMPANY_NAMES.items():
             if query_normalized in _normalize_arabic(name):
@@ -333,14 +338,16 @@ def find_ticker(query: str) -> str | None:
 
     return None
 
-
 # ───────────────────── TEST ─────────────────────────────────────────────────
 
-tests = ["tasi", "TASI", "^TASI.SR", "تاسي", "تاسى", "Tasi", "tAsI", "^tasi.sr"]
+tests = ["tasi", "TASI", "^TASI.SR", "تاسي", "تاسى", "^tasi.sr", "1010", "1010.SR", "الرياض"]
 
+print("Results:")
 for t in tests:
     result = find_ticker(t)
-    print(f"  '{t}'  →  {result}  ({get_name(result) if result else '?'})")
+    name = get_name(result) if result else "❌ Not found"
+    print(f"  '{t}'  →  {result}  ({name})")
+
     #print(f"  '{t}'  →  {result}  ({COMPANY_NAMES.get(result, '?')})")
 ##############################
 ############ القطاعات ########
