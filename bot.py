@@ -3461,17 +3461,6 @@ def decision_text(v):
 #     return list(reversed(unique))
 #YASIR
 # ################الشموع محدثة############################
-import io
-import numpy as np
-import matplotlib.pyplot as plt
-import mplfinance as mpf
-
-# Assumed available in your project:
-# - rtl(text)
-# - MPL_FONT_PROP
-# - chart_bytes(fig)
-
-
 def detect_candle_patterns(df):
     patterns = []
     if len(df) < 4:
