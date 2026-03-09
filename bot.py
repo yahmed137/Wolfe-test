@@ -1223,16 +1223,58 @@ def fetch_data(ticker):
         except Exception as e:
             logger.warning(f"fetch_data supplement error: {e}")
 
-        # ── Argaam enrichment: overrides yfinance fundamental fields ──
+# ── Argaam enrichment: overrides yfinance fundamental fields ──
         try:
             _enrich_with_argaam(ticker, info)
         except Exception as _ae:
             logger.warning(f"Argaam enrichment skipped: {_ae}")
 
-        # ── ADDED: volume fallback from yfinance data ──
+        # ── YF FALLBACKS (activate only if Argaam didn't populate these) ──
+
+        # 1. حجم التداول
         if not info.get('volume') and len(df) > 0 and 'Volume' in df.columns:
             try:
                 info['volume'] = float(df['Volume'].iloc[-1])
+            except Exception:
+                pass
+
+        # 2. قيمة التداول = الحجم × سعر الإغلاق
+        if not info.get('tradingValue') and len(df) > 0:
+            try:
+                vol_last   = float(df['Volume'].iloc[-1])
+                close_last = float(df['Close'].iloc[-1])
+                if vol_last > 0 and close_last > 0:
+                    info['tradingValue'] = vol_last * close_last
+            except Exception:
+                pass
+
+        # 3. ربحية السهم — pull directly from stk.info first, then compute
+        if not info.get('trailingEps'):
+            try:
+                eps_raw = stk.info.get('trailingEps')
+                if eps_raw is not None:
+                    info['trailingEps'] = float(eps_raw)
+            except Exception:
+                pass
+            # still missing → derive from net income ÷ shares (already done above but as safety net)
+            if not info.get('trailingEps'):
+                try:
+                    ni_val     = info.get('netIncomeToCommon')
+                    shares_val = info.get('sharesOutstanding')
+                    if ni_val and shares_val and float(shares_val) > 0:
+                        info['trailingEps'] = float(ni_val) / float(shares_val)
+                except Exception:
+                    pass
+
+        # 4. عدد الصفقات — yfinance has no direct field; estimate if possible
+        if not info.get('tradesCount'):
+            try:
+                # Some brokers report avgBidAskSpread or similar — not available in yf.
+                # Best estimate: dollar_volume ÷ assumed average trade size (10,000 SAR)
+                trading_val = info.get('tradingValue')
+                if trading_val and trading_val > 0:
+                    avg_trade_size = 10_000  # SAR — reasonable Tadawul estimate
+                    info['tradesCount'] = int(trading_val / avg_trade_size)
             except Exception:
                 pass
 
