@@ -2151,8 +2151,7 @@ def detect_candle_patterns(df):
 def make_candle_pattern_chart(df, patterns):
     """
     Candlestick chart with pattern annotations.
-    Connectors route vertically above all candles first,
-    so they never cross any candlestick.
+    Straight connectors routed above the candles (no crossing).
     """
     from matplotlib.path import Path
     import matplotlib.patches as mpatches
@@ -2176,7 +2175,7 @@ def make_candle_pattern_chart(df, patterns):
     ax = axlist[0]
     date_to_pos = {pd.Timestamp(d).date(): i for i, d in enumerate(df.index)}
 
-    # ── Resolve patterns to x/y positions ────────────────────────────
+    # ── Resolve patterns ─────────────────────────────────────────────
     resolved = []
     for date_lbl, ar_name, en_name, bullish in patterns:
         pos = date_to_pos.get(pd.to_datetime(date_lbl).date())
@@ -2197,17 +2196,17 @@ def make_candle_pattern_chart(df, patterns):
         buf.seek(0)
         return buf.read()
 
-    # ── Chart geometry ───────────────────────────────────────────────
+    # ── Chart geometry ─────────────────────────────────────────────
     ylo, yhi = ax.get_ylim()
     xlo, xhi = ax.get_xlim()
     xspan = xhi - xlo
     yspan = yhi - ylo
     xmid  = (xlo + xhi) / 2.0
 
-    # Base escape Y — sits above every candle on the chart
-    escape_y_base = yhi + yspan * 0.02
+    # Escape Y — sits above every candle
+    escape_y = yhi + yspan * 0.03
 
-    # ── Split into LEFT / RIGHT side ─────────────────────────────────
+    # ── Split into LEFT / RIGHT ─────────────────────────────────────
     left_anns  = [a for a in resolved if a['pos'] <  xmid]
     right_anns = [a for a in resolved if a['pos'] >= xmid]
 
@@ -2218,17 +2217,15 @@ def make_candle_pattern_chart(df, patterns):
         left_anns.sort(key=lambda a: a['pos'], reverse=True)
         right_anns.append(left_anns.pop(0))
 
-    # Sort by conn_y descending — matches top-to-bottom label order
+    # Sort by conn_y descending so labels flow top-to-bottom
     left_anns.sort(key=lambda  a: a['conn_y'], reverse=True)
     right_anns.sort(key=lambda a: a['conn_y'], reverse=True)
 
-    # ── Label / lane X positions ─────────────────────────────────────
+    # ── Label X positions ──────────────────────────────────────────
     L_LABEL_X = xlo - xspan * 0.22
     R_LABEL_X = xhi + xspan * 0.22
-    L_LANE_X  = xlo - xspan * 0.06
-    R_LANE_X  = xhi + xspan * 0.06
 
-    # ── Vertical label slots ─────────────────────────────────────────
+    # ── Vertical label slots ───────────────────────────────────────
     v_pad = yspan * 0.05
     y_top = yhi + v_pad
     y_bot = ylo - v_pad
@@ -2243,8 +2240,8 @@ def make_candle_pattern_chart(df, patterns):
     l_ys = _vslots(len(left_anns))
     r_ys = _vslots(len(right_anns))
 
-    # ── Drawing helper ───────────────────────────────────────────────
-    def _draw(ann, label_x, label_y, side, idx, n_total):
+    # ── Draw helper ─────────────────────────────────────────────────
+    def _draw(ann, label_x, label_y, side):
         px, cy = ann['pos'], ann['conn_y']
         name, bull = ann['name'], ann['bullish']
 
@@ -2252,58 +2249,51 @@ def make_candle_pattern_chart(df, patterns):
                  else '#B71C1C' if bull is False
                  else '#E65100')
 
+        # Build L-shaped path: candle → up to escape_y → to label
         if side == 'left':
-            ha, lane_x = 'right', L_LANE_X
-            end_x = label_x + xspan * 0.02
+            verts = [
+                (px, cy),
+                (px, escape_y),
+                (label_x, label_y),
+            ]
         else:
-            ha, lane_x = 'left', R_LANE_X
-            end_x = label_x - xspan * 0.02
-
-        # Stagger escape Y per line so parallel runs don't pile up.
-        # idx 0 (topmost label) gets the highest escape_y.
-        esc_y = escape_y_base + yspan * 0.015 * (n_total - 1 - idx)
-
-        # Path: candle → up above candles → horizontal to lane →
-        #        down to label height → horizontal to label
-        verts = [
-            (px,     cy),
-            (px,     esc_y),
-            (lane_x, esc_y),
-            (lane_x, label_y),
-            (end_x,  label_y),
-        ]
-        codes = [Path.MOVETO, Path.LINETO, Path.LINETO,
-                 Path.LINETO, Path.LINETO]
+            verts = [
+                (px, cy),
+                (px, escape_y),
+                (label_x, label_y),
+            ]
+        codes = [Path.MOVETO, Path.LINETO, Path.LINETO]
 
         patch = mpatches.PathPatch(
             Path(verts, codes),
             facecolor='none', edgecolor=color,
-            linewidth=1.4, clip_on=False, zorder=5, alpha=0.82,
+            linewidth=1.4, clip_on=False, zorder=5, alpha=0.85,
         )
         ax.add_patch(patch)
 
-        # Dot on the candle
+        # Small dot on the candle
         ax.plot(px, cy, 'o', color=color, markersize=5,
                 clip_on=False, zorder=6,
                 markeredgecolor='white', markeredgewidth=0.5)
 
-        # Label text box
+        # Label
+        ha = 'right' if side == 'left' else 'left'
         ax.text(label_x, label_y, name, fontsize=9, color=color,
                 ha=ha, va='center',
                 bbox=dict(boxstyle='round,pad=0.4', facecolor='white',
                           edgecolor=color, alpha=0.95, linewidth=1.0),
                 clip_on=False, zorder=10)
 
-    # ── Draw all annotations ─────────────────────────────────────────
-    for i, (ann, ly) in enumerate(zip(left_anns, l_ys)):
-        _draw(ann, L_LABEL_X, ly, 'left', i, len(left_anns))
-    for i, (ann, ry) in enumerate(zip(right_anns, r_ys)):
-        _draw(ann, R_LABEL_X, ry, 'right', i, len(right_anns))
+    # ── Draw all ───────────────────────────────────────────────────
+    for ann, ly in zip(left_anns, l_ys):
+        _draw(ann, L_LABEL_X, ly, 'left')
+    for ann, ry in zip(right_anns, r_ys):
+        _draw(ann, R_LABEL_X, ry, 'right')
 
-    # ── Widen axes to show labels ────────────────────────────────────
+    # ── Widen axes ────────────────────────────────────────────────
     ax.set_xlim(xlo - xspan * 0.30, xhi + xspan * 0.30)
 
-    # ── Save and return ──────────────────────────────────────────────
+    # ── Save ───────────────────────────────────────────────────────
     buf = BytesIO()
     fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
     plt.close(fig)
