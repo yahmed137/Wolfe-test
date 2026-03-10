@@ -2945,7 +2945,7 @@ def make_ema_chart(d, sup=None, res=None):
     plot_kwargs=dict(type='candle',style=st,volume=True,figsize=(14,7),returnfig=True,warn_too_much_data=9999)
     if aps: plot_kwargs['addplot']=aps
     fig,ax=mpf.plot(p,**plot_kwargs); main_ax=ax[0]
-    if labels: main_ax.legend(labels,loc='upper left',fontsize=8,prop=MPL_FONT_PROP)
+    if labels: main_ax.legend(labels,loc='upper left',fontsize=2,prop=MPL_FONT_PROP)
     xmax=len(d); pivots=_get_pivots(d,order=5)
     fig.subplots_adjust(right=0.95, left=0.05); return chart_bytes(fig)
 
@@ -3304,49 +3304,6 @@ class Report:
         c.setFillColor(DGRAY); self._font(False,7); c.drawCentredString(PAGE_W/2, 14*mm, rtl('هذا التقرير لأغراض معلوماتية فقط وليس توصية استثمارية.'))
         self._foot(); c.showPage()
 
-    # def main_charts_page(self, main_img, sma_img, ema_img, alligator_img, supertrend_img):
-    #     self._bar('الرسم البياني')
-    #     self._foot()
-    #     c = self.c
-    #     y = PAGE_H - 44 * mm
-
-    #     # ── Section 1: الدعوم والمقاومات (full-width) ──
-    #     y = self._stitle(y, 'الدعوم والمقاومات')
-    #     y = self._img(y, main_img, 78 * mm)
-
-    #     # ── Section 2: SMA (right) | EMA (left) side-by-side ──
-    #     mid_x = MG + CW / 2
-    #     right_title_x = PAGE_W - MG
-    #     left_title_x  = mid_x - 4 * mm
-
-    #     c.setFillColor(NAVY); self._font(True, 9)
-    #     c.drawRightString(right_title_x, y,
-    #                       rtl('المتوسطات المتحركة البسيطة (SMA)'))
-    #     c.drawRightString(left_title_x, y,
-    #                       rtl('المتوسطات المتحركة الأسية (EMA)'))
-    #     c.setStrokeColor(TEAL); c.setLineWidth(1.0)
-    #     c.line(mid_x + 2 * mm, y - 3, PAGE_W - MG, y - 3)
-    #     c.line(MG,             y - 3, mid_x - 2 * mm, y - 3)
-    #     y -= 8 * mm
-
-    #     sma_img.seek(0); img_sma = ImageReader(sma_img)
-    #     ema_img.seek(0); img_ema = ImageReader(ema_img)
-    #     dw = (CW / 2) - 3 * mm
-    #     maxh = 58 * mm
-
-    #     ratio_sma = img_sma.getSize()[1] / img_sma.getSize()[0]
-    #     dh_sma = min(dw * ratio_sma, maxh)
-    #     dw_sma = dh_sma / ratio_sma
-
-    #     ratio_ema = img_ema.getSize()[1] / img_ema.getSize()[0]
-    #     dh_ema = min(dw * ratio_ema, maxh)
-    #     dw_ema = dh_ema / ratio_ema
-
-    #     x_sma = PAGE_W - MG - dw_sma          # right
-    #     x_ema = MG                              # left
-    #     c.drawImage(img_sma, x_sma, y - dh_sma, dw_sma, dh_sma)
-    #     c.drawImage(img_ema, x_ema, y - dh_ema, dw_ema, dh_ema)
-    #     y -= max(dh_sma, dh_ema) + 5 * mm
     ########################################################################################
     def main_charts_page(self, main_img, sma_img, ema_img, alligator_img, supertrend_img):
         self._bar('الرسم البياني')
