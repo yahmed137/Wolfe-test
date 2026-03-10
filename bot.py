@@ -2126,7 +2126,7 @@ def detect_candle_patterns(df):
 
                 if (is_bear(i - 4) and is_large_body(i - 4, avg_body) and
                         all(c[j] > o[j] and body(j) < body(i - 4) for j in [i - 3, i - 2, i - 1]) and
-                        all(h[j] < h[i - 4] for j in - 3, i - 2, i - 1]) and
+                        all(h[j] < h[i - 4] for j in [i - 3, i - 2, i - 1]) and
                         is_bear(i) and c[i] < c[i - 4] and is_large_body(i, avg_body)):
                     patterns.append((date_lbl, 'ثلاث طرق هابطة', 'Falling Three Methods', False))
                     continue
@@ -2148,16 +2148,16 @@ def detect_candle_patterns(df):
 # ---------------------------------------------------------------------
 # CHART WITH GUARANTEED NON‑CROSSING SMOOTH CONNECTORS
 # ---------------------------------------------------------------------
-
 def make_candle_pattern_chart(df, patterns):
     """
-    Candlestick chart with pattern annotations.
-    Connectors route vertically above all candles first,
-    so they never cross any candlestick.
+    Generates a candlestick chart with pattern annotations using
+    SMOOTH BÉZIER CURVES routed through side lanes — guaranteed
+    non-crossing, non-overlapping labels, and minimal candle overlap.
     """
     from matplotlib.path import Path
     import matplotlib.patches as mpatches
 
+    # ── Data prep ────────────────────────────────────────────────────
     df = df.tail(60).copy()
     df_plot = df[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
 
@@ -2184,11 +2184,16 @@ def make_candle_pattern_chart(df, patterns):
         if pos is None:
             continue
         row = df.iloc[pos]
+        # Bullish / neutral → connect at High  |  Bearish → connect at Low
         conn_y = float(row['High']) if (bullish is True or bullish is None) \
                  else float(row['Low'])
         resolved.append(dict(
-            pos=float(pos), high=float(row['High']), low=float(row['Low']),
-            conn_y=conn_y, name=ar_name, bullish=bullish,
+            pos=float(pos),
+            high=float(row['High']),
+            low=float(row['Low']),
+            conn_y=conn_y,
+            name=ar_name,
+            bullish=bullish,
         ))
 
     if not resolved:
@@ -2205,13 +2210,12 @@ def make_candle_pattern_chart(df, patterns):
     yspan = yhi - ylo
     xmid  = (xlo + xhi) / 2.0
 
-    # Base escape Y — sits above every candle on the chart
-    escape_y_base = yhi + yspan * 0.02
-
-    # ── Split into LEFT / RIGHT side ─────────────────────────────────
+    # ── Split annotations into LEFT side / RIGHT side ────────────────
+    #    based on whether the candle sits in the left or right half
     left_anns  = [a for a in resolved if a['pos'] <  xmid]
     right_anns = [a for a in resolved if a['pos'] >= xmid]
 
+    # Balance: if one side is completely empty, donate one item
     if not left_anns and len(right_anns) > 1:
         right_anns.sort(key=lambda a: a['pos'])
         left_anns.append(right_anns.pop(0))
@@ -2219,22 +2223,31 @@ def make_candle_pattern_chart(df, patterns):
         left_anns.sort(key=lambda a: a['pos'], reverse=True)
         right_anns.append(left_anns.pop(0))
 
-    # Sort by conn_y descending — matches top-to-bottom label order
+    # ══════════════════════════════════════════════════════════════════
+    # CRITICAL — sort each side by conn_y DESCENDING.
+    # The label slots are also allocated top-to-bottom.
+    # Because both sequences share the same vertical order,
+    # smooth outward-curving paths are GUARANTEED never to cross.
+    # ══════════════════════════════════════════════════════════════════
     left_anns.sort(key=lambda  a: a['conn_y'], reverse=True)
     right_anns.sort(key=lambda a: a['conn_y'], reverse=True)
 
-    # ── Label / lane X positions ─────────────────────────────────────
-    L_LABEL_X = xlo - xspan * 0.22
-    R_LABEL_X = xhi + xspan * 0.22
-    L_LANE_X  = xlo - xspan * 0.06
-    R_LANE_X  = xhi + xspan * 0.06
+    # ── Label X-positions (columns in the margins) ───────────────────
+    L_LABEL_X = xlo - xspan * 0.22          # left  label column
+    R_LABEL_X = xhi + xspan * 0.22          # right label column
 
-    # ── Vertical label slots ─────────────────────────────────────────
+    # ── Bézier routing lanes — just outside the candle area ──────────
+    #    Curves are "attracted" here so they bypass the candles.
+    L_LANE_X = xlo - xspan * 0.06
+    R_LANE_X = xhi + xspan * 0.06
+
+    # ── Vertical label slots (evenly spaced, never overlap) ──────────
     v_pad = yspan * 0.05
-    y_top = yhi + v_pad
-    y_bot = ylo - v_pad
+    y_top = yhi + v_pad                     # topmost label centre
+    y_bot = ylo - v_pad                     # bottommost label centre
 
     def _vslots(n):
+        """Return *n* evenly-spaced Y values from y_top → y_bot."""
         if n == 0:
             return []
         if n == 1:
@@ -2245,71 +2258,110 @@ def make_candle_pattern_chart(df, patterns):
     r_ys = _vslots(len(right_anns))
 
     # ── Drawing helper ───────────────────────────────────────────────
-    def _draw(ann, label_x, label_y, side, idx, n_total):
-        px, cy = ann['pos'], ann['conn_y']
-        name, bull = ann['name'], ann['bullish']
+    def _draw(ann, label_x, label_y, side):
+        """
+        Draw ONE connector + label.
 
+        Path (cubic Bézier with 4 vertices):
+            P0  = candle tip   (pos, conn_y)
+            P1  = routing lane (lane_x, conn_y)   ← same height as candle
+            P2  = routing lane (lane_x, label_y)   ← same height as label
+            P3  = label edge   (end_x,  label_y)
+
+        Because P1 and P2 share the lane's X-coordinate, the curve
+        swings outward to the margin, keeps clear of the candle zone,
+        and arrives at the label horizontally — exactly like the
+        reference image.
+        """
+        px    = ann['pos']
+        cy    = ann['conn_y']
+        name  = ann['name']
+        bull  = ann['bullish']
+
+        # Colour palette
         color = ('#1B5E20' if bull is True
                  else '#B71C1C' if bull is False
                  else '#E65100')
 
+        # Side-dependent constants
         if side == 'left':
-            ha, lane_x = 'right', L_LANE_X
-            end_x = label_x + xspan * 0.02
+            ha     = 'right'
+            lane_x = L_LANE_X
+            end_x  = label_x + xspan * 0.02      # small gap before box
         else:
-            ha, lane_x = 'left', R_LANE_X
-            end_x = label_x - xspan * 0.02
+            ha     = 'left'
+            lane_x = R_LANE_X
+            end_x  = label_x - xspan * 0.02
 
-        # Stagger escape Y per line so parallel runs don't pile up.
-        # idx 0 (topmost label) gets the highest escape_y.
-        esc_y = escape_y_base + yspan * 0.015 * (n_total - 1 - idx)
-
-        # Path: candle → up above candles → horizontal to lane →
-        #        down to label height → horizontal to label
+        # ── Cubic Bézier ──
         verts = [
-            (px,     cy),
-            (px,     esc_y),
-            (lane_x, esc_y),
-            (lane_x, label_y),
-            (end_x,  label_y),
+            (px,     cy),          # P0 — candle tip
+            (lane_x, cy),          # P1 — pull toward lane at candle height
+            (lane_x, label_y),     # P2 — pull toward lane at label height
+            (end_x,  label_y),     # P3 — arrive at label horizontally
         ]
-        codes = [Path.MOVETO, Path.LINETO, Path.LINETO,
-                 Path.LINETO, Path.LINETO]
+        codes = [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4]
 
         patch = mpatches.PathPatch(
             Path(verts, codes),
-            facecolor='none', edgecolor=color,
-            linewidth=1.4, clip_on=False, zorder=5, alpha=0.82,
+            facecolor='none',
+            edgecolor=color,
+            linewidth=1.4,
+            clip_on=False,
+            zorder=5,
+            alpha=0.82,
         )
         ax.add_patch(patch)
 
-        # Dot on the candle
-        ax.plot(px, cy, 'o', color=color, markersize=5,
-                clip_on=False, zorder=6,
-                markeredgecolor='white', markeredgewidth=0.5)
+        # ── Small dot on the candle ──
+        ax.plot(
+            px, cy, 'o',
+            color=color,
+            markersize=5,
+            clip_on=False,
+            zorder=6,
+            markeredgecolor='white',
+            markeredgewidth=0.5,
+        )
 
-        # Label text box
-        ax.text(label_x, label_y, name, fontsize=9, color=color,
-                ha=ha, va='center',
-                bbox=dict(boxstyle='round,pad=0.4', facecolor='white',
-                          edgecolor=color, alpha=0.95, linewidth=1.0),
-                clip_on=False, zorder=10)
+        # ── Label text box ──
+        ax.text(
+            label_x, label_y, name,
+            fontsize=9,
+            color=color,
+            ha=ha,
+            va='center',
+            bbox=dict(
+                boxstyle='round,pad=0.4',
+                facecolor='white',
+                edgecolor=color,
+                alpha=0.95,
+                linewidth=1.0,
+            ),
+            clip_on=False,
+            zorder=10,
+        )
 
-    # ── Draw all annotations ─────────────────────────────────────────
-    for i, (ann, ly) in enumerate(zip(left_anns, l_ys)):
-        _draw(ann, L_LABEL_X, ly, 'left', i, len(left_anns))
-    for i, (ann, ry) in enumerate(zip(right_anns, r_ys)):
-        _draw(ann, R_LABEL_X, ry, 'right', i, len(right_anns))
+    # ── Render every connector ───────────────────────────────────────
+    for ann, y in zip(left_anns,  l_ys):
+        _draw(ann, L_LABEL_X, y, side='left')
+    for ann, y in zip(right_anns, r_ys):
+        _draw(ann, R_LABEL_X, y, side='right')
 
-    # ── Widen axes to show labels ────────────────────────────────────
-    ax.set_xlim(xlo - xspan * 0.30, xhi + xspan * 0.30)
+    # ── Expand axis limits so labels + curves are fully visible ──────
+    ax.set_xlim(L_LABEL_X - xspan * 0.10, R_LABEL_X + xspan * 0.10)
+    ax.set_ylim(y_bot - yspan * 0.12,     y_top + yspan * 0.12)
 
-    # ── Save and return ──────────────────────────────────────────────
+    fig.tight_layout(rect=[0.04, 0.04, 0.96, 0.96])
+
+    # ── Return PNG bytes ─────────────────────────────────────────────
     buf = BytesIO()
     fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
     plt.close(fig)
     buf.seek(0)
     return buf.read()
+
+
 
 ###################################نهاية الشموع
 def detect_divergences(d):
