@@ -40,7 +40,7 @@ from telegram.ext import (
     MessageHandler, filters, ContextTypes,
 )
 
-# ── Argaam scraper dependencies (optional – graceful fallback if missing) ──
+# ── STOCKS scraper dependencies (optional – graceful fallback if missing) ──
 try:
     import sys
     import time
@@ -52,11 +52,11 @@ try:
     from selenium.webdriver.common.by import By
     from selenium.webdriver.support.ui import WebDriverWait
     from selenium.webdriver.support import expected_conditions as EC
-    ARGAAM_AVAILABLE = True
+    STOCKS_AVAILABLE = True
 except ImportError:
-    ARGAAM_AVAILABLE = False
+    STOCKS_AVAILABLE = False
     logger_stub = logging.getLogger(__name__)
-    logger_stub.warning("Argaam scraper deps not installed; falling back to yfinance only.")
+    logger_stub.warning("STOCKS scraper deps not installed; falling back to yfinance only.")
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -453,22 +453,22 @@ def get_sector_industry(ticker):
     return SECTOR_MAP.get(ticker, (None, None))
 
 # # ─────────────────────────────────────────────────────────────
-# # 3b. ARGAAM SCRAPER INTEGRATION
-# # Priority: Argaam data overrides yfinance for fundamental fields.
-# # Falls back to yfinance if Argaam is unavailable or scraping fails.
+# # 3b. STOCKS SCRAPER INTEGRATION
+# # Priority: STOCKS data overrides yfinance for fundamental fields.
+# # Falls back to yfinance if STOCKS is unavailable or scraping fails.
 # # ─────────────────────────────────────────────────────────────
 #############################################
 ###########################################
 ###############################################
 # ─────────────────────────────────────────────────────────────
-# 3b. ARGAAM SCRAPER INTEGRATION
-# Priority: Argaam data overrides yfinance for fundamental fields.
-# Falls back to yfinance if Argaam is unavailable or scraping fails.
+# 3b. STOCKS SCRAPER INTEGRATION
+# Priority: STOCKS data overrides yfinance for fundamental fields.
+# Falls back to yfinance if STOCKS is unavailable or scraping fails.
 # ─────────────────────────────────────────────────────────────
 
 ##############################
-############# ARGAAM #########
-# ARGAAM_COMPANY_MAPPING = {
+############# STOCKS #########
+# STOCKS_COMPANY_MAPPING = {
 #     "3509":    {"ticker":"2222", "name":"أرامكو السعودية"},
 #     "4434":    {"ticker":"2381", "name":"الحفر العربية"},
 #     "14629":    {"ticker":"2382", "name":"أديس"},
@@ -755,15 +755,15 @@ def get_sector_industry(ticker):
 #     "17828":    {"ticker":"9409", "name":"صندوق يقين إي إس جي"},
 # }
 # ─────────────────────────────────────────────────────────────
-# 3b. ARGAAM STATIC DATA INTEGRATION
-# Priority: Argaam data overrides yfinance for fundamental fields.
-# Falls back to yfinance if Argaam data is unavailable or empty.
+# 3b. STOCKS STATIC DATA INTEGRATION
+# Priority: STOCKS data overrides yfinance for fundamental fields.
+# Falls back to yfinance if STOCKS data is unavailable or empty.
 # ─────────────────────────────────────────────────────────────
 
-# ── Static fundamental data (sourced from Argaam) ──────────────
+# ── Static fundamental data (sourced from STOCKS) ──────────────
 # Key = Tadawul ticker (without .SR)
 # Fields: Numberofshare (million), Eps, Bookvalue, Parallel_value, PE_ratio, PB_ratio
-ARGAAM_STATIC_DATA = {
+STOCKS_STATIC_DATA = {
     "2222": {"Numberofshare": "242000", "Eps": "1.51", "Bookvalue": "6.2", "Parallel_value": "-", "PE_ratio": "17.55", "PB_ratio": "4.38"},
     "2381": {"Numberofshare": "89", "Eps": "-0.85", "Bookvalue": "64.56", "Parallel_value": "10", "PE_ratio": "أكبر من 100", "PB_ratio": "1.39"},
     "2382": {"Numberofshare": "1129.06", "Eps": "0.71", "Bookvalue": "5.84", "Parallel_value": "1", "PE_ratio": "25.9", "PB_ratio": "2.95"},
@@ -1051,11 +1051,11 @@ def _safe_float(value: str) -> float | None:
         return None
 
 
-def _enrich_with_argaam(ticker: str, info: dict) -> None:
+def _enrich_with_STOCKS(ticker: str, info: dict) -> None:
     """
-    Enrich the info dict with Argaam static data.
-    Priority: Argaam data overrides yfinance for fundamental fields.
-    Falls back to yfinance if Argaam data is unavailable or empty.
+    Enrich the info dict with STOCKS static data.
+    Priority: STOCKS data overrides yfinance for fundamental fields.
+    Falls back to yfinance if STOCKS data is unavailable or empty.
 
     Args:
         ticker: e.g. "2222.SR" or "2222"
@@ -1065,90 +1065,90 @@ def _enrich_with_argaam(ticker: str, info: dict) -> None:
     code = ticker.replace(".SR", "").strip()
 
     # Look up in static data
-    argaam = ARGAAM_STATIC_DATA.get(code)
-    if not argaam:
-        logger.info(f"Argaam static: no data for ticker {code}, using yfinance only")
-        # ── Ensure EPS formatted field exists even without Argaam ──
+    STOCKS = STOCKS_STATIC_DATA.get(code)
+    if not STOCKS:
+        logger.info(f"STOCKS static: no data for ticker {code}, using yfinance only")
+        # ── Ensure EPS formatted field exists even without STOCKS ──
         _ensure_eps_formatted(info)
         return
 
-    logger.info(f"Argaam static: found data for ticker {code}")
+    logger.info(f"STOCKS static: found data for ticker {code}")
 
     # ────────────────────────────────────────────────────────
     # 1. ربح السهم (EPS) — Earnings Per Share
     # ────────────────────────────────────────────────────────
-    eps = _safe_float(argaam.get("Eps"))
+    eps = _safe_float(STOCKS.get("Eps"))
     if eps is not None:
         info["trailingEps"] = eps
         if eps < 0:
             info["trailingEpsFormatted"] = f"({abs(eps)})"
         else:
             info["trailingEpsFormatted"] = str(eps)
-        logger.info(f"✓ Argaam EPS for {ticker}: {eps}")
+        logger.info(f"✓ STOCKS EPS for {ticker}: {eps}")
     else:
-        # Argaam EPS is empty → fall back to yfinance
+        # STOCKS EPS is empty → fall back to yfinance
         _ensure_eps_formatted(info)
-        logger.info(f"Argaam EPS empty for {ticker}, using yfinance fallback")
+        logger.info(f"STOCKS EPS empty for {ticker}, using yfinance fallback")
 
     # ────────────────────────────────────────────────────────
     # 2. القيمة الدفترية (Book Value)
     # ────────────────────────────────────────────────────────
-    bv = _safe_float(argaam.get("Bookvalue"))
+    bv = _safe_float(STOCKS.get("Bookvalue"))
     if bv is not None:
         info["bookValue"] = bv
-        logger.info(f"✓ Argaam BookValue for {ticker}: {bv}")
+        logger.info(f"✓ STOCKS BookValue for {ticker}: {bv}")
 
     # ────────────────────────────────────────────────────────
     # 3. مكرر الربح (P/E Ratio)
     # ────────────────────────────────────────────────────────
-    pe_raw = argaam.get("PE_ratio", "").strip()
+    pe_raw = STOCKS.get("PE_ratio", "").strip()
     pe = _safe_float(pe_raw)
     if pe is not None and pe > 0:
         info["trailingPE"] = pe
-        logger.info(f"✓ Argaam P/E for {ticker}: {pe}")
+        logger.info(f"✓ STOCKS P/E for {ticker}: {pe}")
     elif pe_raw == "سالب":
         # Negative earnings → store as indicator
         info["trailingPE"] = None
         info["trailingPE_display"] = "سالب"
-        logger.info(f"✓ Argaam P/E for {ticker}: سالب (negative earnings)")
+        logger.info(f"✓ STOCKS P/E for {ticker}: سالب (negative earnings)")
     elif pe_raw == "أكبر من 100":
         info["trailingPE_display"] = "أكبر من 100"
-        logger.info(f"✓ Argaam P/E for {ticker}: أكبر من 100")
+        logger.info(f"✓ STOCKS P/E for {ticker}: أكبر من 100")
 
     # ────────────────────────────────────────────────────────
     # 4. مضاعف القيمة الدفترية (P/B Ratio)
     # ────────────────────────────────────────────────────────
-    pb = _safe_float(argaam.get("PB_ratio"))
+    pb = _safe_float(STOCKS.get("PB_ratio"))
     if pb is not None:
         info["priceToBook"] = pb
-        logger.info(f"✓ Argaam P/B for {ticker}: {pb}")
+        logger.info(f"✓ STOCKS P/B for {ticker}: {pb}")
 
     # ────────────────────────────────────────────────────────
     # 5. عدد الأسهم (Shares Outstanding) — in millions
     # ────────────────────────────────────────────────────────
-    shares = _safe_float(argaam.get("Numberofshare"))
+    shares = _safe_float(STOCKS.get("Numberofshare"))
     if shares is not None:
         # Convert from millions to actual count
         shares_actual = shares * 1_000_000
         info["sharesOutstanding"] = shares_actual
         info["floatShares"] = shares_actual
-        logger.info(f"✓ Argaam Shares for {ticker}: {shares}M → {shares_actual}")
+        logger.info(f"✓ STOCKS Shares for {ticker}: {shares}M → {shares_actual}")
 
         # ── Recalculate Market Cap if we have price ──
         price = _get_current_price(info)
         if price and price > 0:
             info["marketCap"] = price * shares_actual
-            logger.info(f"✓ Argaam MarketCap recalculated for {ticker}: {info['marketCap']}")
+            logger.info(f"✓ STOCKS MarketCap recalculated for {ticker}: {info['marketCap']}")
 
     # ────────────────────────────────────────────────────────
     # 6. القيمة الاسمية (Par/Nominal Value)
     # ────────────────────────────────────────────────────────
-    par = _safe_float(argaam.get("Parallel_value"))
+    par = _safe_float(STOCKS.get("Parallel_value"))
     if par is not None:
         info["parValue"] = par
 
     # ────────────────────────────────────────────────────────
-    # 7. Recalculate P/E if Argaam didn't provide it but we have EPS
+    # 7. Recalculate P/E if STOCKS didn't provide it but we have EPS
     # ────────────────────────────────────────────────────────
     if not info.get("trailingPE") and not info.get("trailingPE_display"):
         eps_val = info.get("trailingEps")
@@ -1181,7 +1181,7 @@ def _enrich_with_argaam(ticker: str, info: dict) -> None:
     if not info.get("exchange"):
         info["exchange"] = "Tadawul"
 
-    logger.info(f"Argaam enrichment complete for {ticker}")
+    logger.info(f"STOCKS enrichment complete for {ticker}")
 
 
 def _ensure_eps_formatted(info: dict) -> None:
@@ -1467,13 +1467,13 @@ def fetch_data(ticker):
         except Exception as e:
             logger.warning(f"fetch_data supplement error: {e}")
 
-# ── Argaam enrichment: overrides yfinance fundamental fields ──
+# ── STOCKS enrichment: overrides yfinance fundamental fields ──
         try:
-            _enrich_with_argaam(ticker, info)
+            _enrich_with_STOCKS(ticker, info)
         except Exception as _ae:
-            logger.warning(f"Argaam enrichment skipped: {_ae}")
+            logger.warning(f"STOCKS enrichment skipped: {_ae}")
 
-        # ── YF FALLBACKS (activate only if Argaam didn't populate these) ──
+        # ── YF FALLBACKS (activate only if STOCKS didn't populate these) ──
 
         # 1. حجم التداول
         if not info.get('volume') and len(df) > 0 and 'Volume' in df.columns:
