@@ -3658,8 +3658,8 @@ class Report:
         # Row 3: P/B, ROE, Beta
         pb = safe(info, 'priceToBook'); roe = safe(info, 'returnOnEquity'); beta = safe(info, 'beta')
         self._box(x1, y3, col_bw, col_bh, 'مضاعف القيمة الدفترية', f'{float(pb):.2f}' if pb else '-')
-        self._box(x2, y3, col_bw, col_bh, 'العائد على حقوق المساهمين', fmt_p(roe_raw)[0] if roe else '-')
-        self._box(x3, y3, col_bw, col_bh, 'العائد على متوسط الأصول', f'{float(roa_raw):.2f}' if beta else '-')
+        self._box(x2, y3, col_bw, col_bh, 'العائد على حقوق المساهمين', fmt_p(roe)[0] if roe else '-')
+        self._box(x3, y3, col_bw, col_bh, 'العائد على متوسط الأصول', f'{float(roa):.2f}' if beta else '-')
 
         # Row 4: Volume, Trading Value, Trades Count
         self._box(x1, y4, col_bw, col_bh, 'حجم التداول', fmt_n(safe(info,'volume'), d=0)[0])
