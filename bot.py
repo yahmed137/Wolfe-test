@@ -1043,149 +1043,47 @@ _PE_NON_NUMERIC = {"سالب", "أكبر من 100", "-", ""}
 
 
 def _safe_float(value: str) -> float | None:
-    """Parse a string to float; return None if empty or non-numeric."""
+    """Parse a string to float; return None if empty, non-numeric, or parenthesized negatives."""
     if value is None:
         return None
     value = str(value).strip()
     if not value or value in _PE_NON_NUMERIC or value == "-":
         return None
+
+    # Handle parenthesized negatives like "(0.23 )" → -0.23
+    if value.startswith("(") and value.endswith(")"):
+        inner = value[1:-1].strip()
+        try:
+            return -abs(float(inner))
+        except (ValueError, TypeError):
+            return None
+
     try:
         return float(value)
     except (ValueError, TypeError):
         return None
 
 
-def _enrich_with_STOCKS(ticker: str, info: dict) -> None:
-    """
-    Enrich the info dict with STOCKS static data.
-    Priority: STOCKS data overrides yfinance for fundamental fields.
-    Falls back to yfinance if STOCKS data is unavailable or empty.
+def _safe_display(value: str) -> str | None:
+    """Return a cleaned display string, or None if empty/dash."""
+    if value is None:
+        return None
+    value = str(value).strip()
+    if not value or value == "-":
+        return None
+    return value
 
-    Args:
-        ticker: e.g. "2222.SR" or "2222"
-        info: dict from yfinance .info — will be modified in-place
-    """
-    # Strip ".SR" suffix to get pure Tadawul code
-    code = ticker.replace(".SR", "").strip()
 
-    # Look up in static data
-    STOCKS = STOCKS_STATIC_DATA.get(code)
-    if not STOCKS:
-        logger.info(f"STOCKS static: no data for ticker {code}, using yfinance only")
-        # ── Ensure EPS formatted field exists even without STOCKS ──
-        _ensure_eps_formatted(info)
-        return
-
-    logger.info(f"STOCKS static: found data for ticker {code}")
-
-    # ────────────────────────────────────────────────────────
-    # 1. ربح السهم (EPS) — Earnings Per Share
-    # ────────────────────────────────────────────────────────
-    eps = _safe_float(STOCKS.get("Eps"))
-    if eps is not None:
-        info["trailingEps"] = eps
-        if eps < 0:
-            info["trailingEpsFormatted"] = f"({abs(eps)})"
-        else:
-            info["trailingEpsFormatted"] = str(eps)
-        logger.info(f"✓ STOCKS EPS for {ticker}: {eps}")
-    else:
-        # STOCKS EPS is empty → fall back to yfinance
-        _ensure_eps_formatted(info)
-        logger.info(f"STOCKS EPS empty for {ticker}, using yfinance fallback")
-
-    # ────────────────────────────────────────────────────────
-    # 2. القيمة الدفترية (Book Value)
-    # ────────────────────────────────────────────────────────
-    bv = _safe_float(STOCKS.get("Bookvalue"))
-    if bv is not None:
-        info["bookValue"] = bv
-        logger.info(f"✓ STOCKS BookValue for {ticker}: {bv}")
-
-    # ────────────────────────────────────────────────────────
-    # 3. مكرر الربح (P/E Ratio)
-    # ────────────────────────────────────────────────────────
-    pe_raw = STOCKS.get("PE_ratio", "").strip()
-    pe = _safe_float(pe_raw)
-    if pe is not None and pe > 0:
-        info["trailingPE"] = pe
-        logger.info(f"✓ STOCKS P/E for {ticker}: {pe}")
-    elif pe_raw == "سالب":
-        # Negative earnings → store as indicator
-        info["trailingPE"] = None
-        info["trailingPE_display"] = "سالب"
-        logger.info(f"✓ STOCKS P/E for {ticker}: سالب (negative earnings)")
-    elif pe_raw == "أكبر من 100":
-        info["trailingPE_display"] = "أكبر من 100"
-        logger.info(f"✓ STOCKS P/E for {ticker}: أكبر من 100")
-
-    # ────────────────────────────────────────────────────────
-    # 4. مضاعف القيمة الدفترية (P/B Ratio)
-    # ────────────────────────────────────────────────────────
-    pb = _safe_float(STOCKS.get("PB_ratio"))
-    if pb is not None:
-        info["priceToBook"] = pb
-        logger.info(f"✓ STOCKS P/B for {ticker}: {pb}")
-
-    # ────────────────────────────────────────────────────────
-    # 5. عدد الأسهم (Shares Outstanding) — in millions
-    # ────────────────────────────────────────────────────────
-    shares = _safe_float(STOCKS.get("Numberofshare"))
-    if shares is not None:
-        # Convert from millions to actual count
-        shares_actual = shares * 1_000_000
-        info["sharesOutstanding"] = shares_actual
-        info["floatShares"] = shares_actual
-        logger.info(f"✓ STOCKS Shares for {ticker}: {shares}M → {shares_actual}")
-
-        # ── Recalculate Market Cap if we have price ──
-        price = _get_current_price(info)
-        if price and price > 0:
-            info["marketCap"] = price * shares_actual
-            logger.info(f"✓ STOCKS MarketCap recalculated for {ticker}: {info['marketCap']}")
-
-    # ────────────────────────────────────────────────────────
-    # 6. القيمة الاسمية (Par/Nominal Value)
-    # ────────────────────────────────────────────────────────
-    par = _safe_float(STOCKS.get("Parallel_value"))
-    if par is not None:
-        info["parValue"] = par
-
-    # ────────────────────────────────────────────────────────
-    # 7. Recalculate P/E if STOCKS didn't provide it but we have EPS
-    # ────────────────────────────────────────────────────────
-    if not info.get("trailingPE") and not info.get("trailingPE_display"):
-        eps_val = info.get("trailingEps")
-        if eps_val and eps_val != 0:
-            price = _get_current_price(info)
-            if price and price > 0:
-                try:
-                    info["trailingPE"] = round(price / float(eps_val), 4)
-                except Exception:
-                    pass
-
-    # ────────────────────────────────────────────────────────
-    # 8. Recalculate P/B if missing but we have Book Value
-    # ────────────────────────────────────────────────────────
-    if not info.get("priceToBook"):
-        bv_val = info.get("bookValue")
-        if bv_val and float(bv_val) != 0:
-            price = _get_current_price(info)
-            if price and price > 0:
-                try:
-                    info["priceToBook"] = round(price / float(bv_val), 4)
-                except Exception:
-                    pass
-
-    # ────────────────────────────────────────────────────────
-    # 9. Defaults
-    # ────────────────────────────────────────────────────────
-    if not info.get("currency"):
-        info["currency"] = "SAR"
-    if not info.get("exchange"):
-        info["exchange"] = "Tadawul"
-
-    logger.info(f"STOCKS enrichment complete for {ticker}")
+def _get_current_price(info: dict) -> float | None:
+    """Extract current price from info dict."""
+    for key in ("currentPrice", "regularMarketPrice", "previousClose"):
+        val = info.get(key)
+        if val is not None:
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                continue
+    return None
 
 
 def _ensure_eps_formatted(info: dict) -> None:
@@ -1194,7 +1092,7 @@ def _ensure_eps_formatted(info: dict) -> None:
     Uses yfinance trailingEps if available, otherwise sets 'لاحقا'.
     """
     if info.get("trailingEpsFormatted"):
-        return  # Already set
+        return
 
     yahoo_eps = info.get("trailingEps")
     if yahoo_eps is not None:
@@ -1210,16 +1108,251 @@ def _ensure_eps_formatted(info: dict) -> None:
         info["trailingEpsFormatted"] = "لاحقا"
 
 
-def _get_current_price(info: dict) -> float | None:
-    """Extract current price from info dict."""
-    for key in ("currentPrice", "regularMarketPrice", "previousClose"):
-        val = info.get(key)
-        if val is not None:
+def _format_roa_roe(value_str: str) -> tuple[float | None, str]:
+    """
+    Parse ROA/ROE from STOCKS format.
+    Returns (numeric_value, display_string).
+    Handles parenthesized negatives like "(0.76 )" → (-0.76, "(0.76)")
+    """
+    if value_str is None:
+        return None, ""
+    value_str = str(value_str).strip()
+    if not value_str or value_str == "-":
+        return None, ""
+
+    numeric = _safe_float(value_str)
+    if numeric is not None:
+        if numeric < 0:
+            display = f"({abs(numeric)}%)"
+        else:
+            display = f"{numeric}%"
+        return numeric, display
+    return None, ""
+
+
+def _enrich_with_STOCKS(ticker: str, info: dict) -> None:
+    """
+    Enrich the info dict with STOCKS static data.
+    Priority: STOCKS data FIRST → fall back to yfinance if STOCKS data is unavailable.
+
+    Args:
+        ticker: e.g. "2222.SR" or "2222"
+        info: dict from yfinance .info — will be modified in-place
+    """
+    code = ticker.replace(".SR", "").strip()
+
+    STOCKS = STOCKS_STATIC_DATA.get(code)
+    if not STOCKS:
+        logger.info(f"STOCKS static: no data for ticker {code}, using yfinance only")
+        _ensure_eps_formatted(info)
+        # Ensure ROA/ROE display fields exist even without STOCKS
+        _ensure_roa_roe_from_yahoo(info)
+        return
+
+    logger.info(f"STOCKS static: found data for ticker {code}")
+
+    # ────────────────────────────────────────────────────────
+    # 1. ربح السهم (EPS) — Earnings Per Share
+    # ────────────────────────────────────────────────────────
+    eps_raw = _safe_display(STOCKS.get("Eps"))
+    eps = _safe_float(STOCKS.get("Eps"))
+    if eps is not None:
+        info["trailingEps"] = eps
+        if eps < 0:
+            info["trailingEpsFormatted"] = f"({abs(eps)})"
+        else:
+            info["trailingEpsFormatted"] = str(eps)
+        logger.info(f"✓ STOCKS EPS for {ticker}: {eps}")
+    else:
+        # Fall back to yfinance
+        _ensure_eps_formatted(info)
+        logger.info(f"STOCKS EPS empty for {ticker}, using yfinance fallback")
+
+    # ────────────────────────────────────────────────────────
+    # 2. القيمة الدفترية (Book Value)
+    # ────────────────────────────────────────────────────────
+    bv = _safe_float(STOCKS.get("Bookvalue"))
+    if bv is not None:
+        info["bookValue"] = bv
+        logger.info(f"✓ STOCKS BookValue for {ticker}: {bv}")
+    # else: keep yfinance value if present
+
+    # ────────────────────────────────────────────────────────
+    # 3. مكرر الربح (P/E Ratio)
+    # ────────────────────────────────────────────────────────
+    pe_raw = STOCKS.get("PE_ratio", "").strip()
+    pe = _safe_float(pe_raw)
+    if pe is not None and pe > 0:
+        info["trailingPE"] = pe
+        info["trailingPE_display"] = str(pe)
+        logger.info(f"✓ STOCKS P/E for {ticker}: {pe}")
+    elif pe_raw == "سالب":
+        info["trailingPE"] = None
+        info["trailingPE_display"] = "سالب"
+        logger.info(f"✓ STOCKS P/E for {ticker}: سالب (negative earnings)")
+    elif pe_raw == "أكبر من 100":
+        info["trailingPE"] = None
+        info["trailingPE_display"] = "أكبر من 100"
+        logger.info(f"✓ STOCKS P/E for {ticker}: أكبر من 100")
+    else:
+        # Fall back to yfinance
+        yf_pe = info.get("trailingPE")
+        if yf_pe is not None:
+            info["trailingPE_display"] = str(round(float(yf_pe), 2))
+        else:
+            info["trailingPE_display"] = "-"
+
+    # ────────────────────────────────────────────────────────
+    # 4. مضاعف القيمة الدفترية (P/B Ratio)
+    # ────────────────────────────────────────────────────────
+    pb = _safe_float(STOCKS.get("PB_ratio"))
+    if pb is not None:
+        info["priceToBook"] = pb
+        logger.info(f"✓ STOCKS P/B for {ticker}: {pb}")
+    # else: keep yfinance value if present
+
+    # ────────────────────────────────────────────────────────
+    # 5. عدد الأسهم (Shares Outstanding) — in millions
+    # ────────────────────────────────────────────────────────
+    shares_str = STOCKS.get("Numberofshare", "")
+    # Remove commas for parsing: "3,000.00" → "3000.00"
+    shares_clean = shares_str.replace(",", "").strip() if shares_str else ""
+    shares = _safe_float(shares_clean)
+    if shares is not None:
+        shares_actual = shares * 1_000_000
+        info["sharesOutstanding"] = shares_actual
+        info["floatShares"] = shares_actual
+        logger.info(f"✓ STOCKS Shares for {ticker}: {shares}M → {shares_actual}")
+
+        # Recalculate Market Cap if we have price
+        price = _get_current_price(info)
+        if price and price > 0:
+            info["marketCap"] = price * shares_actual
+            logger.info(f"✓ STOCKS MarketCap recalculated for {ticker}: {info['marketCap']}")
+
+    # ────────────────────────────────────────────────────────
+    # 6. القيمة الاسمية (Par/Nominal Value)
+    # ────────────────────────────────────────────────────────
+    par = _safe_float(STOCKS.get("Parallel_value"))
+    if par is not None:
+        info["parValue"] = par
+
+    # ────────────────────────────────────────────────────────
+    # 7. العائد على الأصول (ROA)
+    # ────────────────────────────────────────────────────────
+    roa_numeric, roa_display = _format_roa_roe(STOCKS.get("ROA"))
+    if roa_numeric is not None:
+        info["returnOnAssets"] = roa_numeric / 100.0  # Store as decimal
+        info["returnOnAssets_display"] = roa_display
+        logger.info(f"✓ STOCKS ROA for {ticker}: {roa_display}")
+    else:
+        # Fall back to yfinance
+        yf_roa = info.get("returnOnAssets")
+        if yf_roa is not None:
             try:
-                return float(val)
+                roa_pct = float(yf_roa) * 100
+                if roa_pct < 0:
+                    info["returnOnAssets_display"] = f"({abs(round(roa_pct, 2))}%)"
+                else:
+                    info["returnOnAssets_display"] = f"{round(roa_pct, 2)}%"
             except (ValueError, TypeError):
-                continue
-    return None
+                info["returnOnAssets_display"] = "-"
+        else:
+            info["returnOnAssets_display"] = "-"
+
+    # ────────────────────────────────────────────────────────
+    # 8. العائد على حقوق المساهمين (ROE)
+    # ────────────────────────────────────────────────────────
+    roe_numeric, roe_display = _format_roa_roe(STOCKS.get("ROE"))
+    if roe_numeric is not None:
+        info["returnOnEquity"] = roe_numeric / 100.0  # Store as decimal
+        info["returnOnEquity_display"] = roe_display
+        logger.info(f"✓ STOCKS ROE for {ticker}: {roe_display}")
+    else:
+        # Fall back to yfinance
+        yf_roe = info.get("returnOnEquity")
+        if yf_roe is not None:
+            try:
+                roe_pct = float(yf_roe) * 100
+                if roe_pct < 0:
+                    info["returnOnEquity_display"] = f"({abs(round(roe_pct, 2))}%)"
+                else:
+                    info["returnOnEquity_display"] = f"{round(roe_pct, 2)}%"
+            except (ValueError, TypeError):
+                info["returnOnEquity_display"] = "-"
+        else:
+            info["returnOnEquity_display"] = "-"
+
+    # ────────────────────────────────────────────────────────
+    # 9. Recalculate P/E if still missing
+    # ────────────────────────────────────────────────────────
+    if not info.get("trailingPE") and not info.get("trailingPE_display"):
+        eps_val = info.get("trailingEps")
+        if eps_val and eps_val != 0:
+            price = _get_current_price(info)
+            if price and price > 0:
+                try:
+                    calculated_pe = round(price / float(eps_val), 2)
+                    info["trailingPE"] = calculated_pe
+                    info["trailingPE_display"] = str(calculated_pe)
+                except Exception:
+                    pass
+
+    # ────────────────────────────────────────────────────────
+    # 10. Recalculate P/B if missing
+    # ────────────────────────────────────────────────────────
+    if not info.get("priceToBook"):
+        bv_val = info.get("bookValue")
+        if bv_val and float(bv_val) != 0:
+            price = _get_current_price(info)
+            if price and price > 0:
+                try:
+                    info["priceToBook"] = round(price / float(bv_val), 4)
+                except Exception:
+                    pass
+
+    # ────────────────────────────────────────────────────────
+    # 11. Defaults
+    # ────────────────────────────────────────────────────────
+    if not info.get("currency"):
+        info["currency"] = "SAR"
+    if not info.get("exchange"):
+        info["exchange"] = "Tadawul"
+
+    logger.info(f"STOCKS enrichment complete for {ticker}")
+
+
+def _ensure_roa_roe_from_yahoo(info: dict) -> None:
+    """Ensure ROA/ROE display fields exist using yfinance data when STOCKS is unavailable."""
+    # ROA
+    if not info.get("returnOnAssets_display"):
+        yf_roa = info.get("returnOnAssets")
+        if yf_roa is not None:
+            try:
+                roa_pct = float(yf_roa) * 100
+                if roa_pct < 0:
+                    info["returnOnAssets_display"] = f"({abs(round(roa_pct, 2))}%)"
+                else:
+                    info["returnOnAssets_display"] = f"{round(roa_pct, 2)}%"
+            except (ValueError, TypeError):
+                info["returnOnAssets_display"] = "-"
+        else:
+            info["returnOnAssets_display"] = "-"
+
+    # ROE
+    if not info.get("returnOnEquity_display"):
+        yf_roe = info.get("returnOnEquity")
+        if yf_roe is not None:
+            try:
+                roe_pct = float(yf_roe) * 100
+                if roe_pct < 0:
+                    info["returnOnEquity_display"] = f"({abs(round(roe_pct, 2))}%)"
+                else:
+                    info["returnOnEquity_display"] = f"{round(roe_pct, 2)}%"
+            except (ValueError, TypeError):
+                info["returnOnEquity_display"] = "-"
+        else:
+            info["returnOnEquity_display"] = "-"
 
 ###########################################    
 #argamend###
