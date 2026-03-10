@@ -1647,6 +1647,10 @@ def fetch_data(ticker):
                 except Exception:
                     pass
 
+        return df, df2, info
+    except Exception as e:
+        logger.error(f"fetch_data error: {e}")
+        return None, None, {}
 
 # ^^^ fetch_data ENDS HERE ^^^
 # ─────────────────────────────────────────────────────────────
