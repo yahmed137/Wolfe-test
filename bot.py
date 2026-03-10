@@ -1070,39 +1070,23 @@ def _enrich_with_STOCKS(ticker: str, info: dict) -> None:
     #             except Exception:
     #                 pass
 ##########################################################################
-        # ── 7. P/E Ratio ──
-    pe = _safe_float(STOCKS.get("PE_ratio"))
-    if pe is not None:
-        info["trailingPE"] = pe
-        logger.info(f"✓ STOCKS P/E for {ticker}: {pe}")
-    else:
-        # Fallback: recalculate from Yahoo Finance data
-        if not info.get("trailingPE") and not info.get("trailingPE_display"):
-            eps_val = info.get("trailingEps")
-            if eps_val and eps_val != 0:
-                price = _get_current_price(info)
-                if price and price > 0:
-                    try:
-                        info["trailingPE"] = round(price / float(eps_val), 4)
-                    except Exception:
-                        pass
+#────────────────────────────────────────────────────────#
+    # 7. العائد على متوسط الأصول (%) - ROA
+    # ────────────────────────────────────────────────────────#
+    roa = _safe_float(STOCKS.get("ROA"))
+    if roa is not None:
+        info["returnOnAssets"] = roa / 100.0  # Convert percentage to decimal
+        info["returnOnAssetsDisplay"] = roa   # Keep percentage for display
+        logger.info(f"✓ STOCKS ROA for {ticker}: {roa}%")
 
-    # ── 8. P/B Ratio ──
-    pb = _safe_float(STOCKS.get("PB_ratio"))
-    if pb is not None:
-        info["priceToBook"] = pb
-        logger.info(f"✓ STOCKS P/B for {ticker}: {pb}")
-    else:
-        # Fallback: recalculate from Yahoo Finance data
-        if not info.get("priceToBook"):
-            bv_val = info.get("bookValue")
-            if bv_val and float(bv_val) != 0:
-                price = _get_current_price(info)
-                if price and price > 0:
-                    try:
-                        info["priceToBook"] = round(price / float(bv_val), 4)
-                    except Exception:
-                        pass
+#────────────────────────────────────────────────────────#
+    # 8. العائد على متوسط حقوق المساهمين (%) - ROE
+    # ────────────────────────────────────────────────────────#
+    roe = _safe_float(STOCKS.get("ROE"))
+    if roe is not None:
+        info["returnOnEquity"] = roe / 100.0   # Convert percentage to decimal
+        info["returnOnEquityDisplay"] = roe    # Keep percentage for display
+        logger.info(f"✓ STOCKS ROE for {ticker}: {roe}%")
     # ── 9. Defaults ──
     if not info.get("currency"):
         info["currency"] = "SAR"
