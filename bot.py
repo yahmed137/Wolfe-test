@@ -3652,14 +3652,14 @@ class Report:
         eps_val = float(eps) if eps else None
         eps_str = f'{eps_val:.2f}' if eps_val is not None else '-'
         eps_color = GREEN_HEX if (eps_val is not None and eps_val >= 0) else RED_HEX if eps_val is not None else None
-        self._box(x2, y2, col_bw, col_bh, 'ربحية السهم', eps_str, clr=eps_color)
+        self._box(x2, y2, col_bw, col_bh, 'ربحية السهم', eps, clr=eps_color)
         self._box(x3, y2, col_bw, col_bh, 'عائد التوزيعات', fmt_p(dy)[0] if dy else '-')
 
         # Row 3: P/B, ROE, Beta
         pb = safe(info, 'priceToBook'); roe = safe(info, 'returnOnEquity'); beta = safe(info, 'beta')
         self._box(x1, y3, col_bw, col_bh, 'مضاعف القيمة الدفترية', f'{float(pb):.2f}' if pb else '-')
-        self._box(x2, y3, col_bw, col_bh, 'العائد على حقوق المساهمين', fmt_p(roe)[0] if roe else '-')
-        self._box(x3, y3, col_bw, col_bh, 'بيتا', f'{float(beta):.2f}' if beta else '-')
+        self._box(x2, y3, col_bw, col_bh, 'العائد على حقوق المساهمين', fmt_p(roث_raw)[0] if roe else '-')
+        self._box(x3, y3, col_bw, col_bh, 'العائد على متوسط الأصول', f'{float(roa_raw):.2f}' if beta else '-')
 
         # Row 4: Volume, Trading Value, Trades Count
         self._box(x1, y4, col_bw, col_bh, 'حجم التداول', fmt_n(safe(info,'volume'), d=0)[0])
