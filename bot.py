@@ -1647,22 +1647,6 @@ def fetch_data(ticker):
                 except Exception:
                     pass
 
-        # 4. عدد الصفقات — yfinance has no direct field; estimate if possible
-        if not info.get('tradesCount'):
-            try:
-                # Some brokers report avgBidAskSpread or similar — not available in yf.
-                # Best estimate: dollar_volume ÷ assumed average trade size (10,000 SAR)
-                trading_val = info.get('tradingValue')
-                if trading_val and trading_val > 0:
-                    avg_trade_size = 10_000  # SAR — reasonable Tadawul estimate
-                    info['tradesCount'] = int(trading_val / avg_trade_size)
-            except Exception:
-                pass
-
-        return df, df2, info
-    except Exception as e:
-        logger.error(f"fetch_data error: {e}")
-        return None, None, {}
 
 # ^^^ fetch_data ENDS HERE ^^^
 # ─────────────────────────────────────────────────────────────
@@ -3343,7 +3327,7 @@ class Report:
         pb=safe(info,'priceToBook'); roe=safe(info,'returnOnEquity'); beta=safe(info,'beta')
         self._box(x1,y3,col_bw,col_bh,'مضاعف القيمة الدفترية',f'{float(pb):.2f}' if pb else '-')
         self._box(x2,y3,col_bw,col_bh,'العائد على حقوق المساهمين',fmt_p(roe)[0] if roe else '-')
-        self._box(x3,y3,col_bw,col_bh,'بيتا',f'{float(beta):.2f}' if beta else '-')
+        self._box(x3,y3,col_bw,col_bh,'العائد على الأصول',f'{float(roa_display):.2f}' if beta else '-')
 
         self._box(x1,y4,col_bw,col_bh,'حجم التداول',fmt_n(safe(info,'volume'),d=0)[0])
         val_str = fmt_n(safe(info,'tradingValue'),d=0)[0] if safe(info,'tradingValue') else '-'
