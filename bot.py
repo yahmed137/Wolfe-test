@@ -686,87 +686,278 @@ def get_sector_industry(ticker):
 _PE_NON_NUMERIC = {"سالب", "أكبر من 100", "-", ""}
 
 STOCKS_STATIC_DATA = {
-    "2222": {"Numberofshare": "242000", "Eps": "1.51", "Bookvalue": "6.2", "Parallel_value": "-", "PE_ratio": "17.55", "PB_ratio": "4.38"},
-    "2381": {"Numberofshare": "89", "Eps": "-0.85", "Bookvalue": "64.56", "Parallel_value": "10", "PE_ratio": "أكبر من 100", "PB_ratio": "1.39"},
-    "2382": {"Numberofshare": "1129.06", "Eps": "0.71", "Bookvalue": "5.84", "Parallel_value": "1", "PE_ratio": "25.9", "PB_ratio": "2.95"},
-    "2380": {"Numberofshare": "2197.36", "Eps": "-2.16", "Bookvalue": "5.93", "Parallel_value": "10", "PE_ratio": "سالب", "PB_ratio": "1.59"},
-    "4030": {"Numberofshare": "922.85", "Eps": "2.63", "Bookvalue": "16.55", "Parallel_value": "10", "PE_ratio": "12.07", "PB_ratio": "1.94"},
-    "2030": {"Numberofshare": "15", "Eps": "-3.9", "Bookvalue": "21.43", "Parallel_value": "10", "PE_ratio": "سالب", "PB_ratio": "2.34"},
-    "1202": {"Numberofshare": "86.67", "Eps": "-0.23", "Bookvalue": "18.83", "Parallel_value": "10", "PE_ratio": "سالب", "PB_ratio": "0.91"},
-    "3007": {"Numberofshare": "225", "Eps": "0.01", "Bookvalue": "1.29", "Parallel_value": "1", "PE_ratio": "أكبر من 100", "PB_ratio": "1.82"},
-    "1201": {"Numberofshare": "76.46", "Eps": "-1.33", "Bookvalue": "4.46", "Parallel_value": "10", "PE_ratio": "سالب", "PB_ratio": "1.21"},
-    "1322": {"Numberofshare": "90", "Eps": "3.12", "Bookvalue": "14.73", "Parallel_value": "10", "PE_ratio": "29.58", "PB_ratio": "5.97"},
-    "4143": {"Numberofshare": "40", "Eps": "2.11", "Bookvalue": "13.19", "Parallel_value": "10", "PE_ratio": "14.61", "PB_ratio": "2.34"},
-    "2150": {"Numberofshare": "32.9", "Eps": "2.49", "Bookvalue": "24.24", "Parallel_value": "10", "PE_ratio": "14.08", "PB_ratio": "1.44"},
-    "2180": {"Numberofshare": "11.5", "Eps": "-1.78", "Bookvalue": "11.09", "Parallel_value": "10", "PE_ratio": "سالب", "PB_ratio": "2.37"},
-    "2220": {"Numberofshare": "35.4", "Eps": "-0.75", "Bookvalue": "6.53", "Parallel_value": "10", "PE_ratio": "سالب", "PB_ratio": "1.81"},
-    "1323": {"Numberofshare": "40", "Eps": "1.98", "Bookvalue": "14.71", "Parallel_value": "10", "PE_ratio": "14.07", "PB_ratio": "1.6"},
-    "2300": {"Numberofshare": "37.07", "Eps": "1.33", "Bookvalue": "15.17", "Parallel_value": "10", "PE_ratio": "53.56", "PB_ratio": "3.46"},
-    "3008": {"Numberofshare": "226.04", "Eps": "", "Bookvalue": "0.46", "Parallel_value": "", "PE_ratio": "سالب", "PB_ratio": "4.39"},
-    "1301": {"Numberofshare": "28.08", "Eps": "0.21", "Bookvalue": "13.23", "Parallel_value": "10", "PE_ratio": "80.26", "PB_ratio": "1.27"},
-    "1320": {"Numberofshare": "51", "Eps": "3.76", "Bookvalue": "16.72", "Parallel_value": "10", "PE_ratio": "14.21", "PB_ratio": "2.3"},
-    "2090": {"Numberofshare": "31.67", "Eps": "-0.06", "Bookvalue": "10.92", "Parallel_value": "10", "PE_ratio": "سالب", "PB_ratio": "1.31"},
-    "2200": {"Numberofshare": "200", "Eps": "0.55", "Bookvalue": "2.44", "Parallel_value": "1", "PE_ratio": "9.78", "PB_ratio": "2.02"},
-    "2240": {"Numberofshare": "60", "Eps": "1.42", "Bookvalue": "8.81", "Parallel_value": "10", "PE_ratio": "18.71", "PB_ratio": "4.05"},
-    "2360": {"Numberofshare": "15", "Eps": "-2.68", "Bookvalue": "6.17", "Parallel_value": "10", "PE_ratio": "سالب", "PB_ratio": "2.97"},
-    "1210": {"Numberofshare": "27.5", "Eps": "0.53", "Bookvalue": "21.25", "Parallel_value": "10", "PE_ratio": "50.19", "PB_ratio": "1.16"},
-    "1211": {"Numberofshare": "3888.76", "Eps": "1.91", "Bookvalue": "15.84", "Parallel_value": "10", "PE_ratio": "35.36", "PB_ratio": "4.36"},
-    "1304": {"Numberofshare": "50.8", "Eps": "1.82", "Bookvalue": "12.98", "Parallel_value": "10", "PE_ratio": "21.12", "PB_ratio": "2.74"},
-    "1321": {"Numberofshare": "31.5", "Eps": "15.7", "Bookvalue": "44.45", "Parallel_value": "10", "PE_ratio": "8.7", "PB_ratio": "3.07"},
-    "2223": {"Numberofshare": "168.75", "Eps": "5.07", "Bookvalue": "27.16", "Parallel_value": "10", "PE_ratio": "18.55", "PB_ratio": "3.46"},
-    "2001": {"Numberofshare": "67.45", "Eps": "-10.46", "Bookvalue": "3.83", "Parallel_value": "10", "PE_ratio": "سالب", "PB_ratio": "2.08"},
-    "2010": {"Numberofshare": "3000", "Eps": "-8.59", "Bookvalue": "42.91", "Parallel_value": "10", "PE_ratio": "سالب", "PB_ratio": "1.37"},
-    "2020": {"Numberofshare": "476.04", "Eps": "9.08", "Bookvalue": "44.54", "Parallel_value": "10", "PE_ratio": "15.06", "PB_ratio": "3.07"},
-    "2060": {"Numberofshare": "668.91", "Eps": "0.46", "Bookvalue": "14.91", "Parallel_value": "10", "PE_ratio": "سالب", "PB_ratio": "0.61"},
-    "2170": {"Numberofshare": "69.2", "Eps": "-1.28", "Bookvalue": "48.4", "Parallel_value": "10", "PE_ratio": "64.31", "PB_ratio": "0.56"},
-    "2210": {"Numberofshare": "23.52", "Eps": "3.31", "Bookvalue": "11.94", "Parallel_value": "10", "PE_ratio": "سالب", "PB_ratio": "1.77"},
-    "2250": {"Numberofshare": "679.32", "Eps": "-0.15", "Bookvalue": "12.66", "Parallel_value": "10", "PE_ratio": "سالب", "PB_ratio": "1.02"},
-    "2290": {"Numberofshare": "562.5", "Eps": "0.14", "Bookvalue": "19.11", "Parallel_value": "10", "PE_ratio": "أكبر من 100", "PB_ratio": "1.73"},
-    "2310": {"Numberofshare": "733.33", "Eps": "-0.58", "Bookvalue": "19.66", "Parallel_value": "10", "PE_ratio": "سالب", "PB_ratio": "0.78"},
-    "2330": {"Numberofshare": "260", "Eps": "0.87", "Bookvalue": "11.89", "Parallel_value": "10", "PE_ratio": "27.19", "PB_ratio": "1.99"},
-    "2350": {"Numberofshare": "1500", "Eps": "-1.53", "Bookvalue": "6.12", "Parallel_value": "10", "PE_ratio": "سالب", "PB_ratio": "0.85"},
-    "3002": {"Numberofshare": "170", "Eps": "0.33", "Bookvalue": "11.9", "Parallel_value": "10", "PE_ratio": "19.09", "PB_ratio": "0.53"},
-    "3003": {"Numberofshare": "140", "Eps": "0.98", "Bookvalue": "12.86", "Parallel_value": "10", "PE_ratio": "11.83", "PB_ratio": "0.91"},
-    "3004": {"Numberofshare": "180", "Eps": "0.31", "Bookvalue": "12.47", "Parallel_value": "10", "PE_ratio": "22.04", "PB_ratio": "0.55"},
-    "3010": {"Numberofshare": "100", "Eps": "1.65", "Bookvalue": "25.78", "Parallel_value": "10", "PE_ratio": "13.82", "PB_ratio": "0.88"},
-    "3020": {"Numberofshare": "202.5", "Eps": "2.38", "Bookvalue": "24.54", "Parallel_value": "10", "PE_ratio": "13.51", "PB_ratio": "0.95"},
-    "3030": {"Numberofshare": "153", "Eps": "2.47", "Bookvalue": "13.82", "Parallel_value": "10", "PE_ratio": "13.24", "PB_ratio": "2.37"},
-    "3040": {"Numberofshare": "110.56", "Eps": "2.35", "Bookvalue": "24.04", "Parallel_value": "10", "PE_ratio": "24.79", "PB_ratio": "1.77"},
-    "3050": {"Numberofshare": "140", "Eps": "1.02", "Bookvalue": "23.51", "Parallel_value": "10", "PE_ratio": "21.51", "PB_ratio": "0.93"},
-    "3060": {"Numberofshare": "157.5", "Eps": "0.66", "Bookvalue": "15.95", "Parallel_value": "10", "PE_ratio": "21.95", "PB_ratio": "0.91"},
-    "3080": {"Numberofshare": "86", "Eps": "2.78", "Bookvalue": "26.57", "Parallel_value": "10", "PE_ratio": "7.45", "PB_ratio": "0.87"},
-    "3090": {"Numberofshare": "90", "Eps": "0.49", "Bookvalue": "13.04", "Parallel_value": "10", "PE_ratio": "16.61", "PB_ratio": "0.63"},
-    "3091": {"Numberofshare": "108.7", "Eps": "-0.63", "Bookvalue": "9.68", "Parallel_value": "10", "PE_ratio": "سالب", "PB_ratio": "0.54"},
-    "3005": {"Numberofshare": "55", "Eps": "0.73", "Bookvalue": "15.38", "Parallel_value": "10", "PE_ratio": "16.17", "PB_ratio": "0.77"},
-    "3092": {"Numberofshare": "120", "Eps": "1.73", "Bookvalue": "14.32", "Parallel_value": "10", "PE_ratio": "13.4", "PB_ratio": "1.62"},
-    "4142": {"Numberofshare": "150", "Eps": "7.13", "Bookvalue": "19.39", "Parallel_value": "10", "PE_ratio": "15.99", "PB_ratio": "5.88"},
-    "1214": {"Numberofshare": "67.71", "Eps": "1.23", "Bookvalue": "12.79", "Parallel_value": "10", "PE_ratio": "12.67", "PB_ratio": "1.22"},
-    "1212": {"Numberofshare": "80", "Eps": "8.34", "Bookvalue": "37.02", "Parallel_value": "10", "PE_ratio": "16.46", "PB_ratio": "3.71"},
-    "1302": {"Numberofshare": "60", "Eps": "2.83", "Bookvalue": "16.02", "Parallel_value": "10", "PE_ratio": "15", "PB_ratio": "2.64"},
-    "2370": {"Numberofshare": "40", "Eps": "2.29", "Bookvalue": "12.97", "Parallel_value": "10", "PE_ratio": "8.91", "PB_ratio": "1.51"},
-    "1303": {"Numberofshare": "1125", "Eps": "", "Bookvalue": "1.15", "Parallel_value": "", "PE_ratio": "28.7", "PB_ratio": "13.88"},
-    "2320": {"Numberofshare": "63.95", "Eps": "6.23", "Bookvalue": "19.36", "Parallel_value": "10", "PE_ratio": "9.85", "PB_ratio": "3.17"},
-    "2160": {"Numberofshare": "44.55", "Eps": "-1.51", "Bookvalue": "20.21", "Parallel_value": "10", "PE_ratio": "سالب", "PB_ratio": "0.64"},
-    "2110": {"Numberofshare": "6.67", "Eps": "16.1", "Bookvalue": "-47.06", "Parallel_value": "10", "PE_ratio": "11.19", "PB_ratio": "-3.31"},
-    "2040": {"Numberofshare": "100", "Eps": "1.81", "Bookvalue": "15.54", "Parallel_value": "10", "PE_ratio": "48.9", "PB_ratio": "1.75"},
-    "1010": {"Numberofshare": "3000", "Eps": "3.47", "Bookvalue": "21.37", "Parallel_value": "10", "PE_ratio": "8.09", "PB_ratio": "1.31"},
-    "1020": {"Numberofshare": "1281.25", "Eps": "1.17", "Bookvalue": "11.73", "Parallel_value": "10", "PE_ratio": "9.5", "PB_ratio": "0.95"},
-    "1030": {"Numberofshare": "1250", "Eps": "1.95", "Bookvalue": "13.7", "Parallel_value": "10", "PE_ratio": "8.34", "PB_ratio": "0.92"},
-    "1050": {"Numberofshare": "2500", "Eps": "2.14", "Bookvalue": "17.09", "Parallel_value": "10", "PE_ratio": "8.8", "PB_ratio": "1.1"},
-    "1060": {"Numberofshare": "2054.8", "Eps": "4.11", "Bookvalue": "32.58", "Parallel_value": "10", "PE_ratio": "8.32", "PB_ratio": "1.06"},
-    "1080": {"Numberofshare": "2000", "Eps": "2.56", "Bookvalue": "20.86", "Parallel_value": "10", "PE_ratio": "8.25", "PB_ratio": "0.99"},
-    "1120": {"Numberofshare": "4000", "Eps": "6.2", "Bookvalue": "28.71", "Parallel_value": "10", "PE_ratio": "15.94", "PB_ratio": "3.44"},
-    "1140": {"Numberofshare": "1500", "Eps": "2.03", "Bookvalue": "12.61", "Parallel_value": "10", "PE_ratio": "12.67", "PB_ratio": "2.04"},
-    "1150": {"Numberofshare": "2500", "Eps": "2.56", "Bookvalue": "14.3", "Parallel_value": "10", "PE_ratio": "11", "PB_ratio": "1.97"},
-    "1180": {"Numberofshare": "6000", "Eps": "4.17", "Bookvalue": "30.94", "Parallel_value": "10", "PE_ratio": "9.36", "PB_ratio": "1.26"},
-    "7010": {"Numberofshare": "5000", "Eps": "2.97", "Bookvalue": "16.68", "Parallel_value": "10", "PE_ratio": "14.74", "PB_ratio": "2.53"},
-    "7020": {"Numberofshare": "770", "Eps": "4.5", "Bookvalue": "26.4", "Parallel_value": "10", "PE_ratio": "14.88", "PB_ratio": "2.5"},
-    "7030": {"Numberofshare": "898.73", "Eps": "0.67", "Bookvalue": "12.1", "Parallel_value": "10", "PE_ratio": "16.98", "PB_ratio": "0.94"},
-    "5110": {"Numberofshare": "4166.59", "Eps": "0.96", "Bookvalue": "20.18", "Parallel_value": "10", "PE_ratio": "14.83", "PB_ratio": "0.71"},
-    "2082": {"Numberofshare": "766.49", "Eps": "2.42", "Bookvalue": "37.87", "Parallel_value": "10", "PE_ratio": "79.39", "PB_ratio": "4.34"},
-    "2280": {"Numberofshare": "1000", "Eps": "2.46", "Bookvalue": "20.53", "Parallel_value": "10", "PE_ratio": "18.27", "PB_ratio": "2.12"},
-    "4013": {"Numberofshare": "350", "Eps": "6.86", "Bookvalue": "22.58", "Parallel_value": "10", "PE_ratio": "36", "PB_ratio": "10.94"},
-    "4190": {"Numberofshare": "1200", "Eps": "0.87", "Bookvalue": "1.47", "Parallel_value": "1", "PE_ratio": "15.79", "PB_ratio": "9.3"},
+    "1010": {"Numberofshare": "3,000.00", "Eps": "3.47", "Bookvalue": "21.37", "Parallel_value": "10.00", "PE_ratio": "8.19", "PB_ratio": "1.33", "ROA": "", "ROE": "16.91"},
+    "1020": {"Numberofshare": "1,281.25", "Eps": "1.17", "Bookvalue": "11.73", "Parallel_value": "10.00", "PE_ratio": "9.62", "PB_ratio": "0.96", "ROA": "", "ROE": "10.54"},
+    "1030": {"Numberofshare": "1,250.00", "Eps": "1.95", "Bookvalue": "13.70", "Parallel_value": "10.00", "PE_ratio": "8.50", "PB_ratio": "0.94", "ROA": "", "ROE": "14.76"},
+    "1050": {"Numberofshare": "2,500.00", "Eps": "2.14", "Bookvalue": "17.09", "Parallel_value": "10.00", "PE_ratio": "8.89", "PB_ratio": "1.11", "ROA": "", "ROE": "13.08"},
+    "1060": {"Numberofshare": "2,054.80", "Eps": "4.11", "Bookvalue": "32.58", "Parallel_value": "10.00", "PE_ratio": "8.43", "PB_ratio": "1.08", "ROA": "", "ROE": "13.16"},
+    "1080": {"Numberofshare": "2,000.00", "Eps": "2.56", "Bookvalue": "20.86", "Parallel_value": "10.00", "PE_ratio": "8.33", "PB_ratio": "1.00", "ROA": "", "ROE": "12.73"},
+    "1111": {"Numberofshare": "120.00", "Eps": "3.30", "Bookvalue": "28.69", "Parallel_value": "10.00", "PE_ratio": "42.89", "PB_ratio": "4.94", "ROA": "4.45", "ROE": "11.41"},
+    "1120": {"Numberofshare": "4,000.00", "Eps": "6.20", "Bookvalue": "28.71", "Parallel_value": "10.00", "PE_ratio": "16.26", "PB_ratio": "3.51", "ROA": "", "ROE": "23.13"},
+    "1140": {"Numberofshare": "1,500.00", "Eps": "2.03", "Bookvalue": "12.61", "Parallel_value": "10.00", "PE_ratio": "12.93", "PB_ratio": "2.08", "ROA": "", "ROE": "17.13"},
+    "1150": {"Numberofshare": "2,500.00", "Eps": "2.56", "Bookvalue": "14.30", "Parallel_value": "10.00", "PE_ratio": "11.12", "PB_ratio": "1.99", "ROA": "", "ROE": "18.70"},
+    "1180": {"Numberofshare": "6,000.00", "Eps": "4.17", "Bookvalue": "30.94", "Parallel_value": "10.00", "PE_ratio": "9.71", "PB_ratio": "1.31", "ROA": "", "ROE": "14.01"},
+    "1182": {"Numberofshare": "101.93", "Eps": "0.64", "Bookvalue": "12.57", "Parallel_value": "10.00", "PE_ratio": "16.27", "PB_ratio": "0.84", "ROA": "", "ROE": "5.21"},
+    "1183": {"Numberofshare": "100.00", "Eps": "0.51", "Bookvalue": "17.38", "Parallel_value": "10.00", "PE_ratio": "28.89", "PB_ratio": "0.82", "ROA": "", "ROE": "2.98"},
+    "1201": {"Numberofshare": "76.46", "Eps": "(1.33 )", "Bookvalue": "4.46", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.21", "ROA": "(7.92 )", "ROE": "(25.89 )"},
+    "1202": {"Numberofshare": "86.67", "Eps": "(0.23 )", "Bookvalue": "18.83", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "0.90", "ROA": "(0.76 )", "ROE": "(1.20 )"},
+    "1210": {"Numberofshare": "27.50", "Eps": "0.53", "Bookvalue": "21.25", "Parallel_value": "10.00", "PE_ratio": "49.92", "PB_ratio": "1.15", "ROA": "1.18", "ROE": "2.49"},
+    "1211": {"Numberofshare": "3,888.76", "Eps": "1.91", "Bookvalue": "15.84", "Parallel_value": "10.00", "PE_ratio": "35.90", "PB_ratio": "4.42", "ROA": "6.31", "ROE": "12.95"},
+    "1212": {"Numberofshare": "80.00", "Eps": "8.34", "Bookvalue": "37.02", "Parallel_value": "10.00", "PE_ratio": "16.42", "PB_ratio": "3.71", "ROA": "15.19", "ROE": "24.31"},
+    "1213": {"Numberofshare": "10.90", "Eps": "(2.49 )", "Bookvalue": "3.60", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "6.23", "ROA": "(9.01 )", "ROE": "(51.47 )"},
+    "1214": {"Numberofshare": "67.71", "Eps": "1.23", "Bookvalue": "12.79", "Parallel_value": "10.00", "PE_ratio": "12.84", "PB_ratio": "1.23", "ROA": "4.80", "ROE": "9.91"},
+    "1301": {"Numberofshare": "28.08", "Eps": "0.21", "Bookvalue": "13.23", "Parallel_value": "10.00", "PE_ratio": "79.59", "PB_ratio": "1.27", "ROA": "1.19", "ROE": "1.56"},
+    "1302": {"Numberofshare": "60.00", "Eps": "2.83", "Bookvalue": "16.02", "Parallel_value": "10.00", "PE_ratio": "15.42", "PB_ratio": "2.71", "ROA": "5.95", "ROE": "18.24"},
+    "1303": {"Numberofshare": "1,125.00", "Eps": "", "Bookvalue": "1.15", "Parallel_value": "", "PE_ratio": "29.24", "PB_ratio": "14.08", "ROA": "27.71", "ROE": "56.14"},
+    "1304": {"Numberofshare": "50.80", "Eps": "1.82", "Bookvalue": "12.98", "Parallel_value": "10.00", "PE_ratio": "21.43", "PB_ratio": "2.77", "ROA": "4.81", "ROE": "14.80"},
+    "1320": {"Numberofshare": "51.00", "Eps": "3.76", "Bookvalue": "16.72", "Parallel_value": "10.00", "PE_ratio": "13.99", "PB_ratio": "2.26", "ROA": "10.23", "ROE": "22.33"},
+    "1321": {"Numberofshare": "31.50", "Eps": "15.70", "Bookvalue": "44.45", "Parallel_value": "10.00", "PE_ratio": "8.70", "PB_ratio": "3.07", "ROA": "28.67", "ROE": "40.37"},
+    "1322": {"Numberofshare": "90.00", "Eps": "3.12", "Bookvalue": "14.73", "Parallel_value": "10.00", "PE_ratio": "30.74", "PB_ratio": "6.18", "ROA": "18.42", "ROE": "21.77"},
+    "1323": {"Numberofshare": "40.00", "Eps": "1.98", "Bookvalue": "14.71", "Parallel_value": "10.00", "PE_ratio": "14.24", "PB_ratio": "1.61", "ROA": "7.82", "ROE": "13.96"},
+    "1810": {"Numberofshare": "300.00", "Eps": "(0.85 )", "Bookvalue": "19.36", "Parallel_value": "10.00", "PE_ratio": "أكبر من 100", "PB_ratio": "1.11", "ROA": "(2.26 )", "ROE": "(4.09 )"},
+    "1820": {"Numberofshare": "315.00", "Eps": "(0.18 )", "Bookvalue": "0.52", "Parallel_value": "1.00", "PE_ratio": "سالب", "PB_ratio": "3.27", "ROA": "(2.88 )", "ROE": "(28.71 )"},
+    "1830": {"Numberofshare": "52.38", "Eps": "5.82", "Bookvalue": "22.91", "Parallel_value": "10.00", "PE_ratio": "14.37", "PB_ratio": "3.57", "ROA": "7.89", "ROE": "25.06"},
+    "1831": {"Numberofshare": "475.00", "Eps": "0.28", "Bookvalue": "1.55", "Parallel_value": "1.00", "PE_ratio": "21.33", "PB_ratio": "3.78", "ROA": "6.82", "ROE": "19.90"},
+    "1832": {"Numberofshare": "175.00", "Eps": "(0.01 )", "Bookvalue": "0.93", "Parallel_value": "1.00", "PE_ratio": "سالب", "PB_ratio": "2.72", "ROA": "(0.68 )", "ROE": "(1.12 )"},
+    "1833": {"Numberofshare": "20.00", "Eps": "6.40", "Bookvalue": "23.15", "Parallel_value": "10.00", "PE_ratio": "11.67", "PB_ratio": "3.37", "ROA": "14.05", "ROE": "30.45"},
+    "1834": {"Numberofshare": "400.00", "Eps": "0.33", "Bookvalue": "1.51", "Parallel_value": "1.00", "PE_ratio": "14.93", "PB_ratio": "3.47", "ROA": "11.86", "ROE": "22.65"},
+    "1835": {"Numberofshare": "26.50", "Eps": "3.59", "Bookvalue": "13.27", "Parallel_value": "10.00", "PE_ratio": "13.35", "PB_ratio": "3.52", "ROA": "16.54", "ROE": "27.12"},
+    "2001": {"Numberofshare": "67.45", "Eps": "(10.46 )", "Bookvalue": "3.83", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.99", "ROA": "(41.74 )", "ROE": "(115.44 )"},
+    "2010": {"Numberofshare": "3,000.00", "Eps": "(8.59 )", "Bookvalue": "42.91", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.34", "ROA": "(9.51 )", "ROE": "(18.09 )"},
+    "2020": {"Numberofshare": "476.04", "Eps": "9.08", "Bookvalue": "44.54", "Parallel_value": "10.00", "PE_ratio": "14.55", "PB_ratio": "2.97", "ROA": "16.46", "ROE": "21.79"},
+    "2030": {"Numberofshare": "15.00", "Eps": "(3.90 )", "Bookvalue": "21.43", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "2.33", "ROA": "(16.03 )", "ROE": "(16.70 )"},
+    "2040": {"Numberofshare": "100.00", "Eps": "1.81", "Bookvalue": "15.54", "Parallel_value": "10.00", "PE_ratio": "48.79", "PB_ratio": "1.74", "ROA": "6.58", "ROE": "12.14"},
+    "2050": {"Numberofshare": "300.00", "Eps": "2.92", "Bookvalue": "18.39", "Parallel_value": "10.00", "PE_ratio": "13.99", "PB_ratio": "1.33", "ROA": "4.29", "ROE": "17.25"},
+    "2060": {"Numberofshare": "668.91", "Eps": "0.46", "Bookvalue": "14.91", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "0.59", "ROA": "1.22", "ROE": "3.09"},
+    "2070": {"Numberofshare": "120.00", "Eps": "0.91", "Bookvalue": "12.89", "Parallel_value": "10.00", "PE_ratio": "42.28", "PB_ratio": "2.12", "ROA": "2.48", "ROE": "7.40"},
+    "2080": {"Numberofshare": "75.00", "Eps": "3.32", "Bookvalue": "26.24", "Parallel_value": "10.00", "PE_ratio": "23.65", "PB_ratio": "2.92", "ROA": "9.08", "ROE": "12.86"},
+    "2081": {"Numberofshare": "35.00", "Eps": "7.41", "Bookvalue": "25.42", "Parallel_value": "10.00", "PE_ratio": "14.67", "PB_ratio": "4.40", "ROA": "9.86", "ROE": "32.67"},
+    "2082": {"Numberofshare": "766.49", "Eps": "2.42", "Bookvalue": "37.87", "Parallel_value": "10.00", "PE_ratio": "81.13", "PB_ratio": "4.43", "ROA": "2.92", "ROE": "7.28"},
+    "2083": {"Numberofshare": "250.00", "Eps": "1.80", "Bookvalue": "22.44", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.40", "ROA": "1.99", "ROE": "8.30"},
+    "2084": {"Numberofshare": "160.93", "Eps": "0.43", "Bookvalue": "2.92", "Parallel_value": "1.00", "PE_ratio": "35.03", "PB_ratio": "5.21", "ROA": "5.20", "ROE": "15.67"},
+    "2090": {"Numberofshare": "31.67", "Eps": "(0.06 )", "Bookvalue": "10.92", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.30", "ROA": "(0.49 )", "ROE": "(0.56 )"},
+    "2100": {"Numberofshare": "23.15", "Eps": "(1.45 )", "Bookvalue": "9.46", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "2.04", "ROA": "(10.12 )", "ROE": "(14.30 )"},
+    "2110": {"Numberofshare": "6.67", "Eps": "16.10", "Bookvalue": "(47.06 )", "Parallel_value": "10.00", "PE_ratio": "11.41", "PB_ratio": "(3.38)", "ROA": "14.48", "ROE": "(29.71 )"},
+    "2120": {"Numberofshare": "60.00", "Eps": "(1.66 )", "Bookvalue": "17.66", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "0.89", "ROA": "(7.68 )", "ROE": "(8.72 )"},
+    "2130": {"Numberofshare": "30.00", "Eps": "(1.08 )", "Bookvalue": "2.24", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "6.03", "ROA": "(12.81 )", "ROE": "(37.91 )"},
+    "2140": {"Numberofshare": "100.64", "Eps": "3.57", "Bookvalue": "9.46", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.16", "ROA": "25.19", "ROE": "46.14"},
+    "2150": {"Numberofshare": "32.90", "Eps": "2.49", "Bookvalue": "24.24", "Parallel_value": "10.00", "PE_ratio": "14.21", "PB_ratio": "1.46", "ROA": "9.52", "ROE": "10.50"},
+    "2160": {"Numberofshare": "44.55", "Eps": "(1.51 )", "Bookvalue": "20.21", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "0.65", "ROA": "(3.18 )", "ROE": "(7.31 )"},
+    "2170": {"Numberofshare": "69.20", "Eps": "(1.28 )", "Bookvalue": "48.40", "Parallel_value": "10.00", "PE_ratio": "61.11", "PB_ratio": "0.53", "ROA": "(1.59 )", "ROE": "(2.54 )"},
+    "2180": {"Numberofshare": "11.50", "Eps": "(1.78 )", "Bookvalue": "11.09", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "2.41", "ROA": "(7.27 )", "ROE": "(14.88 )"},
+    "2190": {"Numberofshare": "81.60", "Eps": "1.18", "Bookvalue": "18.31", "Parallel_value": "10.00", "PE_ratio": "30.07", "PB_ratio": "1.70", "ROA": "1.56", "ROE": "6.49"},
+    "2200": {"Numberofshare": "200.00", "Eps": "0.55", "Bookvalue": "2.44", "Parallel_value": "1.00", "PE_ratio": "9.66", "PB_ratio": "1.99", "ROA": "13.33", "ROE": "24.84"},
+    "2210": {"Numberofshare": "23.52", "Eps": "3.31", "Bookvalue": "11.94", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.74", "ROA": "6.98", "ROE": "32.37"},
+    "2220": {"Numberofshare": "35.40", "Eps": "(0.75 )", "Bookvalue": "6.53", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.80", "ROA": "(7.04 )", "ROE": "(10.84 )"},
+    "2222": {"Numberofshare": "242,000.00", "Eps": "1.44", "Bookvalue": "6.17", "Parallel_value": "-", "PE_ratio": "16.96", "PB_ratio": "4.32", "ROA": "13.99", "ROE": "23.59"},
+    "2223": {"Numberofshare": "168.75", "Eps": "5.07", "Bookvalue": "27.16", "Parallel_value": "10.00", "PE_ratio": "18.27", "PB_ratio": "3.41", "ROA": "11.15", "ROE": "19.05"},
+    "2230": {"Numberofshare": "843.20", "Eps": "0.40", "Bookvalue": "2.83", "Parallel_value": "1.00", "PE_ratio": "18.03", "PB_ratio": "2.55", "ROA": "5.32", "ROE": "15.01"},
+    "2240": {"Numberofshare": "60.00", "Eps": "1.42", "Bookvalue": "8.81", "Parallel_value": "10.00", "PE_ratio": "18.84", "PB_ratio": "4.05", "ROA": "1.39", "ROE": "17.50"},
+    "2250": {"Numberofshare": "679.32", "Eps": "(0.15 )", "Bookvalue": "12.66", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "0.97", "ROA": "(1.10 )", "ROE": "(1.12 )"},
+    "2270": {"Numberofshare": "32.50", "Eps": "14.69", "Bookvalue": "53.62", "Parallel_value": "10.00", "PE_ratio": "18.03", "PB_ratio": "3.99", "ROA": "17.87", "ROE": "26.90"},
+    "2280": {"Numberofshare": "1,000.00", "Eps": "2.46", "Bookvalue": "20.53", "Parallel_value": "10.00", "PE_ratio": "18.21", "PB_ratio": "2.12", "ROA": "6.50", "ROE": "12.49"},
+    "2281": {"Numberofshare": "20.00", "Eps": "(0.94 )", "Bookvalue": "30.77", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.69", "ROA": "(0.63 )", "ROE": "(2.90 )"},
+    "2282": {"Numberofshare": "20.00", "Eps": "", "Bookvalue": "14.28", "Parallel_value": "10.00", "PE_ratio": "78.88", "PB_ratio": "3.66", "ROA": "4.18", "ROE": "4.75"},
+    "2283": {"Numberofshare": "55.50", "Eps": "5.00", "Bookvalue": "19.26", "Parallel_value": "10.00", "PE_ratio": "10.06", "PB_ratio": "2.61", "ROA": "11.02", "ROE": "27.55"},
+    "2284": {"Numberofshare": "81.83", "Eps": "2.73", "Bookvalue": "3.95", "Parallel_value": "1.00", "PE_ratio": "10.44", "PB_ratio": "7.23", "ROA": "17.36", "ROE": "76.44"},
+    "2285": {"Numberofshare": "51.32", "Eps": "4.62", "Bookvalue": "23.10", "Parallel_value": "10.00", "PE_ratio": "8.41", "PB_ratio": "1.68", "ROA": "10.21", "ROE": "21.93"},
+    "2286": {"Numberofshare": "540.00", "Eps": "0.37", "Bookvalue": "1.47", "Parallel_value": "1.00", "PE_ratio": "10.38", "PB_ratio": "2.60", "ROA": "16.87", "ROE": "26.63"},
+    "2287": {"Numberofshare": "30.00", "Eps": "1.12", "Bookvalue": "15.51", "Parallel_value": "10.00", "PE_ratio": "28.28", "PB_ratio": "1.68", "ROA": "2.17", "ROE": "7.19"},
+    "2288": {"Numberofshare": "96.00", "Eps": "0.59", "Bookvalue": "1.93", "Parallel_value": "1.00", "PE_ratio": "13.73", "PB_ratio": "4.42", "ROA": "22.52", "ROE": "34.74"},
+    "2290": {"Numberofshare": "562.50", "Eps": "0.14", "Bookvalue": "19.11", "Parallel_value": "10.00", "PE_ratio": "أكبر من 100", "PB_ratio": "1.65", "ROA": "0.58", "ROE": "0.72"},
+    "2300": {"Numberofshare": "37.07", "Eps": "1.33", "Bookvalue": "15.17", "Parallel_value": "10.00", "PE_ratio": "53.10", "PB_ratio": "3.42", "ROA": "3.88", "ROE": "9.21"},
+    "2310": {"Numberofshare": "733.33", "Eps": "(0.58 )", "Bookvalue": "19.66", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "0.76", "ROA": "(1.99 )", "ROE": "(2.82 )"},
+    "2320": {"Numberofshare": "63.95", "Eps": "7.08", "Bookvalue": "20.49", "Parallel_value": "10.00", "PE_ratio": "9.33", "PB_ratio": "3.23", "ROA": "15.48", "ROE": "38.04"},
+    "2330": {"Numberofshare": "260.00", "Eps": "0.87", "Bookvalue": "11.89", "Parallel_value": "10.00", "PE_ratio": "26.30", "PB_ratio": "1.92", "ROA": "1.68", "ROE": "7.59"},
+    "2340": {"Numberofshare": "81.25", "Eps": "(1.52 )", "Bookvalue": "12.89", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "0.76", "ROA": "(8.17 )", "ROE": "(11.01 )"},
+    "2350": {"Numberofshare": "1,500.00", "Eps": "(1.53 )", "Bookvalue": "6.12", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "0.83", "ROA": "(9.64 )", "ROE": "(22.18 )"},
+    "2360": {"Numberofshare": "15.00", "Eps": "(2.68 )", "Bookvalue": "6.17", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "2.98", "ROA": "(21.56 )", "ROE": "(35.10 )"},
+    "2370": {"Numberofshare": "40.00", "Eps": "2.29", "Bookvalue": "12.97", "Parallel_value": "10.00", "PE_ratio": "9.02", "PB_ratio": "1.53", "ROA": "9.40", "ROE": "19.01"},
+    "2380": {"Numberofshare": "2,197.36", "Eps": "(2.16 )", "Bookvalue": "5.93", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.51", "ROA": "(6.49 )", "ROE": "(34.15 )"},
+    "2381": {"Numberofshare": "89.00", "Eps": "(0.85 )", "Bookvalue": "64.56", "Parallel_value": "10.00", "PE_ratio": "أكبر من 100", "PB_ratio": "1.36", "ROA": "(0.73 )", "ROE": "(1.29 )"},
+    "2382": {"Numberofshare": "1,129.06", "Eps": "0.71", "Bookvalue": "5.84", "Parallel_value": "1.00", "PE_ratio": "25.80", "PB_ratio": "2.93", "ROA": "3.68", "ROE": "12.59"},
+    "3002": {"Numberofshare": "170.00", "Eps": "0.33", "Bookvalue": "11.90", "Parallel_value": "10.00", "PE_ratio": "19.09", "PB_ratio": "0.53", "ROA": "2.27", "ROE": "2.79"},
+    "3003": {"Numberofshare": "140.00", "Eps": "0.98", "Bookvalue": "12.86", "Parallel_value": "10.00", "PE_ratio": "11.72", "PB_ratio": "0.90", "ROA": "7.36", "ROE": "7.75"},
+    "3004": {"Numberofshare": "180.00", "Eps": "0.31", "Bookvalue": "12.47", "Parallel_value": "10.00", "PE_ratio": "22.10", "PB_ratio": "0.55", "ROA": "1.59", "ROE": "2.49"},
+    "3005": {"Numberofshare": "55.00", "Eps": "0.73", "Bookvalue": "15.38", "Parallel_value": "10.00", "PE_ratio": "15.99", "PB_ratio": "0.77", "ROA": "3.42", "ROE": "4.88"},
+    "3007": {"Numberofshare": "225.00", "Eps": "0.01", "Bookvalue": "1.29", "Parallel_value": "1.00", "PE_ratio": "أكبر من 100", "PB_ratio": "1.83", "ROA": "0.58", "ROE": "1.09"},
+    "3008": {"Numberofshare": "226.04", "Eps": "", "Bookvalue": "0.46", "Parallel_value": "", "PE_ratio": "سالب", "PB_ratio": "4.41", "ROA": "(9.06 )", "ROE": "(24.53 )"},
+    "3010": {"Numberofshare": "100.00", "Eps": "1.65", "Bookvalue": "25.78", "Parallel_value": "10.00", "PE_ratio": "13.76", "PB_ratio": "0.88", "ROA": "5.37", "ROE": "6.42"},
+    "3020": {"Numberofshare": "202.50", "Eps": "2.38", "Bookvalue": "24.54", "Parallel_value": "10.00", "PE_ratio": "13.46", "PB_ratio": "0.95", "ROA": "6.53", "ROE": "9.84"},
+    "3030": {"Numberofshare": "153.00", "Eps": "2.38", "Bookvalue": "14.51", "Parallel_value": "10.00", "PE_ratio": "13.78", "PB_ratio": "2.25", "ROA": "11.57", "ROE": "16.31"},
+    "3040": {"Numberofshare": "110.56", "Eps": "2.35", "Bookvalue": "24.04", "Parallel_value": "10.00", "PE_ratio": "24.79", "PB_ratio": "1.77", "ROA": "8.34", "ROE": "9.61"},
+    "3050": {"Numberofshare": "140.00", "Eps": "1.02", "Bookvalue": "23.51", "Parallel_value": "10.00", "PE_ratio": "21.52", "PB_ratio": "0.94", "ROA": "3.15", "ROE": "4.37"},
+    "3060": {"Numberofshare": "157.50", "Eps": "0.66", "Bookvalue": "15.95", "Parallel_value": "10.00", "PE_ratio": "21.71", "PB_ratio": "0.90", "ROA": "3.28", "ROE": "4.08"},
+    "3080": {"Numberofshare": "86.00", "Eps": "2.78", "Bookvalue": "26.57", "Parallel_value": "10.00", "PE_ratio": "7.41", "PB_ratio": "0.87", "ROA": "8.14", "ROE": "10.17"},
+    "3090": {"Numberofshare": "90.00", "Eps": "0.49", "Bookvalue": "13.04", "Parallel_value": "10.00", "PE_ratio": "16.59", "PB_ratio": "0.63", "ROA": "2.88", "ROE": "3.55"},
+    "3091": {"Numberofshare": "108.70", "Eps": "(0.63 )", "Bookvalue": "9.68", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "0.54", "ROA": "(3.32 )", "ROE": "(6.31 )"},
+    "3092": {"Numberofshare": "120.00", "Eps": "1.73", "Bookvalue": "14.32", "Parallel_value": "10.00", "PE_ratio": "13.42", "PB_ratio": "1.62", "ROA": "10.75", "ROE": "11.88"},
+    "4001": {"Numberofshare": "900.00", "Eps": "0.47", "Bookvalue": "1.34", "Parallel_value": "1.00", "PE_ratio": "21.56", "PB_ratio": "4.61", "ROA": "6.15", "ROE": "36.69"},
+    "4002": {"Numberofshare": "200.00", "Eps": "3.78", "Bookvalue": "18.76", "Parallel_value": "10.00", "PE_ratio": "16.92", "PB_ratio": "3.41", "ROA": "13.39", "ROE": "21.12"},
+    "4003": {"Numberofshare": "80.00", "Eps": "6.21", "Bookvalue": "20.45", "Parallel_value": "10.00", "PE_ratio": "12.88", "PB_ratio": "3.91", "ROA": "8.78", "ROE": "29.71"},
+    "4004": {"Numberofshare": "101.58", "Eps": "5.30", "Bookvalue": "40.19", "Parallel_value": "10.00", "PE_ratio": "24.42", "PB_ratio": "2.83", "ROA": "6.84", "ROE": "14.26"},
+    "4005": {"Numberofshare": "44.85", "Eps": "7.10", "Bookvalue": "41.23", "Parallel_value": "10.00", "PE_ratio": "18.42", "PB_ratio": "3.18", "ROA": "12.09", "ROE": "18.33"},
+    "4006": {"Numberofshare": "45.00", "Eps": "0.56", "Bookvalue": "15.67", "Parallel_value": "10.00", "PE_ratio": "20.63", "PB_ratio": "0.81", "ROA": "1.05", "ROE": "3.61"},
+    "4007": {"Numberofshare": "160.00", "Eps": "1.66", "Bookvalue": "12.40", "Parallel_value": "10.00", "PE_ratio": "15.21", "PB_ratio": "2.04", "ROA": "10.00", "ROE": "13.54"},
+    "4008": {"Numberofshare": "36.00", "Eps": "1.27", "Bookvalue": "10.30", "Parallel_value": "10.00", "PE_ratio": "43.85", "PB_ratio": "2.36", "ROA": "3.87", "ROE": "13.08"},
+    "4009": {"Numberofshare": "92.04", "Eps": "3.28", "Bookvalue": "20.34", "Parallel_value": "10.00", "PE_ratio": "15.20", "PB_ratio": "1.53", "ROA": "5.70", "ROE": "17.26"},
+    "4011": {"Numberofshare": "57.50", "Eps": "(0.52 )", "Bookvalue": "4.68", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "2.43", "ROA": "(1.42 )", "ROE": "(10.47 )"},
+    "4012": {"Numberofshare": "400.00", "Eps": "0.25", "Bookvalue": "1.53", "Parallel_value": "1.00", "PE_ratio": "14.10", "PB_ratio": "2.32", "ROA": "13.37", "ROE": "16.64"},
+    "4013": {"Numberofshare": "350.00", "Eps": "6.86", "Bookvalue": "22.58", "Parallel_value": "10.00", "PE_ratio": "35.93", "PB_ratio": "10.93", "ROA": "10.97", "ROE": "31.86"},
+    "4014": {"Numberofshare": "30.00", "Eps": "0.95", "Bookvalue": "16.96", "Parallel_value": "10.00", "PE_ratio": "27.06", "PB_ratio": "1.75", "ROA": "3.00", "ROE": "5.57"},
+    "4015": {"Numberofshare": "70.00", "Eps": "6.63", "Bookvalue": "24.53", "Parallel_value": "10.00", "PE_ratio": "20.57", "PB_ratio": "5.56", "ROA": "24.30", "ROE": "28.92"},
+    "4016": {"Numberofshare": "20.00", "Eps": "4.85", "Bookvalue": "20.81", "Parallel_value": "10.00", "PE_ratio": "21.05", "PB_ratio": "4.90", "ROA": "17.23", "ROE": "24.73"},
+    "4017": {"Numberofshare": "232.00", "Eps": "1.25", "Bookvalue": "13.67", "Parallel_value": "1.00", "PE_ratio": "25.17", "PB_ratio": "2.30", "ROA": "5.20", "ROE": "9.49"},
+    "4018": {"Numberofshare": "44.30", "Eps": "4.71", "Bookvalue": "43.90", "Parallel_value": "10.00", "PE_ratio": "31.67", "PB_ratio": "3.36", "ROA": "7.43", "ROE": "16.00"},
+    "4019": {"Numberofshare": "250.00", "Eps": "1.06", "Bookvalue": "4.75", "Parallel_value": "1.00", "PE_ratio": "22.56", "PB_ratio": "3.91", "ROA": "12.18", "ROE": "26.42"},
+    "4020": {"Numberofshare": "375.00", "Eps": "1.22", "Bookvalue": "14.09", "Parallel_value": "10.00", "PE_ratio": "11.16", "PB_ratio": "0.92", "ROA": "4.89", "ROE": "9.06"},
+    "4021": {"Numberofshare": "77.00", "Eps": "0.14", "Bookvalue": "1.25", "Parallel_value": "1.00", "PE_ratio": "22.42", "PB_ratio": "4.57", "ROA": "8.30", "ROE": "11.05"},
+    "4030": {"Numberofshare": "922.85", "Eps": "2.63", "Bookvalue": "16.55", "Parallel_value": "10.00", "PE_ratio": "12.19", "PB_ratio": "1.95", "ROA": "8.44", "ROE": "16.83"},
+    "4031": {"Numberofshare": "188.00", "Eps": "2.10", "Bookvalue": "13.04", "Parallel_value": "10.00", "PE_ratio": "14.72", "PB_ratio": "2.37", "ROA": "9.08", "ROE": "16.33"},
+    "4040": {"Numberofshare": "125.00", "Eps": "(0.13 )", "Bookvalue": "7.48", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.13", "ROA": "(0.41 )", "ROE": "(1.82 )"},
+    "4050": {"Numberofshare": "70.00", "Eps": "0.75", "Bookvalue": "12.77", "Parallel_value": "10.00", "PE_ratio": "أكبر من 100", "PB_ratio": "4.13", "ROA": "0.79", "ROE": "6.17"},
+    "4051": {"Numberofshare": "101.25", "Eps": "0.25", "Bookvalue": "1.98", "Parallel_value": "1.00", "PE_ratio": "22.42", "PB_ratio": "2.79", "ROA": "9.89", "ROE": "12.67"},
+    "4061": {"Numberofshare": "31.50", "Eps": "(0.35 )", "Bookvalue": "8.01", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.29", "ROA": "(1.93 )", "ROE": "(4.28 )"},
+    "4070": {"Numberofshare": "22.92", "Eps": "(2.29 )", "Bookvalue": "5.81", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "2.52", "ROA": "(16.09 )", "ROE": "(31.59 )"},
+    "4071": {"Numberofshare": "55.00", "Eps": "(4.51 )", "Bookvalue": "19.04", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "5.77", "ROA": "(2.63 )", "ROE": "(21.17 )"},
+    "4072": {"Numberofshare": "332.50", "Eps": "1.75", "Bookvalue": "13.75", "Parallel_value": "10.00", "PE_ratio": "29.85", "PB_ratio": "1.97", "ROA": "6.64", "ROE": "13.58"},
+    "4080": {"Numberofshare": "126.39", "Eps": "0.01", "Bookvalue": "9.36", "Parallel_value": "10.00", "PE_ratio": "أكبر من 100", "PB_ratio": "0.85", "ROA": "0.07", "ROE": "0.16"},
+    "4081": {"Numberofshare": "120.00", "Eps": "(1.05 )", "Bookvalue": "10.33", "Parallel_value": "10.00", "PE_ratio": "(10.05 )", "PB_ratio": "1.10", "ROA": "", "ROE": "(9.40 )"},
+    "4082": {"Numberofshare": "71.43", "Eps": "0.16", "Bookvalue": "11.82", "Parallel_value": "10.00", "PE_ratio": "52.32", "PB_ratio": "0.81", "ROA": "", "ROE": "1.39"},
+    "4083": {"Numberofshare": "25.00", "Eps": "10.95", "Bookvalue": "55.88", "Parallel_value": "10.00", "PE_ratio": "11.69", "PB_ratio": "2.61", "ROA": "", "ROE": "21.81"},
+    "4084": {"Numberofshare": "249.74", "Eps": "1.68", "Bookvalue": "4.61", "Parallel_value": "2.00", "PE_ratio": "13.70", "PB_ratio": "4.95", "ROA": "31.93", "ROE": "42.08"},
+    "4090": {"Numberofshare": "260.46", "Eps": "1.40", "Bookvalue": "26.30", "Parallel_value": "10.00", "PE_ratio": "29.46", "PB_ratio": "1.36", "ROA": "3.65", "ROE": "5.33"},
+    "4100": {"Numberofshare": "200.00", "Eps": "2.33", "Bookvalue": "20.49", "Parallel_value": "10.00", "PE_ratio": "35.68", "PB_ratio": "4.03", "ROA": "9.70", "ROE": "10.94"},
+    "4110": {"Numberofshare": "600.00", "Eps": "(0.06 )", "Bookvalue": "0.70", "Parallel_value": "1.00", "PE_ratio": "أكبر من 100", "PB_ratio": "2.78", "ROA": "(2.78 )", "ROE": "(7.58 )"},
+    "4130": {"Numberofshare": "218.30", "Eps": "0.03", "Bookvalue": "1.05", "Parallel_value": "1.00", "PE_ratio": "64.09", "PB_ratio": "1.89", "ROA": "2.62", "ROE": "2.99"},
+    "4140": {"Numberofshare": "194.40", "Eps": "(0.09 )", "Bookvalue": "0.59", "Parallel_value": "1.00", "PE_ratio": "سالب", "PB_ratio": "3.84", "ROA": "(12.64 )", "ROE": "(13.51 )"},
+    "4141": {"Numberofshare": "12.00", "Eps": "(0.26 )", "Bookvalue": "12.86", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.66", "ROA": "(1.42 )", "ROE": "(2.04 )"},
+    "4142": {"Numberofshare": "150.00", "Eps": "7.13", "Bookvalue": "19.39", "Parallel_value": "10.00", "PE_ratio": "16.01", "PB_ratio": "5.89", "ROA": "16.04", "ROE": "38.50"},
+    "4143": {"Numberofshare": "40.00", "Eps": "2.11", "Bookvalue": "13.19", "Parallel_value": "10.00", "PE_ratio": "15.64", "PB_ratio": "2.51", "ROA": "11.89", "ROE": "16.36"},
+    "4144": {"Numberofshare": "12.50", "Eps": "0.84", "Bookvalue": "12.32", "Parallel_value": "10.00", "PE_ratio": "65.63", "PB_ratio": "4.49", "ROA": "4.85", "ROE": "6.67"},
+    "4145": {"Numberofshare": "32.00", "Eps": "(0.09 )", "Bookvalue": "16.67", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.40", "ROA": "(0.37 )", "ROE": "(0.50 )"},
+    "4146": {"Numberofshare": "158.00", "Eps": "0.95", "Bookvalue": "3.05", "Parallel_value": "1.00", "PE_ratio": "13.85", "PB_ratio": "4.34", "ROA": "15.31", "ROE": "34.00"},
+    "4147": {"Numberofshare": "100.00", "Eps": "0.50", "Bookvalue": "1.86", "Parallel_value": "1.00", "PE_ratio": "15.78", "PB_ratio": "4.25", "ROA": "14.59", "ROE": "29.31"},
+    "4148": {"Numberofshare": "250.00", "Eps": "0.13", "Bookvalue": "1.50", "Parallel_value": "1.00", "PE_ratio": "20.95", "PB_ratio": "1.85", "ROA": "-", "ROE": "9.09"},
+    "4150": {"Numberofshare": "233.93", "Eps": "1.27", "Bookvalue": "17.64", "Parallel_value": "10.00", "PE_ratio": "15.24", "PB_ratio": "1.00", "ROA": "8.06", "ROE": "8.88"},
+    "4160": {"Numberofshare": "6.50", "Eps": "(0.57 )", "Bookvalue": "2.75", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "13.66", "ROA": "(4.46 )", "ROE": "(19.73 )"},
+    "4161": {"Numberofshare": "1,143.00", "Eps": "0.24", "Bookvalue": "1.34", "Parallel_value": "1.00", "PE_ratio": "19.10", "PB_ratio": "3.37", "ROA": "4.92", "ROE": "18.43"},
+    "4162": {"Numberofshare": "60.00", "Eps": "2.72", "Bookvalue": "17.54", "Parallel_value": "10.00", "PE_ratio": "17.98", "PB_ratio": "2.78", "ROA": "8.40", "ROE": "15.35"},
+    "4163": {"Numberofshare": "85.00", "Eps": "4.29", "Bookvalue": "18.25", "Parallel_value": "10.00", "PE_ratio": "11.46", "PB_ratio": "2.68", "ROA": "7.16", "ROE": "24.58"},
+    "4164": {"Numberofshare": "130.00", "Eps": "6.39", "Bookvalue": "21.10", "Parallel_value": "10.00", "PE_ratio": "16.89", "PB_ratio": "5.00", "ROA": "12.91", "ROE": "31.17"},
+    "4165": {"Numberofshare": "25.00", "Eps": "8.70", "Bookvalue": "23.37", "Parallel_value": "10.00", "PE_ratio": "18.22", "PB_ratio": "6.81", "ROA": "25.61", "ROE": "41.35"},
+    "4170": {"Numberofshare": "57.82", "Eps": "(0.09 )", "Bookvalue": "8.65", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.69", "ROA": "(0.97 )", "ROE": "(1.02 )"},
+    "4180": {"Numberofshare": "275.00", "Eps": "0.03", "Bookvalue": "1.73", "Parallel_value": "1.00", "PE_ratio": "87.75", "PB_ratio": "1.47", "ROA": "1.62", "ROE": "1.68"},
+    "4190": {"Numberofshare": "1,200.00", "Eps": "0.87", "Bookvalue": "1.47", "Parallel_value": "1.00", "PE_ratio": "15.88", "PB_ratio": "9.38", "ROA": "24.41", "ROE": "59.83"},
+    "4191": {"Numberofshare": "20.00", "Eps": "1.13", "Bookvalue": "12.13", "Parallel_value": "10.00", "PE_ratio": "32.04", "PB_ratio": "2.98", "ROA": "6.51", "ROE": "9.34"},
+    "4192": {"Numberofshare": "350.00", "Eps": "0.17", "Bookvalue": "1.42", "Parallel_value": "1.00", "PE_ratio": "38.24", "PB_ratio": "4.48", "ROA": "7.58", "ROE": "12.40"},
+    "4193": {"Numberofshare": "115.50", "Eps": "0.30", "Bookvalue": "3.51", "Parallel_value": "1.00", "PE_ratio": "44.23", "PB_ratio": "3.77", "ROA": "6.09", "ROE": "11.85"},
+    "4194": {"Numberofshare": "16.00", "Eps": "3.84", "Bookvalue": "22.42", "Parallel_value": "10.00", "PE_ratio": "12.83", "PB_ratio": "2.19", "ROA": "12.07", "ROE": "18.77"},
+    "4200": {"Numberofshare": "100.00", "Eps": "4.22", "Bookvalue": "16.88", "Parallel_value": "10.00", "PE_ratio": "27.92", "PB_ratio": "6.98", "ROA": "4.73", "ROE": "27.17"},
+    "4210": {"Numberofshare": "80.00", "Eps": "(1.55 )", "Bookvalue": "40.62", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "2.15", "ROA": "(2.10 )", "ROE": "(3.77 )"},
+    "4220": {"Numberofshare": "882.93", "Eps": "(0.46 )", "Bookvalue": "9.46", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.56", "ROA": "(1.87 )", "ROE": "(5.56 )"},
+    "4230": {"Numberofshare": "48.27", "Eps": "(0.89 )", "Bookvalue": "(0.22 )", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "(168.15)", "ROA": "(0.99 )", "ROE": "(633.27 )"},
+    "4240": {"Numberofshare": "114.80", "Eps": "(3.15 )", "Bookvalue": "(10.34 )", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "(1.46)", "ROA": "(8.00 )", "ROE": "36.19"},
+    "4250": {"Numberofshare": "1,180.02", "Eps": "2.03", "Bookvalue": "13.44", "Parallel_value": "10.00", "PE_ratio": "37.43", "PB_ratio": "1.13", "ROA": "8.79", "ROE": "16.32"},
+    "4260": {"Numberofshare": "104.54", "Eps": "3.36", "Bookvalue": "27.14", "Parallel_value": "10.00", "PE_ratio": "11.99", "PB_ratio": "1.48", "ROA": "6.92", "ROE": "12.94"},
+    "4261": {"Numberofshare": "65.97", "Eps": "3.02", "Bookvalue": "13.99", "Parallel_value": "10.00", "PE_ratio": "10.34", "PB_ratio": "2.23", "ROA": "7.06", "ROE": "22.83"},
+    "4262": {"Numberofshare": "55.00", "Eps": "3.60", "Bookvalue": "25.60", "Parallel_value": "10.00", "PE_ratio": "10.39", "PB_ratio": "1.45", "ROA": "5.84", "ROE": "15.12"},
+    "4263": {"Numberofshare": "80.00", "Eps": "8.72", "Bookvalue": "20.28", "Parallel_value": "10.00", "PE_ratio": "17.96", "PB_ratio": "7.70", "ROA": "20.05", "ROE": "46.15"},
+    "4264": {"Numberofshare": "170.85", "Eps": "(3.83 )", "Bookvalue": "20.47", "Parallel_value": "10.00", "PE_ratio": "26.74", "PB_ratio": "2.54", "ROA": "(4.23 )", "ROE": "(25.06 )"},
+    "4265": {"Numberofshare": "30.00", "Eps": "2.35", "Bookvalue": "18.93", "Parallel_value": "10.00", "PE_ratio": "10.07", "PB_ratio": "1.25", "ROA": "-", "ROE": "13.23"},
+    "4270": {"Numberofshare": "65.20", "Eps": "(3.07 )", "Bookvalue": "3.09", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "2.62", "ROA": "(14.96 )", "ROE": "(66.29 )"},
+    "4280": {"Numberofshare": "3,705.88", "Eps": "0.46", "Bookvalue": "12.51", "Parallel_value": "10.00", "PE_ratio": "34.27", "PB_ratio": "0.69", "ROA": "2.87", "ROE": "4.05"},
+    "4290": {"Numberofshare": "65.00", "Eps": "0.32", "Bookvalue": "8.57", "Parallel_value": "10.00", "PE_ratio": "أكبر من 100", "PB_ratio": "2.07", "ROA": "0.94", "ROE": "3.80"},
+    "4291": {"Numberofshare": "43.00", "Eps": "2.88", "Bookvalue": "20.86", "Parallel_value": "10.00", "PE_ratio": "38.50", "PB_ratio": "5.32", "ROA": "7.91", "ROE": "14.30"},
+    "4292": {"Numberofshare": "42.09", "Eps": "2.42", "Bookvalue": "19.57", "Parallel_value": "10.00", "PE_ratio": "23.35", "PB_ratio": "2.81", "ROA": "4.68", "ROE": "12.48"},
+    "4300": {"Numberofshare": "1,080.00", "Eps": "1.05", "Bookvalue": "20.58", "Parallel_value": "10.00", "PE_ratio": "17.91", "PB_ratio": "0.91", "ROA": "2.92", "ROE": "5.23"},
+    "4310": {"Numberofshare": "339.30", "Eps": "0.00", "Bookvalue": "8.72", "Parallel_value": "10.00", "PE_ratio": "أكبر من 100", "PB_ratio": "1.31", "ROA": "0.00", "ROE": "0.00"},
+    "4320": {"Numberofshare": "93.33", "Eps": "(0.28 )", "Bookvalue": "10.28", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.52", "ROA": "(1.18 )", "ROE": "(2.63 )"},
+    "4321": {"Numberofshare": "475.00", "Eps": "3.24", "Bookvalue": "32.50", "Parallel_value": "10.00", "PE_ratio": "13.70", "PB_ratio": "0.52", "ROA": "4.88", "ROE": "10.26"},
+    "4322": {"Numberofshare": "500.00", "Eps": "0.56", "Bookvalue": "1.82", "Parallel_value": "1.00", "PE_ratio": "34.99", "PB_ratio": "7.31", "ROA": "5.94", "ROE": "33.78"},
+    "4323": {"Numberofshare": "50.00", "Eps": "2.71", "Bookvalue": "15.36", "Parallel_value": "10.00", "PE_ratio": "11.45", "PB_ratio": "1.78", "ROA": "10.16", "ROE": "19.30"},
+    "4324": {"Numberofshare": "200.00", "Eps": "0.16", "Bookvalue": "2.09", "Parallel_value": "1.00", "PE_ratio": "22.20", "PB_ratio": "1.65", "ROA": "4.25", "ROE": "7.98"},
+    "4325": {"Numberofshare": "1,438.65", "Eps": "0.77", "Bookvalue": "10.98", "Parallel_value": "10.00", "PE_ratio": "20.39", "PB_ratio": "1.45", "ROA": "4.31", "ROE": "7.72"},
+    "4326": {"Numberofshare": "300.00", "Eps": "0.94", "Bookvalue": "3.76", "Parallel_value": "1.00", "PE_ratio": "9.08", "PB_ratio": "2.26", "ROA": "9.60", "ROE": "29.02"},
+    "4327": {"Numberofshare": "42.86", "Eps": "9.88", "Bookvalue": "31.78", "Parallel_value": "10.00", "PE_ratio": "8.07", "PB_ratio": "2.50", "ROA": "-", "ROE": "36.19"},
+    "4330": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "9.51", "PE_ratio": "", "PB_ratio": "0.74", "ROA": "", "ROE": ""},
+    "4331": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "1.42", "ROA": "", "ROE": ""},
+    "4332": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.61", "ROA": "", "ROE": ""},
+    "4333": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.90", "ROA": "", "ROE": ""},
+    "4334": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "1.06", "ROA": "", "ROE": ""},
+    "4335": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.52", "ROA": "", "ROE": ""},
+    "4336": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.63", "ROA": "", "ROE": ""},
+    "4337": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "1.22", "ROA": "", "ROE": ""},
+    "4338": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.76", "ROA": "", "ROE": ""},
+    "4339": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.65", "ROA": "", "ROE": ""},
+    "4340": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.98", "ROA": "", "ROE": ""},
+    "4342": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "1.21", "ROA": "", "ROE": ""},
+    "4344": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.91", "ROA": "", "ROE": ""},
+    "4345": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.67", "ROA": "", "ROE": ""},
+    "4346": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.50", "ROA": "", "ROE": ""},
+    "4347": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "1.13", "ROA": "", "ROE": ""},
+    "4348": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.77", "ROA": "", "ROE": ""},
+    "4349": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.79", "ROA": "", "ROE": ""},
+    "4350": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.80", "ROA": "", "ROE": ""},
+    "4700": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "", "PE_ratio": "", "PB_ratio": "", "ROA": "", "ROE": ""},
+    "4701": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "", "PE_ratio": "", "PB_ratio": "", "ROA": "", "ROE": ""},
+    "4702": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "", "PE_ratio": "", "PB_ratio": "", "ROA": "", "ROE": ""},
+    "4703": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "", "PE_ratio": "", "PB_ratio": "", "ROA": "", "ROE": ""},
+    "5110": {"Numberofshare": "4,166.59", "Eps": "0.96", "Bookvalue": "20.18", "Parallel_value": "10.00", "PE_ratio": "14.89", "PB_ratio": "0.71", "ROA": "0.68", "ROE": "4.80"},
+    "6001": {"Numberofshare": "35.36", "Eps": "1.21", "Bookvalue": "9.50", "Parallel_value": "10.00", "PE_ratio": "29.81", "PB_ratio": "3.20", "ROA": "5.67", "ROE": "13.62"},
+    "6002": {"Numberofshare": "64.68", "Eps": "(1.20 )", "Bookvalue": "13.13", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.05", "ROA": "(4.62 )", "ROE": "(8.73 )"},
+    "6004": {"Numberofshare": "82.00", "Eps": "3.82", "Bookvalue": "19.21", "Parallel_value": "10.00", "PE_ratio": "18.49", "PB_ratio": "3.69", "ROA": "10.73", "ROE": "20.72"},
+    "6010": {"Numberofshare": "301.64", "Eps": "1.30", "Bookvalue": "15.28", "Parallel_value": "10.00", "PE_ratio": "13.08", "PB_ratio": "1.11", "ROA": "6.53", "ROE": "8.83"},
+    "6012": {"Numberofshare": "7.31", "Eps": "(11.48 )", "Bookvalue": "7.18", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "2.56", "ROA": "(40.25 )", "ROE": "(88.91 )"},
+    "6013": {"Numberofshare": "3.00", "Eps": "0.15", "Bookvalue": "8.01", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "11.65", "ROA": "0.62", "ROE": "1.98"},
+    "6014": {"Numberofshare": "25.50", "Eps": "2.03", "Bookvalue": "11.51", "Parallel_value": "10.00", "PE_ratio": "19.66", "PB_ratio": "3.48", "ROA": "7.91", "ROE": "17.59"},
+    "6015": {"Numberofshare": "8,423.63", "Eps": "", "Bookvalue": "0.22", "Parallel_value": "", "PE_ratio": "19.89", "PB_ratio": "8.96", "ROA": "13.52", "ROE": "49.61"},
+    "6016": {"Numberofshare": "56.00", "Eps": "0.10", "Bookvalue": "1.40", "Parallel_value": "1.00", "PE_ratio": "78.53", "PB_ratio": "5.74", "ROA": "3.48", "ROE": "7.57"},
+    "6017": {"Numberofshare": "209.84", "Eps": "", "Bookvalue": "6.52", "Parallel_value": "", "PE_ratio": "14.06", "PB_ratio": "1.85", "ROA": "9.71", "ROE": "14.70"},
+    "6018": {"Numberofshare": "114.40", "Eps": "0.36", "Bookvalue": "2.36", "Parallel_value": "1.00", "PE_ratio": "17.59", "PB_ratio": "2.94", "ROA": "4.76", "ROE": "18.92"},
+    "6019": {"Numberofshare": "102.40", "Eps": "1.27", "Bookvalue": "12.58", "Parallel_value": "10.00", "PE_ratio": "14.55", "PB_ratio": "1.75", "ROA": "7.53", "ROE": "10.66"},
+    "6020": {"Numberofshare": "30.00", "Eps": "0.47", "Bookvalue": "10.19", "Parallel_value": "10.00", "PE_ratio": "أكبر من 100", "PB_ratio": "1.34", "ROA": "3.36", "ROE": "4.70"},
+    "6040": {"Numberofshare": "39.17", "Eps": "(3.82 )", "Bookvalue": "3.34", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.97", "ROA": "(34.13 )", "ROE": "(72.50 )"},
+    "6050": {"Numberofshare": "6.70", "Eps": "(3.78 )", "Bookvalue": "7.51", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "5.97", "ROA": "(15.74 )", "ROE": "(40.29 )"},
+    "6060": {"Numberofshare": "30.00", "Eps": "(0.63 )", "Bookvalue": "11.75", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.06", "ROA": "(4.42 )", "ROE": "(5.17 )"},
+    "6070": {"Numberofshare": "30.00", "Eps": "2.71", "Bookvalue": "26.63", "Parallel_value": "10.00", "PE_ratio": "18.81", "PB_ratio": "1.91", "ROA": "6.61", "ROE": "10.46"},
+    "6090": {"Numberofshare": "50.00", "Eps": "(0.04 )", "Bookvalue": "6.44", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.26", "ROA": "(0.35 )", "ROE": "(0.59 )"},
+    "7010": {"Numberofshare": "5,000.00", "Eps": "2.97", "Bookvalue": "16.68", "Parallel_value": "10.00", "PE_ratio": "14.80", "PB_ratio": "2.54", "ROA": "9.32", "ROE": "17.16"},
+    "7020": {"Numberofshare": "770.00", "Eps": "4.50", "Bookvalue": "26.40", "Parallel_value": "10.00", "PE_ratio": "14.76", "PB_ratio": "2.48", "ROA": "8.55", "ROE": "17.68"},
+    "7030": {"Numberofshare": "898.73", "Eps": "0.67", "Bookvalue": "12.10", "Parallel_value": "10.00", "PE_ratio": "16.93", "PB_ratio": "0.94", "ROA": "2.12", "ROE": "5.59"},
+    "7040": {"Numberofshare": "33.99", "Eps": "7.52", "Bookvalue": "28.01", "Parallel_value": "10.00", "PE_ratio": "11.49", "PB_ratio": "3.02", "ROA": "15.08", "ROE": "30.79"},
+    "7200": {"Numberofshare": "30.00", "Eps": "3.14", "Bookvalue": "12.99", "Parallel_value": "10.00", "PE_ratio": "94.08", "PB_ratio": "12.28", "ROA": "3.34", "ROE": "23.32"},
+    "7201": {"Numberofshare": "100.00", "Eps": "(0.10 )", "Bookvalue": "1.23", "Parallel_value": "1.00", "PE_ratio": "سالب", "PB_ratio": "2.91", "ROA": "(5.98 )", "ROE": "(8.78 )"},
+    "7202": {"Numberofshare": "120.00", "Eps": "12.52", "Bookvalue": "35.73", "Parallel_value": "10.00", "PE_ratio": "13.99", "PB_ratio": "4.98", "ROA": "12.04", "ROE": "36.23"},
+    "7203": {"Numberofshare": "80.00", "Eps": "26.13", "Bookvalue": "45.26", "Parallel_value": "10.00", "PE_ratio": "21.57", "PB_ratio": "12.05", "ROA": "19.50", "ROE": "46.90"},
+    "7204": {"Numberofshare": "330.00", "Eps": "0.46", "Bookvalue": "2.13", "Parallel_value": "1.00", "PE_ratio": "17.10", "PB_ratio": "3.47", "ROA": "9.22", "ROE": "24.14"},
+    "7211": {"Numberofshare": "60.00", "Eps": "", "Bookvalue": "2.49", "Parallel_value": "", "PE_ratio": "30.60", "PB_ratio": "8.95", "ROA": "12.91", "ROE": "32.58"},
+    "8010": {"Numberofshare": "", "Eps": "7.35", "Bookvalue": "35.72", "Parallel_value": "10.00", "PE_ratio": "17.20", "PB_ratio": "3.54", "ROA": "", "ROE": "22.43"},
+    "8012": {"Numberofshare": "", "Eps": "0.59", "Bookvalue": "15.05", "Parallel_value": "10.00", "PE_ratio": "18.78", "PB_ratio": "0.74", "ROA": "", "ROE": "4.00"},
+    "8020": {"Numberofshare": "", "Eps": "0.43", "Bookvalue": "9.25", "Parallel_value": "10.00", "PE_ratio": "أكبر من 100", "PB_ratio": "0.94", "ROA": "", "ROE": "4.85"},
+    "8030": {"Numberofshare": "", "Eps": "0.37", "Bookvalue": "10.16", "Parallel_value": "10.00", "PE_ratio": "51.55", "PB_ratio": "1.89", "ROA": "", "ROE": "3.75"},
+    "8040": {"Numberofshare": "", "Eps": "0.12", "Bookvalue": "12.06", "Parallel_value": "10.00", "PE_ratio": "74.53", "PB_ratio": "0.76", "ROA": "", "ROE": "1.04"},
+    "8050": {"Numberofshare": "", "Eps": "(3.05 )", "Bookvalue": "9.00", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "0.88", "ROA": "", "ROE": "(34.93 )"},
+    "8060": {"Numberofshare": "", "Eps": "(1.38 )", "Bookvalue": "13.16", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "0.69", "ROA": "", "ROE": "(10.04 )"},
+    "8070": {"Numberofshare": "", "Eps": "(0.55 )", "Bookvalue": "20.47", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "0.53", "ROA": "", "ROE": "(2.66 )"},
+    "8100": {"Numberofshare": "", "Eps": "0.74", "Bookvalue": "13.84", "Parallel_value": "10.00", "PE_ratio": "13.05", "PB_ratio": "0.70", "ROA": "", "ROE": "5.56"},
+    "8120": {"Numberofshare": "", "Eps": "(1.73 )", "Bookvalue": "11.92", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "0.82", "ROA": "", "ROE": "(13.99 )"},
+    "8150": {"Numberofshare": "", "Eps": "(3.08 )", "Bookvalue": "7.33", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "0.86", "ROA": "", "ROE": "(35.97 )"},
+    "8160": {"Numberofshare": "", "Eps": "(0.85 )", "Bookvalue": "10.77", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "0.76", "ROA": "", "ROE": "(7.68 )"},
+    "8170": {"Numberofshare": "", "Eps": "(2.32 )", "Bookvalue": "11.50", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "0.63", "ROA": "", "ROE": "(18.18 )"},
+    "8180": {"Numberofshare": "", "Eps": "(1.43 )", "Bookvalue": "11.67", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "0.78", "ROA": "", "ROE": "(11.90 )"},
+    "8190": {"Numberofshare": "", "Eps": "(4.80 )", "Bookvalue": "2.47", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.21", "ROA": "", "ROE": "(104.14 )"},
+    "8200": {"Numberofshare": "", "Eps": "0.84", "Bookvalue": "13.10", "Parallel_value": "10.00", "PE_ratio": "31.50", "PB_ratio": "2.02", "ROA": "", "ROE": "7.36"},
+    "8210": {"Numberofshare": "", "Eps": "7.19", "Bookvalue": "37.82", "Parallel_value": "10.00", "PE_ratio": "24.87", "PB_ratio": "4.59", "ROA": "", "ROE": "19.94"},
+    "8230": {"Numberofshare": "", "Eps": "4.55", "Bookvalue": "25.36", "Parallel_value": "10.00", "PE_ratio": "21.33", "PB_ratio": "3.83", "ROA": "", "ROE": "19.71"},
+    "8240": {"Numberofshare": "", "Eps": "0.32", "Bookvalue": "11.66", "Parallel_value": "10.00", "PE_ratio": "52.03", "PB_ratio": "1.45", "ROA": "", "ROE": "2.86"},
+    "8250": {"Numberofshare": "", "Eps": "2.40", "Bookvalue": "22.89", "Parallel_value": "10.00", "PE_ratio": "9.61", "PB_ratio": "1.01", "ROA": "", "ROE": "11.01"},
+    "8260": {"Numberofshare": "", "Eps": "(5.46 )", "Bookvalue": "6.39", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "0.58", "ROA": "", "ROE": "(68.64 )"},
+    "8280": {"Numberofshare": "", "Eps": "0.67", "Bookvalue": "11.97", "Parallel_value": "10.00", "PE_ratio": "14.76", "PB_ratio": "0.82", "ROA": "", "ROE": "5.80"},
+    "8300": {"Numberofshare": "", "Eps": "0.93", "Bookvalue": "16.45", "Parallel_value": "10.00", "PE_ratio": "13.09", "PB_ratio": "0.74", "ROA": "", "ROE": "5.85"},
+    "8310": {"Numberofshare": "", "Eps": "(0.18 )", "Bookvalue": "7.14", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "0.77", "ROA": "", "ROE": "(2.64 )"},
+    "8311": {"Numberofshare": "", "Eps": "(0.34 )", "Bookvalue": "7.19", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.04", "ROA": "", "ROE": "(4.67 )"},
+    "8313": {"Numberofshare": "77.51", "Eps": "3.18", "Bookvalue": "9.10", "Parallel_value": "1.00", "PE_ratio": "42.95", "PB_ratio": "14.50", "ROA": "21.65", "ROE": "44.06"},
     # ... [All remaining entries follow same format — kept identical to original]
 }
 
@@ -857,28 +1048,61 @@ def _enrich_with_STOCKS(ticker: str, info: dict) -> None:
     if par is not None:
         info["parValue"] = par
 
-    # ── 7. Recalculate P/E if missing ──
-    if not info.get("trailingPE") and not info.get("trailingPE_display"):
-        eps_val = info.get("trailingEps")
-        if eps_val and eps_val != 0:
-            price = _get_current_price(info)
-            if price and price > 0:
-                try:
-                    info["trailingPE"] = round(price / float(eps_val), 4)
-                except Exception:
-                    pass
+    # # ── 7. Recalculate P/E if missing ──
+    # if not info.get("trailingPE") and not info.get("trailingPE_display"):
+    #     eps_val = info.get("trailingEps")
+    #     if eps_val and eps_val != 0:
+    #         price = _get_current_price(info)
+    #         if price and price > 0:
+    #             try:
+    #                 info["trailingPE"] = round(price / float(eps_val), 4)
+    #             except Exception:
+    #                 pass
 
-    # ── 8. Recalculate P/B if missing ──
-    if not info.get("priceToBook"):
-        bv_val = info.get("bookValue")
-        if bv_val and float(bv_val) != 0:
-            price = _get_current_price(info)
-            if price and price > 0:
-                try:
-                    info["priceToBook"] = round(price / float(bv_val), 4)
-                except Exception:
-                    pass
+    # # ── 8. Recalculate P/B if missing ──
+    # if not info.get("priceToBook"):
+    #     bv_val = info.get("bookValue")
+    #     if bv_val and float(bv_val) != 0:
+    #         price = _get_current_price(info)
+    #         if price and price > 0:
+    #             try:
+    #                 info["priceToBook"] = round(price / float(bv_val), 4)
+    #             except Exception:
+    #                 pass
+##########################################################################
+        # ── 7. P/E Ratio ──
+    pe = _safe_float(STOCKS.get("PE_ratio"))
+    if pe is not None:
+        info["trailingPE"] = pe
+        logger.info(f"✓ STOCKS P/E for {ticker}: {pe}")
+    else:
+        # Fallback: recalculate from Yahoo Finance data
+        if not info.get("trailingPE") and not info.get("trailingPE_display"):
+            eps_val = info.get("trailingEps")
+            if eps_val and eps_val != 0:
+                price = _get_current_price(info)
+                if price and price > 0:
+                    try:
+                        info["trailingPE"] = round(price / float(eps_val), 4)
+                    except Exception:
+                        pass
 
+    # ── 8. P/B Ratio ──
+    pb = _safe_float(STOCKS.get("PB_ratio"))
+    if pb is not None:
+        info["priceToBook"] = pb
+        logger.info(f"✓ STOCKS P/B for {ticker}: {pb}")
+    else:
+        # Fallback: recalculate from Yahoo Finance data
+        if not info.get("priceToBook"):
+            bv_val = info.get("bookValue")
+            if bv_val and float(bv_val) != 0:
+                price = _get_current_price(info)
+                if price and price > 0:
+                    try:
+                        info["priceToBook"] = round(price / float(bv_val), 4)
+                    except Exception:
+                        pass
     # ── 9. Defaults ──
     if not info.get("currency"):
         info["currency"] = "SAR"
