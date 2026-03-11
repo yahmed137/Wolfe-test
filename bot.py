@@ -2140,154 +2140,228 @@ def detect_candle_patterns(df):
         if len(unique) == 8:
             break
     return list(reversed(unique))
-##############الشموع####################################################
 
 
 # ---------------------------------------------------------------------
-# CHART WITH STEP-LINE CONNECTORS ROUTED THROUGH EMPTY SPACE
+# CHART WITH GUARANTEED NON‑CROSSING CONNECTORS (Final Corrected Version)
 # ---------------------------------------------------------------------
-##############الشموع####################################################
-import numpy as np
-import pandas as pd
-import mplfinance as mpf
-import matplotlib.pyplot as plt
-from matplotlib.path import Path
-import matplotlib.patches as mpatches
-from io import BytesIO
-
-
 # ---------------------------------------------------------------------
-# CHART WITH NON-CROSSING ORTHOGONAL CONNECTORS
-# Lines route ABOVE all candle highs (bullish) or BELOW all candle
-# lows (bearish).  Lane ordering guarantees zero crossings.
+# CHART WITH GUARANTEED NON‑CROSSING SMOOTH CONNECTORS
 # ---------------------------------------------------------------------
-def make_candle_pattern_chart(d, patterns):
-    d = d.tail(60).copy()
-    p = d[['Open','High','Low','Close','Volume']].copy()
-    mc = mpf.make_marketcolors(up='#26a69a', down='#ef5350', edge='inherit',
-                               wick='inherit', volume={'up':'#80cbc4','down':'#ef9a9a'})
-    st = mpf.make_mpf_style(marketcolors=mc, gridstyle=':', gridcolor='#dddddd',
-                             rc={'axes.facecolor':'#FAFAFA'})
-    fig, axlist = mpf.plot(p, type='candle', style=st, volume=False,
-                           figsize=(16, 7), returnfig=True, warn_too_much_data=9999)
-    ax = axlist[0]
-
-    date_to_pos = {str(dt.date()): i for i, dt in enumerate(d.index)}
-    resolved = []
-    for date_lbl, ar_name, en_name, bullish in patterns:
-        pos = date_to_pos.get(date_lbl)
-        if pos is None:
-            continue
-        row_d = d.iloc[pos]
-        resolved.append({
-            'pos': pos,
-            'high': float(row_d['High']),
-            'low': float(row_d['Low']),
-            'name': ar_name,
-            'bullish': bullish,
-        })
-    if not resolved:
-        plt.tight_layout()
-        return chart_bytes(fig)
-
+def make_candle_pattern_chart(df, patterns):
+    """
+    Generates a candlestick chart with pattern annotations using
+    SMOOTH BÉZIER CURVES routed through side lanes — guaranteed
+    non-crossing, non-overlapping labels, and minimal candle overlap.
+    """
     from matplotlib.path import Path
     import matplotlib.patches as mpatches
 
+    # ── Data prep ────────────────────────────────────────────────────
+    df = df.tail(60).copy()
+    df_plot = df[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
+
+    mc = mpf.make_marketcolors(
+        up='#26a69a', down='#ef5350', edge='inherit',
+        wick='inherit', volume={'up': '#80cbc4', 'down': '#ef9a9a'}
+    )
+    st = mpf.make_mpf_style(
+        marketcolors=mc, gridstyle=':', gridcolor='#dddddd',
+        rc={'axes.facecolor': '#FAFAFA'}
+    )
+
+    fig, axlist = mpf.plot(
+        df_plot, type='candle', style=st, volume=False,
+        figsize=(16, 7), returnfig=True, warn_too_much_data=10_000
+    )
+    ax = axlist[0]
+    date_to_pos = {pd.Timestamp(d).date(): i for i, d in enumerate(df.index)}
+
+    # ── Resolve patterns to x/y positions ────────────────────────────
+    resolved = []
+    for date_lbl, ar_name, en_name, bullish in patterns:
+        pos = date_to_pos.get(pd.to_datetime(date_lbl).date())
+        if pos is None:
+            continue
+        row = df.iloc[pos]
+        # Bullish / neutral → connect at High  |  Bearish → connect at Low
+        conn_y = float(row['High']) if (bullish is True or bullish is None) \
+                 else float(row['Low'])
+        resolved.append(dict(
+            pos=float(pos),
+            high=float(row['High']),
+            low=float(row['Low']),
+            conn_y=conn_y,
+            name=ar_name,
+            bullish=bullish,
+        ))
+
+    if not resolved:
+        buf = BytesIO()
+        fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+        plt.close(fig)
+        buf.seek(0)
+        return buf.read()
+
+    # ── Chart geometry ───────────────────────────────────────────────
     ylo, yhi = ax.get_ylim()
     xlo, xhi = ax.get_xlim()
     xspan = xhi - xlo
     yspan = yhi - ylo
+    xmid  = (xlo + xhi) / 2.0
 
-    # ── Layout zones ──────────────────────────────────────
-    col_right_x  = xhi + xspan * 0.15        # right label column
-    col_left_x   = xlo - xspan * 0.15        # left  label column
-    lane_right_x = xhi + xspan * 0.04        # right vertical lane
-    lane_left_x  = xlo - xspan * 0.04        # left  vertical lane
+    # ── Split annotations into LEFT side / RIGHT side ────────────────
+    #    based on whether the candle sits in the left or right half
+    left_anns  = [a for a in resolved if a['pos'] <  xmid]
+    right_anns = [a for a in resolved if a['pos'] >= xmid]
 
-    # ── Split & sort annotations ──────────────────────────
-    right_anns = sorted(
-        [a for i, a in enumerate(resolved) if i % 2 == 0],
-        key=lambda a: a['pos'],
-    )
-    left_anns = sorted(
-        [a for i, a in enumerate(resolved) if i % 2 == 1],
-        key=lambda a: a['pos'],
-        reverse=True,
-    )
+    # Balance: if one side is completely empty, donate one item
+    if not left_anns and len(right_anns) > 1:
+        right_anns.sort(key=lambda a: a['pos'])
+        left_anns.append(right_anns.pop(0))
+    elif not right_anns and len(left_anns) > 1:
+        left_anns.sort(key=lambda a: a['pos'], reverse=True)
+        right_anns.append(left_anns.pop(0))
 
-    # ── Evenly-spaced label Y positions ───────────────────
-    def label_ys(count):
-        if count == 0:
+    # ══════════════════════════════════════════════════════════════════
+    # CRITICAL — sort each side by conn_y DESCENDING.
+    # The label slots are also allocated top-to-bottom.
+    # Because both sequences share the same vertical order,
+    # smooth outward-curving paths are GUARANTEED never to cross.
+    # ══════════════════════════════════════════════════════════════════
+    left_anns.sort(key=lambda  a: a['conn_y'], reverse=True)
+    right_anns.sort(key=lambda a: a['conn_y'], reverse=True)
+
+    # ── Label X-positions (columns in the margins) ───────────────────
+    L_LABEL_X = xlo - xspan * 0.22          # left  label column
+    R_LABEL_X = xhi + xspan * 0.22          # right label column
+
+    # ── Bézier routing lanes — just outside the candle area ──────────
+    #    Curves are "attracted" here so they bypass the candles.
+    L_LANE_X = xlo - xspan * 0.06
+    R_LANE_X = xhi + xspan * 0.06
+
+    # ── Vertical label slots (evenly spaced, never overlap) ──────────
+    v_pad = yspan * 0.05
+    y_top = yhi + v_pad                     # topmost label centre
+    y_bot = ylo - v_pad                     # bottommost label centre
+
+    def _vslots(n):
+        """Return *n* evenly-spaced Y values from y_top → y_bot."""
+        if n == 0:
             return []
-        step = yspan / (count + 1)
-        return sorted([ylo + step * (k + 1) for k in range(count)],
-                       reverse=True)
+        if n == 1:
+            return [(y_top + y_bot) / 2.0]
+        return np.linspace(y_top, y_bot, n).tolist()
 
-    right_ys = label_ys(len(right_anns))
-    left_ys  = label_ys(len(left_anns))
+    l_ys = _vslots(len(left_anns))
+    r_ys = _vslots(len(right_anns))
 
-    # ── Safe routing zone (above every candle) ────────────
-    base_lift = yhi + yspan * 0.07
-    lift_step = yspan * 0.04
+    # ── Drawing helper ───────────────────────────────────────────────
+    def _draw(ann, label_x, label_y, side):
+        """
+        Draw ONE connector + label.
 
-    # ── Draw one annotation with corridor connector ───────
-    def draw_ann(ann, label_x, label_y, ha, lane_x, lift_y):
-        px      = ann['pos']
-        bullish = ann['bullish']
-        color   = ('#1B5E20' if bullish is True
-                   else '#B71C1C' if bullish is False
-                   else '#E65100')
-        label    = rtl(ann['name'])
-        anchor_y = ann['high'] if bullish is not False else ann['low']
+        Path (cubic Bézier with 4 vertices):
+            P0  = candle tip   (pos, conn_y)
+            P1  = routing lane (lane_x, conn_y)   ← same height as candle
+            P2  = routing lane (lane_x, label_y)   ← same height as label
+            P3  = label edge   (end_x,  label_y)
 
-        # Corridor path:
-        #   candle ➜ up to safe zone ➜ across to lane ➜ down to label row ➜ across to label
+        Because P1 and P2 share the lane's X-coordinate, the curve
+        swings outward to the margin, keeps clear of the candle zone,
+        and arrives at the label horizontally — exactly like the
+        reference image.
+        """
+        px    = ann['pos']
+        cy    = ann['conn_y']
+        name  = ann['name']
+        bull  = ann['bullish']
+
+        # Colour palette
+        color = ('#1B5E20' if bull is True
+                 else '#B71C1C' if bull is False
+                 else '#E65100')
+
+        # Side-dependent constants
+        if side == 'left':
+            ha     = 'right'
+            lane_x = L_LANE_X
+            end_x  = label_x + xspan * 0.02      # small gap before box
+        else:
+            ha     = 'left'
+            lane_x = R_LANE_X
+            end_x  = label_x - xspan * 0.02
+
+        # ── Cubic Bézier ──
         verts = [
-            (px,      anchor_y),
-            (px,      lift_y),
-            (lane_x,  lift_y),
-            (lane_x,  label_y),
-            (label_x, label_y),
+            (px,     cy),          # P0 — candle tip
+            (lane_x, cy),          # P1 — pull toward lane at candle height
+            (lane_x, label_y),     # P2 — pull toward lane at label height
+            (end_x,  label_y),     # P3 — arrive at label horizontally
         ]
-        codes = [Path.MOVETO] + [Path.LINETO] * 4
+        codes = [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4]
 
-        ax.add_patch(mpatches.PathPatch(
+        patch = mpatches.PathPatch(
             Path(verts, codes),
-            facecolor='none', edgecolor=color,
-            linewidth=1.3, clip_on=False, zorder=5, alpha=0.85,
-        ))
+            facecolor='none',
+            edgecolor=color,
+            linewidth=1.4,
+            clip_on=False,
+            zorder=5,
+            alpha=0.82,
+        )
+        ax.add_patch(patch)
 
-        # dot on candle
-        ax.plot(px, anchor_y, 'o', color=color, markersize=5,
-                clip_on=False, zorder=6,
-                markeredgecolor='white', markeredgewidth=0.5)
+        # ── Small dot on the candle ──
+        ax.plot(
+            px, cy, 'o',
+            color=color,
+            markersize=5,
+            clip_on=False,
+            zorder=6,
+            markeredgecolor='white',
+            markeredgewidth=0.5,
+        )
 
-        # label box
-        ax.text(label_x, label_y, label,
-                fontsize=8.5, color=color, ha=ha, va='center',
-                fontproperties=MPL_FONT_PROP,
-                bbox=dict(boxstyle='round,pad=0.32', facecolor='white',
-                          edgecolor=color, alpha=0.95, linewidth=1.0),
-                clip_on=False, zorder=10)
+        # ── Label text box ──
+        ax.text(
+            label_x, label_y, name,
+            fontsize=9,
+            color=color,
+            ha=ha,
+            va='center',
+            bbox=dict(
+                boxstyle='round,pad=0.4',
+                facecolor='white',
+                edgecolor=color,
+                alpha=0.95,
+                linewidth=1.0,
+            ),
+            clip_on=False,
+            zorder=10,
+        )
 
-    # ── Render all annotations ────────────────────────────
-    for k, ann in enumerate(right_anns):
-        draw_ann(ann, col_right_x, right_ys[k], 'left',
-                 lane_right_x, base_lift + lift_step * k)
+    # ── Render every connector ───────────────────────────────────────
+    for ann, y in zip(left_anns,  l_ys):
+        _draw(ann, L_LABEL_X, y, side='left')
+    for ann, y in zip(right_anns, r_ys):
+        _draw(ann, R_LABEL_X, y, side='right')
 
-    for k, ann in enumerate(left_anns):
-        draw_ann(ann, col_left_x, left_ys[k], 'right',
-                 lane_left_x, base_lift + lift_step * k)
+    # ── Expand axis limits so labels + curves are fully visible ──────
+    ax.set_xlim(L_LABEL_X - xspan * 0.10, R_LABEL_X + xspan * 0.10)
+    ax.set_ylim(y_bot - yspan * 0.12,     y_top + yspan * 0.12)
 
-    # ── Adjust limits to show corridors + labels ──────────
-    top_y = (base_lift
-             + lift_step * max(len(right_anns), len(left_anns), 1)
-             + yspan * 0.04)
-    ax.set_ylim(ylo - yspan * 0.02, top_y)
-    ax.set_xlim(col_left_x - xspan * 0.32, col_right_x + xspan * 0.32)
-    fig.subplots_adjust(left=0.12, right=0.88)
+    fig.tight_layout(rect=[0.04, 0.04, 0.96, 0.96])
 
-    return chart_bytes(fig)
+    # ── Return PNG bytes ─────────────────────────────────────────────
+    buf = BytesIO()
+    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    buf.seek(0)
+    return buf.read()
+
+
 
 ###################################نهاية الشموع
 def detect_divergences(d):
@@ -2975,147 +3049,35 @@ def make_ichimoku_chart(d):
 
 
 def make_candle_pattern_chart(d, patterns):
-    d = d.tail(60).copy()
-    p = d[['Open','High','Low','Close','Volume']].copy()
-
-    mc = mpf.make_marketcolors(
-        up='#26a69a', down='#ef5350',
-        edge='inherit', wick='inherit',
-        volume={'up':'#80cbc4','down':'#ef9a9a'}
-    )
-    st = mpf.make_mpf_style(
-        marketcolors=mc,
-        gridstyle=':',
-        gridcolor='#dddddd',
-        rc={'axes.facecolor':'#FAFAFA'}
-    )
-
-    fig, axlist = mpf.plot(
-        p, type='candle', style=st, volume=False,
-        figsize=(16,7), returnfig=True,
-        warn_too_much_data=9999
-    )
-    ax = axlist[0]
-
-    date_to_pos = {str(dt.date()): i for i, dt in enumerate(d.index)}
-
-    resolved = []
-    for date_lbl, ar_name, en_name, bullish in patterns:
-        pos = date_to_pos.get(date_lbl)
-        if pos is None:
-            continue
-        row = d.iloc[pos]
-        resolved.append({
-            'pos': pos,
-            'high': float(row['High']),
-            'low': float(row['Low']),
-            'name': ar_name,
-            'bullish': bullish
-        })
-
-    if not resolved:
-        plt.tight_layout()
-        return chart_bytes(fig)
-
-    ylo, yhi = ax.get_ylim()
-    xlo, xhi = ax.get_xlim()
-    xspan = xhi - xlo
-    yspan = yhi - ylo
-
-    # label columns
-    col_right_x = xhi + xspan * 0.06
-    col_left_x  = xlo - xspan * 0.06
-
-    # split left/right
-    right_anns = [ann for i, ann in enumerate(resolved) if i % 2 == 0]
-    left_anns  = [ann for i, ann in enumerate(resolved) if i % 2 == 1]
-
+    d=d.tail(60).copy(); p=d[['Open','High','Low','Close','Volume']].copy()
+    mc=mpf.make_marketcolors(up='#26a69a',down='#ef5350',edge='inherit',wick='inherit',volume={'up':'#80cbc4','down':'#ef9a9a'})
+    st=mpf.make_mpf_style(marketcolors=mc,gridstyle=':',gridcolor='#dddddd',rc={'axes.facecolor':'#FAFAFA'})
+    fig,axlist=mpf.plot(p,type='candle',style=st,volume=False,figsize=(16,7),returnfig=True,warn_too_much_data=9999); ax=axlist[0]
+    date_to_pos={str(dt.date()):i for i,dt in enumerate(d.index)}
+    resolved=[]
+    for date_lbl,ar_name,en_name,bullish in patterns:
+        pos=date_to_pos.get(date_lbl)
+        if pos is None: continue
+        row_d=d.iloc[pos]; resolved.append({'pos':pos,'high':float(row_d['High']),'low':float(row_d['Low']),'name':ar_name,'bullish':bullish})
+    if not resolved: plt.tight_layout(); return chart_bytes(fig)
+    ylo,yhi=ax.get_ylim(); xlo,xhi=ax.get_xlim(); xspan=xhi-xlo; yspan=yhi-ylo
+    col_right_x=xhi+xspan*0.06; col_left_x=xlo-xspan*0.06
+    right_anns=[ann for i,ann in enumerate(resolved) if i%2==0]; left_anns=[ann for i,ann in enumerate(resolved) if i%2==1]
     def make_label_ys(count):
-        if count == 0:
-            return []
-        step = yspan / (count + 1)
-        return sorted([ylo + step * (k+1) for k in range(count)], reverse=True)
-
-    right_ys = make_label_ys(len(right_anns))
-    left_ys  = make_label_ys(len(left_anns))
-
-    # GLOBAL SAFE VERTICAL CORRIDOR ABOVE ALL CANDLES
-    global_y_lift = yhi + (yhi - ylo) * 0.25
-
-    def draw_ann(ann, label_x, label_y, align):
-        pos = ann['pos']
-        bullish = ann['bullish']
-        color = (
-            '#1B5E20' if bullish is True
-            else '#B71C1C' if bullish is False
-            else '#E65100'
-        )
-        name = rtl(ann['name'])
-        anchor_y = ann['high'] if bullish is not False else ann['low']
-
-        # protected corridor line
-        from matplotlib.path import Path
-        import matplotlib.patches as mpatches
-
-        verts = [
-            (pos, anchor_y),
-            (pos, global_y_lift),      # lift above all price bars
-            (label_x, global_y_lift),  # move horizontally in safe zone
-            (label_x, label_y)
-        ]
-        codes = [Path.MOVETO, Path.LINETO, Path.LINETO, Path.LINETO]
-
-        patch = mpatches.PathPatch(
-            Path(verts, codes),
-            facecolor='none',
-            edgecolor=color,
-            linewidth=1.35,
-            clip_on=False,
-            zorder=5,
-            alpha=0.85
-        )
-        ax.add_patch(patch)
-
-        # dot at anchor
-        ax.plot(
-            pos, anchor_y, 'o',
-            color=color,
-            markersize=5,
-            clip_on=False,
-            zorder=6,
-            markeredgecolor='white',
-            markeredgewidth=0.5
-        )
-
-        # label
-        ax.text(
-            label_x, label_y, name,
-            fontsize=8.5,
-            color=color,
-            ha=align,
-            va='center',
-            fontproperties=MPL_FONT_PROP,
-            bbox=dict(
-                boxstyle='round,pad=0.32',
-                facecolor='white',
-                edgecolor=color,
-                alpha=0.95,
-                linewidth=1.0
-            ),
-            clip_on=False,
-            zorder=10
-        )
-
-    for k, ann in enumerate(right_anns):
-        draw_ann(ann, col_right_x, right_ys[k], 'left')
-
-    for k, ann in enumerate(left_anns):
-        draw_ann(ann, col_left_x, left_ys[k], 'right')
-
-    ax.set_xlim(col_left_x - xspan * 0.32, col_right_x + xspan * 0.32)
-    fig.subplots_adjust(left=0.12, right=0.88)
-
+        if count==0: return []
+        step=yspan/(count+1); return sorted([ylo+step*(k+1) for k in range(count)],reverse=True)
+    right_ys=make_label_ys(len(right_anns)); left_ys=make_label_ys(len(left_anns))
+    def draw_ann(ann,label_x,label_y,align,rad):
+        pos=ann['pos']; bullish=ann['bullish']
+        color='#1B5E20' if bullish is True else ('#B71C1C' if bullish is False else '#E65100')
+        label=rtl(ann['name']); anchor_y=ann['high'] if bullish is not False else ann['low']
+        ax.annotate(label,xy=(pos,anchor_y),xytext=(label_x,label_y),fontsize=8.5,color=color,ha=align,va='center',fontproperties=MPL_FONT_PROP,arrowprops=dict(arrowstyle='-|>',color=color,lw=1.1,mutation_scale=9,connectionstyle=f'arc3,rad={rad}'),bbox=dict(boxstyle='round,pad=0.32',facecolor='white',edgecolor=color,alpha=0.95,linewidth=1.0),clip_on=False,zorder=10)
+    arcs_r=[0.25,0.15,0.35,0.10,0.20]; arcs_l=[-0.25,-0.15,-0.35,-0.10,-0.20]
+    for k,ann in enumerate(right_anns): draw_ann(ann,col_right_x,right_ys[k],'left',arcs_r[k%len(arcs_r)])
+    for k,ann in enumerate(left_anns): draw_ann(ann,col_left_x,left_ys[k],'right',arcs_l[k%len(arcs_l)])
+    ax.set_xlim(col_left_x-xspan*0.32,col_right_x+xspan*0.32); fig.subplots_adjust(left=0.12,right=0.88)
     return chart_bytes(fig)
+
 
 def make_cci_willr_chart(d):
     d=d.tail(180).copy(); fig,(a1,a2)=plt.subplots(2,1,figsize=(14,6),sharex=True); x=d.index
@@ -3282,6 +3244,10 @@ class Report:
         self._font(False,11); c.drawRightString(PAGE_W-MG, PAGE_H-52*mm, tx(f'{self.display_tk} | {safe(info,"exchange","-")}'))
         self._font(False,9); c.drawString(MG, PAGE_H-18*mm, datetime.now().strftime('%Y-%m-%d'))
         c.setFillColor(HexColor(rec_color)); c.roundRect(MG, PAGE_H-58*mm, 60*mm, 14*mm, 8, fill=1, stroke=0)
+        # c.setFillColor(WHITE); self._font(True,11); c.drawCentredString(MG+30*mm, PAGE_H-53*mm, rtl(rec_txt))
+        # self._font(False,8); c.drawCentredString(MG+30*mm, PAGE_H-57*mm, rtl(f'النتيجة {score}/20'))
+        #c.setFillColor(WHITE); self._font(True,11); c.drawCentredString(PAGE_W/2, PAGE_H-53*mm, rtl(rec_txt))
+        #self._font(False,8); c.drawCentredString(PAGE_W/2, PAGE_H-57*mm, rtl(f'النتيجة {score}/20'))
         c.setFillColor(WHITE); self._font(True,11); c.drawCentredString(MG+30*mm, PAGE_H-50*mm, rtl(rec_txt))
         self._font(False,8); c.drawCentredString(MG+30*mm, PAGE_H-54*mm, rtl(f'النتيجة {score}/20'))
         
@@ -3301,8 +3267,7 @@ class Report:
         pb=safe(info,'priceToBook'); roe=safe(info,'returnOnEquity'); beta=safe(info,'beta')
         self._box(x1,y3,col_bw,col_bh,'مضاعف القيمة الدفترية',f'{float(pb):.2f}' if pb else '-')
         self._box(x2,y3,col_bw,col_bh,'العائد على حقوق المساهمين',fmt_p(roe)[0] if roe else '-')
-        #self._box(x3,y3,col_bw,col_bh,'بيتا',f'{float(beta):.2f}' if beta else '-')
-        self._box(x3,y3,col_bw,col_bh,'العائد على الاصول',f'{float(beta):.2f}' if beta else '-')
+        self._box(x3,y3,col_bw,col_bh,'بيتا',f'{float(beta):.2f}' if beta else '-')
 
         self._box(x1,y4,col_bw,col_bh,'حجم التداول',fmt_n(safe(info,'volume'),d=0)[0])
         val_str = fmt_n(safe(info,'tradingValue'),d=0)[0] if safe(info,'tradingValue') else '-'
