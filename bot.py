@@ -1070,7 +1070,22 @@ def _enrich_with_STOCKS(ticker: str, info: dict) -> None:
         # STOCKS EPS is empty → fall back to yfinance
         _ensure_eps_formatted(info)
         logger.info(f"STOCKS EPS empty for {ticker}, using yfinance fallback")
-
+    # # ────────────────────────────────────────────────────────#
+    # # roa
+    # # ────────────────────────────────────────────────────────#
+    # eps = _safe_float(STOCKS.get("Eps"))
+    # if eps is not None:
+    #     info["trailingEps"] = eps
+    #     if eps < 0:
+    #         info["trailingEpsFormatted"] = f"({abs(eps)})"
+    #     else:
+    #         info["trailingEpsFormatted"] = str(eps)
+    #     logger.info(f"✓ STOCKS EPS for {ticker}: {eps}")
+    # else:
+    #     # STOCKS EPS is empty → fall back to yfinance
+    #     _ensure_eps_formatted(info)
+    #     logger.info(f"STOCKS EPS empty for {ticker}, using yfinance fallback")
+        
     # ────────────────────────────────────────────────────────
     # 2. القيمة الدفترية (Book Value)
     # ────────────────────────────────────────────────────────
@@ -1153,7 +1168,14 @@ def _enrich_with_STOCKS(ticker: str, info: dict) -> None:
                     info["priceToBook"] = round(price / float(bv_val), 4)
                 except Exception:
                     pass
-
+    # ────────────────────────────────────────────────────────
+    # yy. مضاعف القيمة الدفترية (ROA)
+    # ────────────────────────────────────────────────────────
+    ROEVAL = _safe_float(STOCKS.get("ROE"))
+    if pb is not None:
+        info["returnOnEquity"] = ROEVAL
+        logger.info(f"✓ STOCKS P/B for {ticker}: {ROEVAL}")
+        
     # ────────────────────────────────────────────────────────
     # 9. Defaults
     # ────────────────────────────────────────────────────────
