@@ -2161,191 +2161,133 @@ from io import BytesIO
 # Lines route ABOVE all candle highs (bullish) or BELOW all candle
 # lows (bearish).  Lane ordering guarantees zero crossings.
 # ---------------------------------------------------------------------
-def make_candle_pattern_chart(df, patterns):
-    """
-    Candlestick chart with pattern annotations.
-    Connectors use orthogonal step-lines routed ABOVE all candle highs
-    (bullish) or BELOW all candle lows (bearish), with smooth rounded
-    corners.  Guaranteed: no line crosses any candle or another line.
-    """
-
-    # ── data prep ────────────────────────────────────────────────────
-    df = df.tail(60).copy()
-    df_plot = df[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
-
-    mc = mpf.make_marketcolors(
-        up='#26a69a', down='#ef5350', edge='inherit',
-        wick='inherit', volume={'up': '#80cbc4', 'down': '#ef9a9a'},
-    )
-    st = mpf.make_mpf_style(
-        marketcolors=mc, gridstyle=':', gridcolor='#dddddd',
-        rc={'axes.facecolor': '#FAFAFA'},
-    )
-
-    fig, axlist = mpf.plot(
-        df_plot, type='candle', style=st, volume=False,
-        figsize=(16, 7), returnfig=True, warn_too_much_data=10_000,
-    )
+def make_candle_pattern_chart(d, patterns):
+    d = d.tail(60).copy()
+    p = d[['Open','High','Low','Close','Volume']].copy()
+    mc = mpf.make_marketcolors(up='#26a69a', down='#ef5350', edge='inherit',
+                               wick='inherit', volume={'up':'#80cbc4','down':'#ef9a9a'})
+    st = mpf.make_mpf_style(marketcolors=mc, gridstyle=':', gridcolor='#dddddd',
+                             rc={'axes.facecolor':'#FAFAFA'})
+    fig, axlist = mpf.plot(p, type='candle', style=st, volume=False,
+                           figsize=(16, 7), returnfig=True, warn_too_much_data=9999)
     ax = axlist[0]
-    date_to_pos = {pd.Timestamp(d).date(): i
-                   for i, d in enumerate(df.index)}
 
-    # ── resolve patterns ─────────────────────────────────────────────
+    date_to_pos = {str(dt.date()): i for i, dt in enumerate(d.index)}
     resolved = []
     for date_lbl, ar_name, en_name, bullish in patterns:
-        pos = date_to_pos.get(pd.to_datetime(date_lbl).date())
+        pos = date_to_pos.get(date_lbl)
         if pos is None:
             continue
-        row = df.iloc[pos]
-        conn_y = (float(row['High'])
-                  if (bullish is True or bullish is None)
-                  else float(row['Low']))
-        resolved.append(dict(
-            pos=float(pos), high=float(row['High']),
-            low=float(row['Low']), conn_y=conn_y,
-            name=ar_name, bullish=bullish,
-        ))
-
+        row_d = d.iloc[pos]
+        resolved.append({
+            'pos': pos,
+            'high': float(row_d['High']),
+            'low': float(row_d['Low']),
+            'name': ar_name,
+            'bullish': bullish,
+        })
     if not resolved:
-        buf = BytesIO()
-        fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
-        plt.close(fig); buf.seek(0)
-        return buf.read()
-
-    # ── geometry ─────────────────────────────────────────────────────
-    ylo, yhi = ax.get_ylim()
-    xlo, xhi = ax.get_xlim()
-    xspan = xhi - xlo
-    yspan = yhi - ylo
-    xmid  = (xlo + xhi) / 2.0
-
-    highs = df['High'].values.astype(float)
-    lows  = df['Low'].values.astype(float)
-    global_max_high = float(np.max(highs))
-    global_min_low  = float(np.min(lows))
-
-    # ── assign side: left-half → left label, right-half → right ─────
-    for ann in resolved:
-        ann['side'] = 'left' if ann['pos'] < xmid else 'right'
-
-    # ── four routing groups ──────────────────────────────────────────
-    grp = {
-        'RU': [a for a in resolved
-               if a['side'] == 'right' and a['bullish'] in (True, None)],
-        'RD': [a for a in resolved
-               if a['side'] == 'right' and a['bullish'] is False],
-        'LU': [a for a in resolved
-               if a['side'] == 'left'  and a['bullish'] in (True, None)],
-        'LD': [a for a in resolved
-               if a['side'] == 'left'  and a['bullish'] is False],
-    }
-
-    # ── lane assignment (non-crossing guarantee) ─────────────────────
-    # Spacing must exceed the label-box height so labels don't overlap.
-    lane_gap = yspan * 0.055
-
-    # RIGHT-UP  : leftmost candle → outermost (highest) lane
-    #   ➜ a line whose horizontal segment is longer sits ABOVE all
-    #     shorter ones, so no vertical segment can pierce it.
-    for i, a in enumerate(sorted(grp['RU'], key=lambda x: x['pos'])):
-        a['route_y'] = global_max_high + lane_gap * (len(grp['RU']) - i)
-
-    # RIGHT-DOWN: leftmost candle → outermost (lowest) lane
-    for i, a in enumerate(sorted(grp['RD'], key=lambda x: x['pos'])):
-        a['route_y'] = global_min_low  - lane_gap * (len(grp['RD']) - i)
-
-    # LEFT-UP   : rightmost candle → outermost (highest) lane
-    for i, a in enumerate(sorted(grp['LU'], key=lambda x: -x['pos'])):
-        a['route_y'] = global_max_high + lane_gap * (len(grp['LU']) - i)
-
-    # LEFT-DOWN : rightmost candle → outermost (lowest) lane
-    for i, a in enumerate(sorted(grp['LD'], key=lambda x: -x['pos'])):
-        a['route_y'] = global_min_low  - lane_gap * (len(grp['LD']) - i)
-
-    # ── label sits at routing-lane height → only 2 segments needed ───
-    margin = xspan * 0.12
-    for ann in resolved:
-        ann['label_y'] = ann['route_y']
-        if ann['side'] == 'right':
-            ann['label_x'] = xhi + margin
-            ann['ha'] = 'left'
-        else:
-            ann['label_x'] = xlo - margin
-            ann['ha'] = 'right'
-
-    # ── draw one connector + label ───────────────────────────────────
-def _draw(placement):
-    ann = placement['ann']
-    px = ann['pos']
-    cy = placement['cy']
-    name = ann['name']
-    bull = ann['bullish']
-
-    color = ('#1B5E20' if bull is True
-             else '#B71C1C' if bull is False
-             else '#E65100')
-
-    lane_x  = placement['lane_x']
-    label_x = placement['label_x']
-    label_y = placement['label_y']
-    ha      = placement['ha']
-
-    # ------ SAFE NON‑CROSSING CORRIDOR FIX -----------------
-    # Vertical corridor is forced outside chart:
-    # Nothing (candle/line) can touch it because we add a
-    # vertical Y lift ABOVE highest candle before moving horizontally.
-    global_y_lift = ax.get_ylim()[1] + (ax.get_ylim()[1] - ax.get_ylim()[0]) * 0.25
+        plt.tight_layout()
+        return chart_bytes(fig)
 
     from matplotlib.path import Path
     import matplotlib.patches as mpatches
 
-    verts = [
-        (px, cy),              # start at candle
-        (px, global_y_lift),   # LIFT ABOVE EVERY CANDLE (safe zone)
-        (lane_x, global_y_lift),
-        (label_x, label_y)     # drop down only in clean space
-    ]
-    codes = [Path.MOVETO, Path.LINETO, Path.LINETO, Path.LINETO]
+    ylo, yhi = ax.get_ylim()
+    xlo, xhi = ax.get_xlim()
+    xspan = xhi - xlo
+    yspan = yhi - ylo
 
-    patch = mpatches.PathPatch(
-        Path(verts, codes),
-        facecolor='none',
-        edgecolor=color,
-        linewidth=1.4,
-        clip_on=False,
-        zorder=5,
-        alpha=0.85,
+    # ── Layout zones ──────────────────────────────────────
+    col_right_x  = xhi + xspan * 0.15        # right label column
+    col_left_x   = xlo - xspan * 0.15        # left  label column
+    lane_right_x = xhi + xspan * 0.04        # right vertical lane
+    lane_left_x  = xlo - xspan * 0.04        # left  vertical lane
+
+    # ── Split & sort annotations ──────────────────────────
+    right_anns = sorted(
+        [a for i, a in enumerate(resolved) if i % 2 == 0],
+        key=lambda a: a['pos'],
     )
-    ax.add_patch(patch)
-
-    # Dot
-    ax.plot(
-        px, cy, 'o',
-        color=color,
-        markersize=5,
-        clip_on=False,
-        zorder=6,
-        markeredgecolor='white',
-        markeredgewidth=0.5,
+    left_anns = sorted(
+        [a for i, a in enumerate(resolved) if i % 2 == 1],
+        key=lambda a: a['pos'],
+        reverse=True,
     )
 
-    # Label
-    ax.text(
-        label_x, label_y, name,
-        fontsize=9,
-        color=color,
-        ha=ha,
-        va='center',
-        bbox=dict(
-            boxstyle='round,pad=0.4',
-            facecolor='white',
-            edgecolor=color,
-            alpha=0.95,
-                linewidth=1.0,
-        ),
-        clip_on=False,
-        zorder=10,
-    )
+    # ── Evenly-spaced label Y positions ───────────────────
+    def label_ys(count):
+        if count == 0:
+            return []
+        step = yspan / (count + 1)
+        return sorted([ylo + step * (k + 1) for k in range(count)],
+                       reverse=True)
+
+    right_ys = label_ys(len(right_anns))
+    left_ys  = label_ys(len(left_anns))
+
+    # ── Safe routing zone (above every candle) ────────────
+    base_lift = yhi + yspan * 0.07
+    lift_step = yspan * 0.04
+
+    # ── Draw one annotation with corridor connector ───────
+    def draw_ann(ann, label_x, label_y, ha, lane_x, lift_y):
+        px      = ann['pos']
+        bullish = ann['bullish']
+        color   = ('#1B5E20' if bullish is True
+                   else '#B71C1C' if bullish is False
+                   else '#E65100')
+        label    = rtl(ann['name'])
+        anchor_y = ann['high'] if bullish is not False else ann['low']
+
+        # Corridor path:
+        #   candle ➜ up to safe zone ➜ across to lane ➜ down to label row ➜ across to label
+        verts = [
+            (px,      anchor_y),
+            (px,      lift_y),
+            (lane_x,  lift_y),
+            (lane_x,  label_y),
+            (label_x, label_y),
+        ]
+        codes = [Path.MOVETO] + [Path.LINETO] * 4
+
+        ax.add_patch(mpatches.PathPatch(
+            Path(verts, codes),
+            facecolor='none', edgecolor=color,
+            linewidth=1.3, clip_on=False, zorder=5, alpha=0.85,
+        ))
+
+        # dot on candle
+        ax.plot(px, anchor_y, 'o', color=color, markersize=5,
+                clip_on=False, zorder=6,
+                markeredgecolor='white', markeredgewidth=0.5)
+
+        # label box
+        ax.text(label_x, label_y, label,
+                fontsize=8.5, color=color, ha=ha, va='center',
+                fontproperties=MPL_FONT_PROP,
+                bbox=dict(boxstyle='round,pad=0.32', facecolor='white',
+                          edgecolor=color, alpha=0.95, linewidth=1.0),
+                clip_on=False, zorder=10)
+
+    # ── Render all annotations ────────────────────────────
+    for k, ann in enumerate(right_anns):
+        draw_ann(ann, col_right_x, right_ys[k], 'left',
+                 lane_right_x, base_lift + lift_step * k)
+
+    for k, ann in enumerate(left_anns):
+        draw_ann(ann, col_left_x, left_ys[k], 'right',
+                 lane_left_x, base_lift + lift_step * k)
+
+    # ── Adjust limits to show corridors + labels ──────────
+    top_y = (base_lift
+             + lift_step * max(len(right_anns), len(left_anns), 1)
+             + yspan * 0.04)
+    ax.set_ylim(ylo - yspan * 0.02, top_y)
+    ax.set_xlim(col_left_x - xspan * 0.32, col_right_x + xspan * 0.32)
+    fig.subplots_adjust(left=0.12, right=0.88)
+
+    return chart_bytes(fig)
 
 ###################################نهاية الشموع
 def detect_divergences(d):
