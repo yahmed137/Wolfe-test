@@ -1173,7 +1173,7 @@ def _enrich_with_STOCKS(ticker: str, info: dict) -> None:
     # ────────────────────────────────────────────────────────
     ROAVAL = _safe_float(STOCKS.get("ROA"))
     if ROAVAL is not None:
-        info["returnOnAssets"] = ROEVAL
+        info["returnOnAssets"] = ROAVAL
         logger.info(f"✓ STOCKS ROAA for {ticker}: {ROEVAL}")
     # ────────────────────────────────────────────────────────
     # yy. مضاعف القيمة الدفترية (ROA)
