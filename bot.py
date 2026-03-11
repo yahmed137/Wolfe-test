@@ -1169,19 +1169,23 @@ def _enrich_with_STOCKS(ticker: str, info: dict) -> None:
                 except Exception:
                     pass
     # ────────────────────────────────────────────────────────
-    # yy. (ROA)
+    # 99. ROA — العائد على الأصول
     # ────────────────────────────────────────────────────────
-    ROAVAL = _safe_float(STOCKS.get("ROA"))
-    if ROAVAL is not None:
-        info["returnOnAssets"] = ROAVAL
-        logger.info(f"✓ STOCKS ROAA for {ticker}: {ROAVAL}")
+    roa_val = _safe_float(STOCKS.get("ROA"))
+    if roa_val is not None:
+        # STOCKS stores as percentage (e.g. -0.35 means -0.35%)
+        # Convert to decimal for consistency with yfinance format
+        info["returnOnAssets"] = roa_val / 100.0
+        logger.info(f"✓ STOCKS ROA for {ticker}: {roa_val}%")
     # ────────────────────────────────────────────────────────
-    # yy.  (ROE)
+    # 88. ROE — العائد على حقوق المساهمين
     # ────────────────────────────────────────────────────────
-    ROEVAL = _safe_float(STOCKS.get("ROE"))
-    if ROEVAL is not None:
-        info["returnOnEquity"] = ROEVAL
-        logger.info(f"✓ STOCKS ROEE for {ticker}: {ROEVAL}")    
+    roe_val = _safe_float(STOCKS.get("ROE"))
+    if roe_val is not None:
+        # STOCKS stores as percentage (e.g. 16.91 means 16.91%)
+        # Convert to decimal for consistency with yfinance format
+        info["returnOnEquity"] = roe_val / 100.0
+        logger.info(f"✓ STOCKS ROE for {ticker}: {roe_val}%")  
     # ────────────────────────────────────────────────────────
     # 9. Defaults
     # ────────────────────────────────────────────────────────
@@ -3275,8 +3279,12 @@ class Report:
         self._box(x3,y2,col_bw,col_bh,'عائد التوزيعات',fmt_p(dy)[0] if dy else '-')
         pb=safe(info,'priceToBook'); roe=safe(info,'returnOnEquity'); beta=safe(info,'beta')
         self._box(x1,y3,col_bw,col_bh,'مضاعف القيمة الدفترية',f'{float(pb):.2f}' if pb else '-')
-        self._box(x2,y3,col_bw,col_bh,'العائد على حقوق المساهمين',fmt_p(roe)[0] if roe else '-')
-        self._box(x2,y3,col_bw,col_bh,'العائد على الاصول',fmt_p(ROAVAL)[0] if ROAVAL else '-')
+        #self._box(x2,y3,col_bw,col_bh,'العائد على حقوق المساهمين',fmt_p(roe)[0] if roe else '-')
+        roe = safe(info, 'returnOnEquity')
+        self._box(x2, y3, col_bw, col_bh, 'العائد على حقوق المساهمين', fmt_p(roe)[0] if roe else '-')
+        roa = safe(info, 'returnOnAssets')
+        self._box(x3, y3, col_bw, col_bh, 'العائد على الأصول', fmt_p(roa)[0] if roa else '-')
+        #self._box(x2,y3,col_bw,col_bh,'العائد على الاصول',fmt_p(ROAVAL)[0] if ROAVAL else '-')
         #self._box(x3,y3,col_bw,col_bh,'بيتا',f'{float(beta):.2f}' if beta else '-')
 
         self._box(x1,y4,col_bw,col_bh,'حجم التداول',fmt_n(safe(info,'volume'),d=0)[0])
