@@ -2141,318 +2141,203 @@ def detect_candle_patterns(df):
             break
     return list(reversed(unique))
 ##############الشموع####################################################
-import numpy as np
-import pandas as pd
-import mplfinance as mpf
-import matplotlib.pyplot as plt
-from io import BytesIO
+
 
 # ---------------------------------------------------------------------
 # CHART WITH STEP-LINE CONNECTORS ROUTED THROUGH EMPTY SPACE
 # ---------------------------------------------------------------------
 ##############الشموع####################################################
+import numpy as np
+import pandas as pd
+import mplfinance as mpf
+import matplotlib.pyplot as plt
+from matplotlib.path import Path
+import matplotlib.patches as mpatches
+from io import BytesIO
+
+
 # ---------------------------------------------------------------------
-# CHART WITH DYNAMIC SPACE-FILLING SMOOTH CONNECTORS
+# CHART WITH NON-CROSSING ORTHOGONAL CONNECTORS
+# Lines route ABOVE all candle highs (bullish) or BELOW all candle
+# lows (bearish).  Lane ordering guarantees zero crossings.
 # ---------------------------------------------------------------------
 def make_candle_pattern_chart(df, patterns):
     """
-    Generates a candlestick chart with pattern annotations using
-    SMOOTH BÉZIER CURVES routed through dynamically found empty spaces —
-    guaranteed non-crossing, non-overlapping labels, and minimal candle overlap.
+    Candlestick chart with pattern annotations.
+    Connectors use orthogonal step-lines routed ABOVE all candle highs
+    (bullish) or BELOW all candle lows (bearish), with smooth rounded
+    corners.  Guaranteed: no line crosses any candle or another line.
     """
-    from matplotlib.path import Path
-    import matplotlib.patches as mpatches
-    from matplotlib.patches import Rectangle
 
-    # ── Data prep ────────────────────────────────────────────────────
+    # ── data prep ────────────────────────────────────────────────────
     df = df.tail(60).copy()
     df_plot = df[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
 
     mc = mpf.make_marketcolors(
         up='#26a69a', down='#ef5350', edge='inherit',
-        wick='inherit', volume={'up': '#80cbc4', 'down': '#ef9a9a'}
+        wick='inherit', volume={'up': '#80cbc4', 'down': '#ef9a9a'},
     )
     st = mpf.make_mpf_style(
         marketcolors=mc, gridstyle=':', gridcolor='#dddddd',
-        rc={'axes.facecolor': '#FAFAFA'}
+        rc={'axes.facecolor': '#FAFAFA'},
     )
 
     fig, axlist = mpf.plot(
         df_plot, type='candle', style=st, volume=False,
-        figsize=(16, 7), returnfig=True, warn_too_much_data=10_000
+        figsize=(16, 7), returnfig=True, warn_too_much_data=10_000,
     )
     ax = axlist[0]
-    date_to_pos = {pd.Timestamp(d).date(): i for i, d in enumerate(df.index)}
+    date_to_pos = {pd.Timestamp(d).date(): i
+                   for i, d in enumerate(df.index)}
 
-    # ── Resolve patterns to x/y positions ────────────────────────────
+    # ── resolve patterns ─────────────────────────────────────────────
     resolved = []
     for date_lbl, ar_name, en_name, bullish in patterns:
         pos = date_to_pos.get(pd.to_datetime(date_lbl).date())
         if pos is None:
             continue
         row = df.iloc[pos]
-        conn_y = float(row['High']) if (bullish is True or bullish is None) \
-                 else float(row['Low'])
+        conn_y = (float(row['High'])
+                  if (bullish is True or bullish is None)
+                  else float(row['Low']))
         resolved.append(dict(
-            pos=float(pos),
-            high=float(row['High']),
-            low=float(row['Low']),
-            conn_y=conn_y,
-            name=ar_name,
-            bullish=bullish,
+            pos=float(pos), high=float(row['High']),
+            low=float(row['Low']), conn_y=conn_y,
+            name=ar_name, bullish=bullish,
         ))
 
     if not resolved:
         buf = BytesIO()
         fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
-        plt.close(fig)
-        buf.seek(0)
+        plt.close(fig); buf.seek(0)
         return buf.read()
 
-    # ── Chart geometry ───────────────────────────────────────────────
+    # ── geometry ─────────────────────────────────────────────────────
     ylo, yhi = ax.get_ylim()
     xlo, xhi = ax.get_xlim()
     xspan = xhi - xlo
     yspan = yhi - ylo
+    xmid  = (xlo + xhi) / 2.0
 
-    # ── Calculate candle bounding boxes for collision detection ──────
-    candle_rects = []
-    for i, (idx, row) in enumerate(df.iterrows()):
-        candle_width = xspan / len(df) * 0.6
-        candle_rects.append(Rectangle(
-            (i - candle_width/2, row['Low']),
-            candle_width,
-            row['High'] - row['Low'],
-            fill=False
-        ))
+    highs = df['High'].values.astype(float)
+    lows  = df['Low'].values.astype(float)
+    global_max_high = float(np.max(highs))
+    global_min_low  = float(np.min(lows))
 
-    def check_collision(x, y, width, height, side='left'):
-        """Check if a rectangle at (x,y) with given dimensions collides with candles"""
-        test_rect = Rectangle((x, y), width, height, fill=False)
-        for candle in candle_rects:
-            if test_rect.overlaps(candle):
-                return True
-        
-        # Check if overlaps with chart area too much
-        if side == 'left':
-            if x > xlo + xspan * 0.05:  # Too far right
-                return True
-        else:
-            if x < xhi - xspan * 0.05:  # Too far left
-                return True
-        
-        return False
-
-    # ── Dynamic placement: find best side and position for each annotation ─
-    placed = []
-    used_positions = []  # Track used label positions to avoid overlap
-    
-    # Sort by position to process left to right
-    resolved.sort(key=lambda a: a['pos'])
-    
+    # ── assign side: left-half → left label, right-half → right ─────
     for ann in resolved:
-        px, cy = ann['pos'], ann['conn_y']
-        
-        # Try left side first
-        left_clear = True
-        left_lane_x = xlo - xspan * 0.06
-        left_label_x = xlo - xspan * 0.22
-        
-        # Check if path to left is clear
-        for candle in candle_rects:
-            if candle.contains_point((left_lane_x, cy)) or \
-               candle.contains_point((left_lane_x, cy + (yhi-cy)*0.1)) or \
-               candle.contains_point((left_lane_x, cy - (cy-ylo)*0.1)):
-                left_clear = False
-                break
-        
-        # Try right side
-        right_clear = True
-        right_lane_x = xhi + xspan * 0.06
-        right_label_x = xhi + xspan * 0.22
-        
-        for candle in candle_rects:
-            if candle.contains_point((right_lane_x, cy)) or \
-               candle.contains_point((right_lane_x, cy + (yhi-cy)*0.1)) or \
-               candle.contains_point((right_lane_x, cy - (cy-ylo)*0.1)):
-                right_clear = False
-                break
-        
-        # Choose side with more space
-        if left_clear and not right_clear:
-            side = 'left'
-            lane_x = left_lane_x
-            label_x = left_label_x
-            ha = 'right'
-        elif right_clear and not left_clear:
-            side = 'right'
-            lane_x = right_lane_x
-            label_x = right_label_x
-            ha = 'left'
-        elif left_clear and right_clear:
-            # Both clear, choose based on distance to edge
-            if px < xmid:
-                side = 'left'
-                lane_x = left_lane_x
-                label_x = left_label_x
-                ha = 'right'
-            else:
-                side = 'right'
-                lane_x = right_lane_x
-                label_x = right_label_x
-                ha = 'left'
+        ann['side'] = 'left' if ann['pos'] < xmid else 'right'
+
+    # ── four routing groups ──────────────────────────────────────────
+    grp = {
+        'RU': [a for a in resolved
+               if a['side'] == 'right' and a['bullish'] in (True, None)],
+        'RD': [a for a in resolved
+               if a['side'] == 'right' and a['bullish'] is False],
+        'LU': [a for a in resolved
+               if a['side'] == 'left'  and a['bullish'] in (True, None)],
+        'LD': [a for a in resolved
+               if a['side'] == 'left'  and a['bullish'] is False],
+    }
+
+    # ── lane assignment (non-crossing guarantee) ─────────────────────
+    # Spacing must exceed the label-box height so labels don't overlap.
+    lane_gap = yspan * 0.055
+
+    # RIGHT-UP  : leftmost candle → outermost (highest) lane
+    #   ➜ a line whose horizontal segment is longer sits ABOVE all
+    #     shorter ones, so no vertical segment can pierce it.
+    for i, a in enumerate(sorted(grp['RU'], key=lambda x: x['pos'])):
+        a['route_y'] = global_max_high + lane_gap * (len(grp['RU']) - i)
+
+    # RIGHT-DOWN: leftmost candle → outermost (lowest) lane
+    for i, a in enumerate(sorted(grp['RD'], key=lambda x: x['pos'])):
+        a['route_y'] = global_min_low  - lane_gap * (len(grp['RD']) - i)
+
+    # LEFT-UP   : rightmost candle → outermost (highest) lane
+    for i, a in enumerate(sorted(grp['LU'], key=lambda x: -x['pos'])):
+        a['route_y'] = global_max_high + lane_gap * (len(grp['LU']) - i)
+
+    # LEFT-DOWN : rightmost candle → outermost (lowest) lane
+    for i, a in enumerate(sorted(grp['LD'], key=lambda x: -x['pos'])):
+        a['route_y'] = global_min_low  - lane_gap * (len(grp['LD']) - i)
+
+    # ── label sits at routing-lane height → only 2 segments needed ───
+    margin = xspan * 0.12
+    for ann in resolved:
+        ann['label_y'] = ann['route_y']
+        if ann['side'] == 'right':
+            ann['label_x'] = xhi + margin
+            ann['ha'] = 'left'
         else:
-            # Both blocked, find nearest clear vertical path
-            # Search for vertical slot away from candles
-            test_y = cy
-            found = False
-            for offset in np.linspace(-yspan*0.3, yspan*0.3, 20):
-                test_y = cy + offset
-                if test_y < ylo or test_y > yhi:
-                    continue
-                
-                # Check if this Y level is clear on either side
-                left_clear = not any(candle.contains_point((left_lane_x, test_y)) for candle in candle_rects)
-                right_clear = not any(candle.contains_point((right_lane_x, test_y)) for candle in candle_rects)
-                
-                if left_clear:
-                    side = 'left'
-                    lane_x = left_lane_x
-                    label_x = left_label_x
-                    ha = 'right'
-                    cy = test_y
-                    found = True
-                    break
-                elif right_clear:
-                    side = 'right'
-                    lane_x = right_lane_x
-                    label_x = right_label_x
-                    ha = 'left'
-                    cy = test_y
-                    found = True
-                    break
-            
-            if not found:
-                # Last resort: place on least crowded side
-                side = 'left' if len([c for c in candle_rects if c.contains_point((left_lane_x, cy))]) < \
-                                 len([c for c in candle_rects if c.contains_point((right_lane_x, cy))]) else 'right'
-                lane_x = left_lane_x if side == 'left' else right_lane_x
-                label_x = left_label_x if side == 'left' else right_label_x
-                ha = 'right' if side == 'left' else 'left'
-        
-        # Find vertical label slot that doesn't overlap
-        v_pad = yspan * 0.05
-        y_top = yhi + v_pad
-        y_bot = ylo - v_pad
-        
-        # Check existing labels for overlap
-        label_y = (y_top + y_bot) / 2
-        placed_on_side = [p for p in placed if p['side'] == side]
-        
-        if placed_on_side:
-            # Sort by Y position
-            placed_on_side.sort(key=lambda p: p['label_y'])
-            
-            # Find gap between existing labels
-            for i in range(len(placed_on_side) - 1):
-                gap_top = placed_on_side[i]['label_y'] + v_pad
-                gap_bottom = placed_on_side[i+1]['label_y'] - v_pad
-                
-                if gap_bottom - gap_top > v_pad * 2:
-                    # Place in this gap
-                    label_y = (gap_top + gap_bottom) / 2
-                    break
-            else:
-                # Place at top or bottom
-                if placed_on_side[0]['label_y'] > y_top:
-                    label_y = y_top
-                elif placed_on_side[-1]['label_y'] < y_bot:
-                    label_y = y_bot
-                else:
-                    # No space, push to top with more padding
-                    label_y = y_top + v_pad * len(placed_on_side)
-        
-        placed.append({
-            'ann': ann,
-            'side': side,
-            'lane_x': lane_x,
-            'label_x': label_x,
-            'label_y': label_y,
-            'ha': ha,
-            'cy': cy
-        })
+            ann['label_x'] = xlo - margin
+            ann['ha'] = 'right'
 
-    # ── Drawing helper ───────────────────────────────────────────────
-def _draw(placement):
-    ann = placement['ann']
-    px = ann['pos']
-    cy = placement['cy']         # connector Y (possibly shifted)
-    name = ann['name']
-    bull = ann['bullish']
+    # ── draw one connector + label ───────────────────────────────────
+    def _draw(ann):
+        px, cy = ann['pos'], ann['conn_y']
+        ry     = ann['route_y']
+        lx, ly = ann['label_x'], ann['label_y']
+        ha     = ann['ha']
+        name   = ann['name']
+        bull   = ann['bullish']
 
-    color = ('#1B5E20' if bull is True
-             else '#B71C1C' if bull is False
-             else '#E65100')
+        clr = ('#1B5E20' if bull is True
+               else '#B71C1C' if bull is False
+               else '#E65100')
 
-    lane_x  = placement['lane_x']
-    label_x = placement['label_x']
-    label_y = placement['label_y']
-    ha      = placement['ha']
+        # smooth rounded corner at the bend
+        r = min(abs(ry - cy) * 0.20,
+                abs(lx - px) * 0.10,
+                yspan * 0.018)
+        sy = 1.0 if ry > cy else -1.0        # vertical direction
+        sx = 1.0 if lx > px else -1.0        # horizontal direction
 
-    # --- STRICT NON‑CROSSING ROUTE ---------------------------------
-    # Always: point → vertical up/down → lane_x → horizontal → label_x
-    # NO angled curves, NO diagonal intersections.
-    from matplotlib.path import Path
-    import matplotlib.patches as mpatches
+        verts = [
+            (px,            cy),              # candle extremity
+            (px,            ry - sy * r),     # end of straight vertical
+            (px,            ry),              # quad-Bézier control (corner)
+            (px + sx * r,   ry),              # start of straight horizontal
+            (lx,            ry),              # label position
+        ]
+        codes = [Path.MOVETO, Path.LINETO,
+                 Path.CURVE3, Path.CURVE3,
+                 Path.LINETO]
 
-    verts = [
-        (px, cy),          # start at candle
-        (px, label_y),     # go straight vertical (safe)
-        (lane_x, label_y), # then horizontal to the lane
-        (label_x, label_y) # then horizontal to label
-    ]
-    codes = [Path.MOVETO, Path.LINETO, Path.LINETO, Path.LINETO]
+        patch = mpatches.PathPatch(
+            Path(verts, codes),
+            facecolor='none', edgecolor=clr,
+            linewidth=1.3, clip_on=False, zorder=5, alpha=0.82,
+        )
+        ax.add_patch(patch)
 
-    patch = mpatches.PathPatch(
-        Path(verts, codes),
-        facecolor='none',
-        edgecolor=color,
-        linewidth=1.4,
-        clip_on=False,
-        zorder=5,
-        alpha=0.85,
-    )
-    ax.add_patch(patch)
+        # dot on the candle
+        ax.plot(px, cy, 'o', color=clr, markersize=5, clip_on=False,
+                zorder=6, markeredgecolor='white', markeredgewidth=0.5)
 
-    # Dot at candle
-    ax.plot(
-        px, cy, 'o',
-        color=color,
-        markersize=5,
-        clip_on=False,
-        zorder=6,
-        markeredgecolor='white',
-        markeredgewidth=0.5,
-    )
+        # label box
+        ax.text(lx, ly, name, fontsize=9, color=clr, ha=ha, va='center',
+                bbox=dict(boxstyle='round,pad=0.4', facecolor='white',
+                         edgecolor=clr, alpha=0.95, linewidth=1.0),
+                clip_on=False, zorder=10)
 
-    # Label
-    ax.text(
-        label_x, label_y, name,
-        fontsize=9,
-        color=color,
-        ha=ha,
-        va='center',
-        bbox=dict(
-            boxstyle='round,pad=0.4',
-            facecolor='white',
-            edgecolor=color,
-            alpha=0.95,
-            linewidth=1.0,
-        ),
-        clip_on=False,
-        zorder=10,
-    )
+    # ── render ───────────────────────────────────────────────────────
+    for ann in resolved:
+        _draw(ann)
 
+    # ── expand limits so labels + lanes are visible ──────────────────
+    all_ys = [a['route_y'] for a in resolved]
+    ax.set_ylim(min(ylo, min(all_ys)) - yspan * 0.06,
+                max(yhi, max(all_ys)) + yspan * 0.06)
+    ax.set_xlim(xlo - xspan * 0.28,
+                xhi + xspan * 0.28)
+
+    fig.tight_layout(rect=[0.04, 0.04, 0.96, 0.96])
+
+    buf = BytesIO()
+    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    plt.close(fig); buf.seek(0)
+    return buf.read()
 
 ###################################نهاية الشموع
 def detect_divergences(d):
