@@ -2383,87 +2383,75 @@ def make_candle_pattern_chart(df, patterns):
         })
 
     # ── Drawing helper ───────────────────────────────────────────────
-    def _draw(placement):
-        """Draw ONE connector + label using Bézier curve"""
-        ann = placement['ann']
-        px, cy = placement['cy'], ann['conn_y']
-        name = ann['name']
-        bull = ann['bullish']
-        
-        color = ('#1B5E20' if bull is True
-                 else '#B71C1C' if bull is False
-                 else '#E65100')
-        
-        lane_x = placement['lane_x']
-        label_x = placement['label_x']
-        label_y = placement['label_y']
-        ha = placement['ha']
-        
-        # Bézier path
-        verts = [
-            (px,     cy),
-            (lane_x, cy),
-            (lane_x, label_y),
-            (label_x + (xspan * 0.02 if ha == 'right' else -xspan * 0.02), label_y),
-        ]
-        codes = [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4]
-        
-        patch = mpatches.PathPatch(
-            Path(verts, codes),
-            facecolor='none',
+def _draw(placement):
+    ann = placement['ann']
+    px = ann['pos']
+    cy = placement['cy']         # connector Y (possibly shifted)
+    name = ann['name']
+    bull = ann['bullish']
+
+    color = ('#1B5E20' if bull is True
+             else '#B71C1C' if bull is False
+             else '#E65100')
+
+    lane_x  = placement['lane_x']
+    label_x = placement['label_x']
+    label_y = placement['label_y']
+    ha      = placement['ha']
+
+    # --- STRICT NON‑CROSSING ROUTE ---------------------------------
+    # Always: point → vertical up/down → lane_x → horizontal → label_x
+    # NO angled curves, NO diagonal intersections.
+    from matplotlib.path import Path
+    import matplotlib.patches as mpatches
+
+    verts = [
+        (px, cy),          # start at candle
+        (px, label_y),     # go straight vertical (safe)
+        (lane_x, label_y), # then horizontal to the lane
+        (label_x, label_y) # then horizontal to label
+    ]
+    codes = [Path.MOVETO, Path.LINETO, Path.LINETO, Path.LINETO]
+
+    patch = mpatches.PathPatch(
+        Path(verts, codes),
+        facecolor='none',
+        edgecolor=color,
+        linewidth=1.4,
+        clip_on=False,
+        zorder=5,
+        alpha=0.85,
+    )
+    ax.add_patch(patch)
+
+    # Dot at candle
+    ax.plot(
+        px, cy, 'o',
+        color=color,
+        markersize=5,
+        clip_on=False,
+        zorder=6,
+        markeredgecolor='white',
+        markeredgewidth=0.5,
+    )
+
+    # Label
+    ax.text(
+        label_x, label_y, name,
+        fontsize=9,
+        color=color,
+        ha=ha,
+        va='center',
+        bbox=dict(
+            boxstyle='round,pad=0.4',
+            facecolor='white',
             edgecolor=color,
-            linewidth=1.4,
-            clip_on=False,
-            zorder=5,
-            alpha=0.82,
-        )
-        ax.add_patch(patch)
-        
-        # Small dot
-        ax.plot(
-            px, cy, 'o',
-            color=color,
-            markersize=5,
-            clip_on=False,
-            zorder=6,
-            markeredgecolor='white',
-            markeredgewidth=0.5,
-        )
-        
-        # Label
-        ax.text(
-            label_x, label_y, name,
-            fontsize=9,
-            color=color,
-            ha=ha,
-            va='center',
-            bbox=dict(
-                boxstyle='round,pad=0.4',
-                facecolor='white',
-                edgecolor=color,
-                alpha=0.95,
-                linewidth=1.0,
-            ),
-            clip_on=False,
-            zorder=10,
-        )
-
-    # ── Render all connectors ────────────────────────────────────────
-    for placement in placed:
-        _draw(placement)
-
-    # ── Expand axis limits ───────────────────────────────────────────
-    ax.set_xlim(xlo - xspan * 0.15, xhi + xspan * 0.15)
-    ax.set_ylim(ylo - yspan * 0.15, yhi + yspan * 0.15)
-
-    fig.tight_layout(rect=[0.04, 0.04, 0.96, 0.96])
-
-    # ── Return PNG bytes ─────────────────────────────────────────────
-    buf = BytesIO()
-    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
-    plt.close(fig)
-    buf.seek(0)
-    return buf.read()
+            alpha=0.95,
+            linewidth=1.0,
+        ),
+        clip_on=False,
+        zorder=10,
+    )
 
 
 ###################################نهاية الشموع
