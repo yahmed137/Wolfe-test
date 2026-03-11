@@ -1169,14 +1169,14 @@ def _enrich_with_STOCKS(ticker: str, info: dict) -> None:
                 except Exception:
                     pass
     # ────────────────────────────────────────────────────────
-    # yy. مضاعف القيمة الدفترية (ROA)
+    # yy. (ROA)
     # ────────────────────────────────────────────────────────
     ROAVAL = _safe_float(STOCKS.get("ROA"))
     if ROAVAL is not None:
         info["returnOnAssets"] = ROAVAL
-        logger.info(f"✓ STOCKS ROAA for {ticker}: {ROEVAL}")
+        logger.info(f"✓ STOCKS ROAA for {ticker}: {ROAVAL}")
     # ────────────────────────────────────────────────────────
-    # yy. مضاعف القيمة الدفترية (ROA)
+    # yy.  (ROE)
     # ────────────────────────────────────────────────────────
     ROEVAL = _safe_float(STOCKS.get("ROE"))
     if ROEVAL is not None:
