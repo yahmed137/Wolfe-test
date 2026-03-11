@@ -3304,7 +3304,8 @@ class Report:
         pb=safe(info,'priceToBook'); roe=safe(info,'returnOnEquity'); beta=safe(info,'beta')
         self._box(x1,y3,col_bw,col_bh,'مضاعف القيمة الدفترية',f'{float(pb):.2f}' if pb else '-')
         self._box(x2,y3,col_bw,col_bh,'العائد على حقوق المساهمين',fmt_p(roe)[0] if roe else '-')
-        self._box(x3,y3,col_bw,col_bh,'العائد على الأصول', fmt_p(roa)[0] if roa else '-')        
+        self._box(x3,y3,col_bw,col_bh,'العائد على الأصول', (roa)[0] if roa else '-')        
+        #self._box(x3,y3,col_bw,col_bh,'العائد على الأصول', fmt_p(roa)[0] if roa else '-')        
         #self._box(x3,y3,col_bw,col_bh,'بيتا',f'{float(beta):.2f}' if beta else '-')
 
 
