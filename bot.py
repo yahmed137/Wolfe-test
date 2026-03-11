@@ -2148,13 +2148,6 @@ import matplotlib.pyplot as plt
 from io import BytesIO
 
 # ---------------------------------------------------------------------
-# CHART WITH GUARANTEED NON‑CROSSING ORTHOGONAL STEP CONNECTORS
-# ---------------------------------------------------------------------
-##############الشموع####################################################
-# ---------------------------------------------------------------------
-# CHART WITH GUARANTEED NON‑CROSSING STEP‑LINE CONNECTORS
-# ---------------------------------------------------------------------
-# ---------------------------------------------------------------------
 # CHART WITH STEP-LINE CONNECTORS ROUTED THROUGH EMPTY SPACE
 # ---------------------------------------------------------------------
 ##############الشموع####################################################
@@ -2242,10 +2235,10 @@ def make_candle_pattern_chart(df, patterns):
         
         # Check if overlaps with chart area too much
         if side == 'left':
-            if x > xlo + xspan * 0.15:  # Too far right
+            if x > xlo + xspan * 0.05:  # Too far right
                 return True
         else:
-            if x < xhi - xspan * 0.15:  # Too far left
+            if x < xhi - xspan * 0.05:  # Too far left
                 return True
         
         return False
