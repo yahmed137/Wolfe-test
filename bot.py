@@ -1171,11 +1171,17 @@ def _enrich_with_STOCKS(ticker: str, info: dict) -> None:
     # ────────────────────────────────────────────────────────
     # yy. مضاعف القيمة الدفترية (ROA)
     # ────────────────────────────────────────────────────────
+    ROAVAL = _safe_float(STOCKS.get("ROA"))
+    if ROAVAL is not None:
+        info["returnOnAssets"] = ROEVAL
+        logger.info(f"✓ STOCKS ROAA for {ticker}: {ROEVAL}")
+    # ────────────────────────────────────────────────────────
+    # yy. مضاعف القيمة الدفترية (ROA)
+    # ────────────────────────────────────────────────────────
     ROEVAL = _safe_float(STOCKS.get("ROE"))
-    if pb is not None:
+    if ROEVAL is not None:
         info["returnOnEquity"] = ROEVAL
-        logger.info(f"✓ STOCKS P/B for {ticker}: {ROEVAL}")
-        
+        logger.info(f"✓ STOCKS ROEE for {ticker}: {ROEVAL}")    
     # ────────────────────────────────────────────────────────
     # 9. Defaults
     # ────────────────────────────────────────────────────────
@@ -3270,7 +3276,8 @@ class Report:
         pb=safe(info,'priceToBook'); roe=safe(info,'returnOnEquity'); beta=safe(info,'beta')
         self._box(x1,y3,col_bw,col_bh,'مضاعف القيمة الدفترية',f'{float(pb):.2f}' if pb else '-')
         self._box(x2,y3,col_bw,col_bh,'العائد على حقوق المساهمين',fmt_p(roe)[0] if roe else '-')
-        self._box(x3,y3,col_bw,col_bh,'بيتا',f'{float(beta):.2f}' if beta else '-')
+        self._box(x2,y3,col_bw,col_bh,'العائد على الاصول',fmt_p(ROAVAL)[0] if ROAVAL else '-')
+        #self._box(x3,y3,col_bw,col_bh,'بيتا',f'{float(beta):.2f}' if beta else '-')
 
         self._box(x1,y4,col_bw,col_bh,'حجم التداول',fmt_n(safe(info,'volume'),d=0)[0])
         val_str = fmt_n(safe(info,'tradingValue'),d=0)[0] if safe(info,'tradingValue') else '-'
