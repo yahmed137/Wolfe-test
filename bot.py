@@ -1067,7 +1067,6 @@ def _enrich_with_STOCKS(ticker: str, info: dict) -> None:
             info["trailingEpsFormatted"] = str(eps)
         logger.info(f"✓ STOCKS EPS for {ticker}: {eps}")
     else:
-        # STOCKS EPS is empty → fall back to yfinance
         _ensure_eps_formatted(info)
         logger.info(f"STOCKS EPS empty for {ticker}, using yfinance fallback")
 
@@ -1088,7 +1087,6 @@ def _enrich_with_STOCKS(ticker: str, info: dict) -> None:
         info["trailingPE"] = pe
         logger.info(f"✓ STOCKS P/E for {ticker}: {pe}")
     elif pe_raw == "سالب":
-        # Negative earnings → store as indicator
         info["trailingPE"] = None
         info["trailingPE_display"] = "سالب"
         logger.info(f"✓ STOCKS P/E for {ticker}: سالب (negative earnings)")
@@ -1109,13 +1107,11 @@ def _enrich_with_STOCKS(ticker: str, info: dict) -> None:
     # ────────────────────────────────────────────────────────
     shares = _safe_float(STOCKS.get("Numberofshare"))
     if shares is not None:
-        # Convert from millions to actual count
         shares_actual = shares * 1_000_000
         info["sharesOutstanding"] = shares_actual
         info["floatShares"] = shares_actual
         logger.info(f"✓ STOCKS Shares for {ticker}: {shares}M → {shares_actual}")
 
-        # ── Recalculate Market Cap if we have price ──
         price = _get_current_price(info)
         if price and price > 0:
             info["marketCap"] = price * shares_actual
@@ -1127,9 +1123,34 @@ def _enrich_with_STOCKS(ticker: str, info: dict) -> None:
     par = _safe_float(STOCKS.get("Parallel_value"))
     if par is not None:
         info["parValue"] = par
+        logger.info(f"✓ STOCKS ParValue for {ticker}: {par}")
 
     # ────────────────────────────────────────────────────────
-    # 7. Recalculate P/E if STOCKS didn't provide it but we have EPS
+    # 7. العائد على متوسط الأصول (ROA) — Return on Average Assets
+    # ────────────────────────────────────────────────────────
+    roa = _safe_float(STOCKS.get("ROA"))
+    if roa is not None:
+        # STOCKS gives percentage value (e.g. 13.99 for 13.99%)
+        # Store as decimal for consistency with yfinance (0.1399)
+        info["returnOnAssets"] = roa / 100.0
+        logger.info(f"✓ STOCKS ROA for {ticker}: {roa}%")
+    else:
+        logger.info(f"STOCKS ROA empty for {ticker}, using yfinance fallback if available")
+
+    # ────────────────────────────────────────────────────────
+    # 8. العائد على متوسط حقوق المساهمين (ROE) — Return on Average Equity
+    # ────────────────────────────────────────────────────────
+    roe = _safe_float(STOCKS.get("ROE"))
+    if roe is not None:
+        # STOCKS gives percentage value (e.g. 23.59 for 23.59%)
+        # Store as decimal for consistency with yfinance (0.2359)
+        info["returnOnEquity"] = roe / 100.0
+        logger.info(f"✓ STOCKS ROE for {ticker}: {roe}%")
+    else:
+        logger.info(f"STOCKS ROE empty for {ticker}, using yfinance fallback if available")
+
+    # ────────────────────────────────────────────────────────
+    # 9. Recalculate P/E if STOCKS didn't provide it but we have EPS
     # ────────────────────────────────────────────────────────
     if not info.get("trailingPE") and not info.get("trailingPE_display"):
         eps_val = info.get("trailingEps")
@@ -1142,7 +1163,7 @@ def _enrich_with_STOCKS(ticker: str, info: dict) -> None:
                     pass
 
     # ────────────────────────────────────────────────────────
-    # 8. Recalculate P/B if missing but we have Book Value
+    # 10. Recalculate P/B if missing but we have Book Value
     # ────────────────────────────────────────────────────────
     if not info.get("priceToBook"):
         bv_val = info.get("bookValue")
@@ -1155,15 +1176,50 @@ def _enrich_with_STOCKS(ticker: str, info: dict) -> None:
                     pass
 
     # ────────────────────────────────────────────────────────
-    # 9. Defaults
+    # 11. Defaults
     # ────────────────────────────────────────────────────────
     if not info.get("currency"):
         info["currency"] = "SAR"
     if not info.get("exchange"):
         info["exchange"] = "Tadawul"
 
+####################################
     logger.info(f"STOCKS enrichment complete for {ticker}")
+        # Row 2: P/E, EPS, Dividend Yield
+        pe = safe(info, 'trailingPE')
+        pe_display = safe(info, 'trailingPE_display')
+        eps = safe(info, 'trailingEps')
+        dy = safe(info, 'dividendYield')
 
+        # P/E: show display text (سالب / أكبر من 100) if available, else numeric
+        if pe_display:
+            pe_str = str(pe_display)
+        elif pe:
+            pe_str = f'{float(pe):.2f}'
+        else:
+            pe_str = '-'
+        self._box(x1, y2, col_bw, col_bh, 'مكرر الربحية', pe_str)
+
+        eps_val = float(eps) if eps else None
+        eps_str = f'{eps_val:.2f}' if eps_val is not None else '-'
+        eps_color = GREEN_HEX if (eps_val is not None and eps_val >= 0) else RED_HEX if eps_val is not None else None
+        self._box(x2, y2, col_bw, col_bh, 'ربحية السهم', eps_str, clr=eps_color)
+        self._box(x3, y2, col_bw, col_bh, 'عائد التوزيعات', fmt_p(dy)[0] if dy else '-')
+
+        # Row 3: P/B, ROE, ROA
+        pb = safe(info, 'priceToBook')
+        roe = safe(info, 'returnOnEquity')
+        roa = safe(info, 'returnOnAssets')
+        self._box(x1, y3, col_bw, col_bh, 'مضاعف القيمة الدفترية', f'{float(pb):.2f}' if pb else '-')
+        self._box(x2, y3, col_bw, col_bh, 'العائد على حقوق المساهمين', fmt_p(roe)[0] if roe else '-')
+        self._box(x3, y3, col_bw, col_bh, 'العائد على الأصول', fmt_p(roa)[0] if roa else '-')
+
+        # Row 4: Volume, Trading Value, Trades Count
+        self._box(x1, y4, col_bw, col_bh, 'حجم التداول', fmt_n(safe(info, 'volume'), d=0)[0])
+        val_str = fmt_n(safe(info, 'tradingValue'), d=0)[0] if safe(info, 'tradingValue') else '-'
+        self._box(x2, y4, col_bw, col_bh, 'قيمة التداول', val_str)
+        trades_str = fmt_n(safe(info, 'tradesCount'), d=0)[0] if safe(info, 'tradesCount') else '-'
+        self._box(x3, y4, col_bw, col_bh, 'عدد الصفقات', trades_str)
 
 def _ensure_eps_formatted(info: dict) -> None:
     """
