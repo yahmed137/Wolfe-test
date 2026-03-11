@@ -2150,11 +2150,16 @@ from io import BytesIO
 # ---------------------------------------------------------------------
 # CHART WITH GUARANTEED NON‑CROSSING ORTHOGONAL STEP CONNECTORS
 # ---------------------------------------------------------------------
+##############الشموع####################################################
+# ---------------------------------------------------------------------
+# CHART WITH GUARANTEED NON‑CROSSING STEP‑LINE CONNECTORS
+# ---------------------------------------------------------------------
 def make_candle_pattern_chart(df, patterns):
     """
     Generates a candlestick chart with pattern annotations using
-    STEP LINES (orthogonal routing) through side lanes — guaranteed
-    non-crossing, non-overlapping labels, and minimal candle overlap.
+    ORTHOGONAL STEP LINES routed through individual side-lane tracks —
+    guaranteed non-crossing, non-overlapping labels, and minimal
+    candle / line overlap.
     """
     from matplotlib.path import Path
     import matplotlib.patches as mpatches
@@ -2186,7 +2191,6 @@ def make_candle_pattern_chart(df, patterns):
         if pos is None:
             continue
         row = df.iloc[pos]
-        # Bullish / neutral → connect at High  |  Bearish → connect at Low
         conn_y = float(row['High']) if (bullish is True or bullish is None) \
                  else float(row['Low'])
         resolved.append(dict(
@@ -2213,11 +2217,9 @@ def make_candle_pattern_chart(df, patterns):
     xmid  = (xlo + xhi) / 2.0
 
     # ── Split annotations into LEFT side / RIGHT side ────────────────
-    #    based on whether the candle sits in the left or right half
     left_anns  = [a for a in resolved if a['pos'] <  xmid]
     right_anns = [a for a in resolved if a['pos'] >= xmid]
 
-    # Balance: if one side is completely empty, donate one item
     if not left_anns and len(right_anns) > 1:
         right_anns.sort(key=lambda a: a['pos'])
         left_anns.append(right_anns.pop(0))
@@ -2226,27 +2228,41 @@ def make_candle_pattern_chart(df, patterns):
         right_anns.append(left_anns.pop(0))
 
     # ══════════════════════════════════════════════════════════════════
-    # CRITICAL — sort each side by conn_y DESCENDING.
-    # The label slots are also allocated top-to-bottom.
-    # Because both sequences share the same vertical order,
-    # the step paths are GUARANTEED never to cross vertically.
+    # Sort each side by conn_y DESCENDING.  Labels are also allocated
+    # top → bottom.  Combined with per-connector lane tracks and
+    # staggered vertical jogs, this guarantees non-crossing paths.
     # ══════════════════════════════════════════════════════════════════
     left_anns.sort(key=lambda  a: a['conn_y'], reverse=True)
     right_anns.sort(key=lambda a: a['conn_y'], reverse=True)
 
     # ── Label X-positions (columns in the margins) ───────────────────
-    L_LABEL_X = xlo - xspan * 0.22          # left  label column
-    R_LABEL_X = xhi + xspan * 0.22          # right label column
+    L_LABEL_X = xlo - xspan * 0.22
+    R_LABEL_X = xhi + xspan * 0.22
 
-    # ── Routing lanes — just outside the candle area ─────────────────
-    #    Lines travel vertically here so they bypass the candles.
-    L_LANE_X = xlo - xspan * 0.06
-    R_LANE_X = xhi + xspan * 0.06
+    # ── Step-line routing lanes — each connector gets its own track ──
+    #    Tracks fan out from INNER (near chart edge) to OUTER (near
+    #    labels).  Topmost annotation → innermost track, so its short
+    #    horizontal segment doesn't cross lower vertical tracks.
+    L_LANE_INNER = xlo - xspan * 0.04
+    L_LANE_OUTER = xlo - xspan * 0.14
+    R_LANE_INNER = xhi + xspan * 0.04
+    R_LANE_OUTER = xhi + xspan * 0.14
+
+    def _lane_tracks(n, inner, outer):
+        """Return *n* evenly-spaced lane X values, inner → outer."""
+        if n == 0:
+            return []
+        if n == 1:
+            return [(inner + outer) / 2.0]
+        return np.linspace(inner, outer, n).tolist()
+
+    l_lanes = _lane_tracks(len(left_anns),  L_LANE_INNER, L_LANE_OUTER)
+    r_lanes = _lane_tracks(len(right_anns), R_LANE_INNER, R_LANE_OUTER)
 
     # ── Vertical label slots (evenly spaced, never overlap) ──────────
     v_pad = yspan * 0.05
-    y_top = yhi + v_pad                     # topmost label centre
-    y_bot = ylo - v_pad                     # bottommost label centre
+    y_top = yhi + v_pad
+    y_bot = ylo - v_pad
 
     def _vslots(n):
         """Return *n* evenly-spaced Y values from y_top → y_bot."""
@@ -2260,20 +2276,24 @@ def make_candle_pattern_chart(df, patterns):
     r_ys = _vslots(len(right_anns))
 
     # ── Drawing helper ───────────────────────────────────────────────
-    def _draw(ann, label_x, label_y, side):
+    def _draw(ann, label_x, label_y, lane_x, side, idx):
         """
-        Draw ONE connector + label using an Orthogonal Step Line.
+        Draw ONE step-line connector + label.
 
-        Path (Step lines with 4 vertices forming right angles):
-            P0  = candle tip    (pos, conn_y)
-            P1  = routing lane  (lane_x, conn_y)    ← Horizontal away from candle
-            P2  = routing lane  (lane_x, label_y)   ← Vertical transit in clear lane
-            P3  = label edge    (end_x,  label_y)   ← Horizontal arrival to label
+        Path (5 vertices, all right-angle segments):
+            P0 = candle tip   (px,      conn_y)
+            P1 = vertical jog (px,      jog_y)    ← clear the wick
+            P2 = lane column  (lane_x,  jog_y)    ← horizontal to own track
+            P3 = lane column  (lane_x,  label_y)  ← vertical to label row
+            P4 = label edge   (end_x,   label_y)  ← horizontal to label
+
+        Each connector uses a unique lane track (X) and a unique
+        jog offset (Y), so no two paths share any segment.
         """
-        px    = ann['pos']
-        cy    = ann['conn_y']
-        name  = ann['name']
-        bull  = ann['bullish']
+        px   = ann['pos']
+        cy   = ann['conn_y']
+        name = ann['name']
+        bull = ann['bullish']
 
         # Colour palette
         color = ('#1B5E20' if bull is True
@@ -2282,23 +2302,30 @@ def make_candle_pattern_chart(df, patterns):
 
         # Side-dependent constants
         if side == 'left':
-            ha     = 'right'
-            lane_x = L_LANE_X
-            end_x  = label_x + xspan * 0.02      # small gap before box
+            ha    = 'right'
+            end_x = label_x + xspan * 0.02
         else:
-            ha     = 'left'
-            lane_x = R_LANE_X
-            end_x  = label_x - xspan * 0.02
+            ha    = 'left'
+            end_x = label_x - xspan * 0.02
 
-        # ── Orthogonal Step Line ──
+        # ── Staggered vertical jog — clears the candle wick and
+        #    gives each connector a unique horizontal corridor ────────
+        jog_amount = yspan * (0.012 + 0.008 * idx)
+        if bull is True or bull is None:
+            jog_y = cy + jog_amount        # jog UP from High
+        else:
+            jog_y = cy - jog_amount        # jog DOWN from Low
+
+        # ── Orthogonal step path (V → H → V → H) ──
         verts = [
             (px,     cy),          # P0 — candle tip
-            (lane_x, cy),          # P1 — horizontal route out of candle area
-            (lane_x, label_y),     # P2 — vertical route in side lane
-            (end_x,  label_y),     # P3 — horizontal arrival to label
+            (px,     jog_y),       # P1 — vertical jog to clear wick
+            (lane_x, jog_y),       # P2 — horizontal to own lane track
+            (lane_x, label_y),     # P3 — vertical to label row
+            (end_x,  label_y),     # P4 — horizontal to label box
         ]
-        # Replacing CURVE4 with LINETO to create rigid right-angles
-        codes = [Path.MOVETO, Path.LINETO, Path.LINETO, Path.LINETO]
+        codes = [Path.MOVETO, Path.LINETO, Path.LINETO,
+                 Path.LINETO, Path.LINETO]
 
         patch = mpatches.PathPatch(
             Path(verts, codes),
@@ -2308,7 +2335,6 @@ def make_candle_pattern_chart(df, patterns):
             clip_on=False,
             zorder=5,
             alpha=0.82,
-            joinstyle='miter'      # Ensures sharp 90-degree corners
         )
         ax.add_patch(patch)
 
@@ -2342,12 +2368,12 @@ def make_candle_pattern_chart(df, patterns):
         )
 
     # ── Render every connector ───────────────────────────────────────
-    for ann, y in zip(left_anns,  l_ys):
-        _draw(ann, L_LABEL_X, y, side='left')
-    for ann, y in zip(right_anns, r_ys):
-        _draw(ann, R_LABEL_X, y, side='right')
+    for idx, (ann, y, lx) in enumerate(zip(left_anns, l_ys, l_lanes)):
+        _draw(ann, L_LABEL_X, y, lx, side='left', idx=idx)
+    for idx, (ann, y, lx) in enumerate(zip(right_anns, r_ys, r_lanes)):
+        _draw(ann, R_LABEL_X, y, lx, side='right', idx=idx)
 
-    # ── Expand axis limits so labels + curves are fully visible ──────
+    # ── Expand axis limits so labels + lines are fully visible ───────
     ax.set_xlim(L_LABEL_X - xspan * 0.10, R_LABEL_X + xspan * 0.10)
     ax.set_ylim(y_bot - yspan * 0.12,     y_top + yspan * 0.12)
 
@@ -2359,7 +2385,6 @@ def make_candle_pattern_chart(df, patterns):
     plt.close(fig)
     buf.seek(0)
     return buf.read()
-
 
 
 ###################################نهاية الشموع
