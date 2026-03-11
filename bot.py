@@ -3288,7 +3288,7 @@ class Report:
         c.setFillColor(WHITE); self._font(True,11); c.drawCentredString(MG+30*mm, PAGE_H-50*mm, rtl(rec_txt))
         self._font(False,8); c.drawCentredString(MG+30*mm, PAGE_H-54*mm, rtl(f'النتيجة {score}/20'))
         
-        
+        ###MAIN PAGE CARD
         col_bw=CW/3-4*mm; col_bh=18*mm; col_gap=4*mm
         x1=MG; x2=MG+col_bw+col_gap; x3=MG+2*(col_bw+col_gap)
         y1=PAGE_H-110*mm; y2=y1-col_bh-col_gap; y3=y2-col_bh-col_gap; y4=y3-col_bh-col_gap
@@ -3304,7 +3304,9 @@ class Report:
         pb=safe(info,'priceToBook'); roe=safe(info,'returnOnEquity'); beta=safe(info,'beta')
         self._box(x1,y3,col_bw,col_bh,'مضاعف القيمة الدفترية',f'{float(pb):.2f}' if pb else '-')
         self._box(x2,y3,col_bw,col_bh,'العائد على حقوق المساهمين',fmt_p(roe)[0] if roe else '-')
-        self._box(x3,y3,col_bw,col_bh,'بيتا',f'{float(beta):.2f}' if beta else '-')
+        self._box(x3,y3,col_bw,col_bh,'العائد على الأصول', fmt_p(roa)[0] if roa else '-')        
+        #self._box(x3,y3,col_bw,col_bh,'بيتا',f'{float(beta):.2f}' if beta else '-')
+
 
         self._box(x1,y4,col_bw,col_bh,'حجم التداول',fmt_n(safe(info,'volume'),d=0)[0])
         val_str = fmt_n(safe(info,'tradingValue'),d=0)[0] if safe(info,'tradingValue') else '-'
