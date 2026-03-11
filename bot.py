@@ -1,3 +1,67 @@
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                                                                            ║
+# ║   🤖 SAUDI STOCK MARKET TELEGRAM BOT                                      ║
+# ║                                                                            ║
+# ║   Features:                                                                ║
+# ║     1. Wolfe Wave Scanner — scans all Tadawul stocks for Wolfe patterns    ║
+# ║     2. Digital Analyzer   — generates comprehensive PDF reports            ║
+# ║                                                                            ║
+# ║   Author    : [Your Name]                                                  ║
+# ║   Version   : 2.0                                                         ║
+# ║   Updated   : 2025                                                        ║
+# ║   Platform  : Telegram Bot (python-telegram-bot)                           ║
+# ║   Hosting   : Render.com (webhook) or Local (polling)                      ║
+# ║                                                                            ║
+# ║   SECTION INDEX:                                                           ║
+# ║     0   — Imports & Library Setup                                          ║
+# ║     0b  — Optional Scraper Dependencies                                   ║
+# ║     0c  — Logging & Bot Token                                             ║
+# ║     1   — Font Setup (Cairo + Amiri)                                      ║
+# ║     2   — Arabic Text Helpers                                             ║
+# ║     3   — Company Names Dictionary                                        ║
+# ║     3a  — Ticker Aliases & Flexible Lookup                                ║
+# ║     3b  — Sector & Industry Mapping                                       ║
+# ║     3c  — Static Fundamental Data (STOCKS)                                ║
+# ║     3d  — STOCKS Data Enrichment Functions                                ║
+# ║     4   — PDF Theme Constants (Colors, Page Size)                         ║
+# ║     5   — Number & Percent Formatters                                     ║
+# ║     6   — Stock Data Fetching & All Technical Indicators                  ║
+# ║     6b  — Supertrend Helper                                              ║
+# ║     6c  — Technical Indicator Computation                                 ║
+# ║     6d  — Performance & Risk Metrics                                      ║
+# ║     6e  — 20-Point Scoring System                                         ║
+# ║     6f  — Signal Generation                                              ║
+# ║     6g  — Recommendation & Decision Helpers                               ║
+# ║     6h  — Candlestick Pattern Detection                                  ║
+# ║     6i  — Divergence Detection (RSI / MACD)                              ║
+# ║     6j  — Support & Resistance Detection                                 ║
+# ║     6k  — Technical Review Text Generator                                ║
+# ║     7   — Chart Generation Functions                                      ║
+# ║     8   — PDF Report Class                                               ║
+# ║     9   — Report Builder (Thread Executor)                               ║
+# ║     10  — Wolfe Wave Detection & Charting                                 ║
+# ║     11  — Ticker Lists & Timeframe Map                                    ║
+# ║     12  — Telegram Keyboard Builders                                      ║
+# ║     13  — Bot Messages (Arabic)                                           ║
+# ║     14  — Landing HTML Page                                               ║
+# ║     15  — Telegram Bot Handlers                                           ║
+# ║     16  — Main Entry Point                                                ║
+# ║                                                                            ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 0: IMPORTS & LIBRARY SETUP
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Import all required libraries.
+#
+# TO MODIFY:
+#   • Add new charting library      → import here
+#   • Remove Wolfe wave scanning    → remove selenium imports
+#   • Switch from yfinance          → change data fetching import
+# ═══════════════════════════════════════════════════════════════════════════════
+
 import os
 import io
 import re
@@ -6,26 +70,37 @@ import logging
 import warnings
 import urllib.request
 warnings.filterwarnings('ignore')
-##
+
+# --- Arabic text rendering ---
 import arabic_reshaper
 from bidi.algorithm import get_display
+
+# --- Web server for webhook mode (Render.com) ---
 from aiohttp import web as aio_web
+
+# --- Standard I/O and date/time ---
 from io import BytesIO
 from datetime import datetime, timedelta
 
+# --- Financial data fetching ---
 import yfinance as yf
+
+# --- Numerical and data processing ---
 import numpy as np
 import pandas as pd
 from scipy.signal import argrelextrema
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# --- Chart generation (matplotlib + mplfinance) ---
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('Agg')  # Non-interactive backend for server
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import matplotlib.patches as mpatches
 import matplotlib.font_manager as fm
 import mplfinance as mpf
 
+# --- PDF generation (reportlab) ---
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib.colors import HexColor
@@ -34,13 +109,26 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
+# --- Telegram Bot framework ---
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
     MessageHandler, filters, ContextTypes,
 )
 
-# ── STOCKS scraper dependencies (optional – graceful fallback if missing) ──
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 0b: OPTIONAL SCRAPER DEPENDENCIES (Selenium / BeautifulSoup)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Optional imports for web scraping (headless Chrome).
+#           If not installed, bot falls back to yfinance-only mode.
+#
+# TO MODIFY:
+#   • Never use scraping → remove this entire try/except block
+#   • Add new scraping source → import its deps here
+# ═══════════════════════════════════════════════════════════════════════════════
+
 try:
     import sys
     import time
@@ -58,6 +146,18 @@ except ImportError:
     logger_stub = logging.getLogger(__name__)
     logger_stub.warning("STOCKS scraper deps not installed; falling back to yfinance only.")
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 0c: LOGGING & BOT TOKEN CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Configure logging and read Telegram bot token.
+#
+# TO MODIFY:
+#   • Change log level → replace logging.INFO with logging.DEBUG
+#   • BOT_TOKEN → set via: export BOT_TOKEN="your_token"
+# ═══════════════════════════════════════════════════════════════════════════════
+
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
@@ -66,23 +166,45 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 
-# ─────────────────────────────────────────────────────────────
-# 1. FONT SETUP  (Cairo for Wolfe charts, Amiri for PDF reports)
-# ─────────────────────────────────────────────────────────────
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 1: FONT SETUP (Cairo for Wolfe charts, Amiri for PDF reports)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Download and register Arabic fonts.
+#
+# FILES PRODUCED:
+#   • Cairo-Regular.ttf   — Wolfe Wave chart labels
+#   • Amiri-Regular.ttf   — PDF body text
+#   • Amiri-Bold.ttf      — PDF headings
+#
+# TO MODIFY:
+#   • Use different Arabic font → change URLs and filenames
+#   • Add font weight (e.g., Light) → add path + download call
+#   • Re-download fonts → delete .ttf files
+# ═══════════════════════════════════════════════════════════════════════════════
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-CAIRO_PATH = os.path.join(HERE, 'Cairo-Regular.ttf')
+# --- Font file paths ---
+CAIRO_PATH      = os.path.join(HERE, 'Cairo-Regular.ttf')
 AMIRI_REG_PATH  = os.path.join(HERE, 'Amiri-Regular.ttf')
 AMIRI_BOLD_PATH = os.path.join(HERE, 'Amiri-Bold.ttf')
 
-AR_FONT      = 'Amiri'
-AR_FONT_BOLD = 'Amiri-Bold'
+# --- PDF font registration names ---
+AR_FONT      = 'Amiri'       # Used by reportlab for body text
+AR_FONT_BOLD = 'Amiri-Bold'  # Used by reportlab for bold text
+
+# --- Regex to detect Arabic characters ---
 AR_RE = re.compile(r'[\u0600-\u06FF]')
-MPL_FONT_PROP      = None
-MPL_FONT_PROP_BOLD = None
+
+# --- Matplotlib font properties (populated during init) ---
+MPL_FONT_PROP      = None  # Regular — chart labels
+MPL_FONT_PROP_BOLD = None  # Bold — chart titles
 
 
 def _download_font(url, path):
+    """Download a font file from URL if not already cached locally."""
     if not os.path.exists(path):
         try:
             urllib.request.urlretrieve(url, path)
@@ -92,8 +214,21 @@ def _download_font(url, path):
 
 
 def _init_fonts():
+    """
+    Initialize all fonts for the application.
+
+    Steps:
+      1. Download font files (Cairo, Amiri Reg, Amiri Bold)
+      2. Register with reportlab (PDF engine)
+      3. Register with matplotlib (chart engine)
+      4. Set matplotlib default font family
+
+    Returns:
+        str: Arabic font name for Wolfe charts
+    """
     global MPL_FONT_PROP, MPL_FONT_PROP_BOLD, ARABIC_FONT
 
+    # Step 1: Download fonts
     _download_font(
         'https://github.com/google/fonts/raw/main/ofl/cairo/static/Cairo-Regular.ttf',
         CAIRO_PATH,
@@ -107,6 +242,7 @@ def _init_fonts():
         AMIRI_BOLD_PATH,
     )
 
+    # Step 2: Register with reportlab
     if os.path.exists(AMIRI_REG_PATH):
         try:
             pdfmetrics.registerFont(TTFont(AR_FONT, AMIRI_REG_PATH))
@@ -118,10 +254,12 @@ def _init_fonts():
         except Exception:
             pass
 
+    # Step 3: Register with matplotlib
     for fp in [AMIRI_REG_PATH, AMIRI_BOLD_PATH, CAIRO_PATH]:
         if os.path.exists(fp):
             fm.fontManager.addfont(fp)
 
+    # Step 4: Set matplotlib defaults
     if os.path.exists(AMIRI_REG_PATH):
         MPL_FONT_PROP = fm.FontProperties(fname=AMIRI_REG_PATH)
         plt.rcParams['font.family'] = MPL_FONT_PROP.get_name()
@@ -129,6 +267,7 @@ def _init_fonts():
         MPL_FONT_PROP_BOLD = fm.FontProperties(fname=AMIRI_BOLD_PATH)
     plt.rcParams['axes.unicode_minus'] = False
 
+    # Determine Wolfe chart font
     if os.path.exists(CAIRO_PATH):
         prop = fm.FontProperties(fname=CAIRO_PATH)
         ARABIC_FONT = prop.get_name()
@@ -137,12 +276,23 @@ def _init_fonts():
     return ARABIC_FONT
 
 
+# --- Run font initialization at module load ---
 ARABIC_FONT = _init_fonts()
 logger.info(f'Fonts initialised. Arabic chart font: {ARABIC_FONT}')
 
-# ─────────────────────────────────────────────────────────────
-# 2. ARABIC TEXT HELPERS
-# ─────────────────────────────────────────────────────────────
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 2: ARABIC TEXT HELPERS
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Correctly render Arabic text in charts and PDFs.
+#           Arabic requires reshaping (letter connections) + bidi (RTL direction).
+#
+# TO MODIFY:
+#   • Add another RTL language → extend AR_RE regex
+#   • Switch to native-Arabic library → remove these helpers
+# ═══════════════════════════════════════════════════════════════════════════════
+
 def ar(text: str) -> str:
     """Reshape + bidi for Wolfe chart labels."""
     try:
@@ -152,7 +302,7 @@ def ar(text: str) -> str:
 
 
 def rtl(txt):
-    """Reshape + bidi for PDF / matplotlib Arabic text."""
+    """Reshape + bidi for PDF / matplotlib. Only processes Arabic strings."""
     if txt is None:
         return ''
     s = str(txt)
@@ -162,23 +312,35 @@ def rtl(txt):
 
 
 def tx(txt):
+    """Safe rtl() wrapper — returns '-' for None values."""
     if txt is None:
         return '-'
     return rtl(str(txt))
 
 
 def short_text(s, n=40):
+    """Truncate text to n characters with ellipsis."""
     s = str(s or '-')
     return s if len(s) <= n else s[:n - 1] + '…'
 
 
 def safe(info, key, default=None):
+    """Safely get value from dict, treating None as default."""
     v = info.get(key)
     return default if v is None else v
 
-# ─────────────────────────────────────────────────────────────
-# 3. COMPANY NAMES
-# ─────────────────────────────────────────────────────────────
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 3: COMPANY NAMES DICTIONARY
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Map every Tadawul ticker → Arabic company name.
+#
+# TO MODIFY:
+#   • ADD a stock    → add entry: '9999.SR': 'اسم الشركة'
+#   • REMOVE a stock → delete the entry
+#   • Also update: SECTOR_MAP, TADAWUL_TICKERS, STOCKS_STATIC_DATA
+# ═══════════════════════════════════════════════════════════════════════════════
 
 COMPANY_NAMES = {
     '^TASI.SR':'تاسي','1010.SR':'الرياض','1020.SR':'الجزيرة','1030.SR':'الإستثمار',
@@ -259,6 +421,18 @@ COMPANY_NAMES = {
     '8300.SR':'الوطنية','8310.SR':'أمانة للتأمين','8311.SR':'عناية','8313.SR':'رسن',
 }
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 3a: TICKER ALIASES & FLEXIBLE LOOKUP
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Allow flexible ticker search by code, name, or alias.
+#
+# TO MODIFY:
+#   • Add alias → add to TICKER_ALIASES: "nickname": "XXXX.SR"
+#   • Change matching logic → edit find_ticker()
+# ═══════════════════════════════════════════════════════════════════════════════
+
 TICKER_ALIASES = {
     "TASI":     "^TASI.SR",
     "^TASI":    "^TASI.SR",
@@ -267,31 +441,40 @@ TICKER_ALIASES = {
     "تاسى":     "^TASI.SR",
 }
 
-# ───────────────────── HELPERS ───────────────────────────────────────────────
 
 def _normalize_arabic(text: str) -> str:
+    """Normalize Arabic chars for consistent matching (أ/إ/آ→ا, ى→ي)."""
     text = text.strip()
-    text = text.replace("ى", "ي")
-    text = text.replace("أ", "ا")
-    text = text.replace("إ", "ا")
-    text = text.replace("آ", "ا")
+    text = text.replace("ى", "ي").replace("أ", "ا").replace("إ", "ا").replace("آ", "ا")
     return text
 
+
 def _normalize_key(text: str) -> str:
+    """Normalize + uppercase for case-insensitive comparison."""
     return _normalize_arabic(text.upper())
 
+
 def get_name(ticker: str) -> str:
+    """Get Arabic company name for ticker. Falls back to ticker string."""
     return COMPANY_NAMES.get(ticker, ticker)
 
-# Build normalized alias map once at startup
+
+# --- Build normalized alias map once at startup ---
 _ALIAS_MAP = {
     _normalize_key(alias): canonical
     for alias, canonical in TICKER_ALIASES.items()
 }
 
-# ───────────────────── MAIN LOOKUP ──────────────────────────────────────────
 
 def find_ticker(query: str) -> str | None:
+    """
+    Flexible ticker lookup. Accepts:
+      - "2222" or "2222.SR" → ticker code
+      - "TASI" or "تاسي"   → alias
+      - "أرامكو" or "راجح" → Arabic name (exact or partial)
+
+    Returns: Full ticker (e.g. '1120.SR') or None
+    """
     query = query.strip()
     query_key = _normalize_key(query)
     query_normalized = _normalize_arabic(query)
@@ -303,51 +486,59 @@ def find_ticker(query: str) -> str | None:
     # Iterate COMPANY_NAMES
     for ticker, name in COMPANY_NAMES.items():
         ticker_upper = ticker.upper()
-
-        # 1) Direct match (case-insensitive)
+        # 1) Direct match
         if query_key == ticker_upper:
             return ticker
-
         # 2) Without .SR suffix
         code = ticker_upper[:-3] if ticker_upper.endswith(".SR") else ticker_upper
         if query_key == code:
             return ticker
-
         # 3) Without ^ and .SR
         code_clean = code.lstrip("^")
         if query_key == code_clean:
             return ticker
-
         # 4) Exact Arabic name match
         if query_normalized == _normalize_arabic(name):
             return ticker
 
-    # 5) Partial Arabic match (last resort)
+    # 5) Partial Arabic match (min 2 chars)
     if len(query_normalized) >= 2:
         for ticker, name in COMPANY_NAMES.items():
             if query_normalized in _normalize_arabic(name):
                 return ticker
-
     return None
 
-# ───────────────────── TEST ─────────────────────────────────────────────────
 
+# ── Quick self-test at startup ──
 tests = ["tasi", "TASI", "^TASI.SR", "تاسي", "تاسى", "^tasi.sr", "1010", "1010.SR", "الرياض"]
-
 print("Results:")
 for t in tests:
     result = find_ticker(t)
     name = get_name(result) if result else "❌ Not found"
     print(f"  '{t}'  →  {result}  ({name})")
 
-    #print(f"  '{t}'  →  {result}  ({COMPANY_NAMES.get(result, '?')})")
-##############################
-############ القطاعات ########
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 3b: SECTOR & INDUSTRY MAPPING
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Map each ticker → (sector, industry) for PDF reports.
+#           Fallback when yfinance doesn't provide sector data.
+#
+# STRUCTURE : 'XXXX.SR': ('القطاع', 'الصناعة')
+#
+# TO MODIFY:
+#   • Add stock → add entry to dict
+#   • New sector → just use a new string
+# ═══════════════════════════════════════════════════════════════════════════════
+
 SECTOR_MAP = {
+    # ── البنوك (Banks) ──
     '1010.SR':('المالية','البنوك'),'1020.SR':('المالية','البنوك'),'1030.SR':('المالية','البنوك'),
     '1050.SR':('المالية','البنوك'),'1060.SR':('المالية','البنوك'),'1080.SR':('المالية','البنوك'),
     '1120.SR':('المالية','البنوك'),'1140.SR':('المالية','البنوك'),'1150.SR':('المالية','البنوك'),
     '1180.SR':('المالية','البنوك'),'1182.SR':('المالية','البنوك'),'1183.SR':('المالية','البنوك'),
+    # ── التأمين (Insurance) ──
     '8010.SR':('المالية','التأمين'),'8012.SR':('المالية','التأمين'),'8020.SR':('المالية','التأمين'),
     '8030.SR':('المالية','التأمين'),'8040.SR':('المالية','التأمين'),'8050.SR':('المالية','التأمين'),
     '8060.SR':('المالية','التأمين'),'8070.SR':('المالية','التأمين'),'8100.SR':('المالية','التأمين'),
@@ -357,6 +548,7 @@ SECTOR_MAP = {
     '8240.SR':('المالية','التأمين'),'8250.SR':('المالية','التأمين'),'8260.SR':('المالية','التأمين'),
     '8270.SR':('المالية','التأمين'),'8280.SR':('المالية','التأمين'),'8300.SR':('المالية','التأمين'),
     '8310.SR':('المالية','التأمين'),'8311.SR':('المالية','التأمين'),'8313.SR':('المالية','التأمين'),
+    # ── البتروكيماويات (Petrochemicals) ──
     '2001.SR':('المواد الأساسية','البتروكيماويات'),'2010.SR':('المواد الأساسية','البتروكيماويات'),
     '2020.SR':('المواد الأساسية','البتروكيماويات'),'2060.SR':('المواد الأساسية','البتروكيماويات'),
     '2080.SR':('المواد الأساسية','البتروكيماويات'),'2090.SR':('المواد الأساسية','البتروكيماويات'),
@@ -373,8 +565,10 @@ SECTOR_MAP = {
     '2330.SR':('المواد الأساسية','البتروكيماويات'),'2340.SR':('المواد الأساسية','البتروكيماويات'),
     '2350.SR':('المواد الأساسية','البتروكيماويات'),'2360.SR':('المواد الأساسية','البتروكيماويات'),
     '2370.SR':('المواد الأساسية','البتروكيماويات'),'2380.SR':('المواد الأساسية','البتروكيماويات'),
+    # ── الطاقة (Energy) ──
     '2222.SR':('الطاقة','النفط والغاز'),'2030.SR':('الطاقة','النفط والغاز'),
     '2381.SR':('الطاقة','النفط والغاز'),'2382.SR':('الطاقة','النفط والغاز'),
+    # ── الإسمنت (Cement) ──
     '3002.SR':('المواد الأساسية','الإسمنت'),'3003.SR':('المواد الأساسية','الإسمنت'),
     '3004.SR':('المواد الأساسية','الإسمنت'),'3005.SR':('المواد الأساسية','الإسمنت'),
     '3007.SR':('المواد الأساسية','الإسمنت'),'3008.SR':('المواد الأساسية','الإسمنت'),
@@ -383,10 +577,12 @@ SECTOR_MAP = {
     '3050.SR':('المواد الأساسية','الإسمنت'),'3060.SR':('المواد الأساسية','الإسمنت'),
     '3080.SR':('المواد الأساسية','الإسمنت'),'3090.SR':('المواد الأساسية','الإسمنت'),
     '3091.SR':('المواد الأساسية','الإسمنت'),'3092.SR':('المواد الأساسية','الإسمنت'),
+    # ── تجارة التجزئة (Retail) ──
     '4001.SR':('السلع الاستهلاكية','تجارة التجزئة'),'4003.SR':('السلع الاستهلاكية','تجارة التجزئة'),
     '4006.SR':('السلع الاستهلاكية','تجارة التجزئة'),'4011.SR':('السلع الاستهلاكية','تجارة التجزئة'),
     '4190.SR':('السلع الاستهلاكية','تجارة التجزئة'),'4192.SR':('السلع الاستهلاكية','تجارة التجزئة'),
     '4193.SR':('السلع الاستهلاكية','تجارة التجزئة'),'4240.SR':('السلع الاستهلاكية','تجارة التجزئة'),
+    # ── الرعاية الصحية (Healthcare) ──
     '4002.SR':('الرعاية الصحية','الخدمات الصحية'),'4004.SR':('الرعاية الصحية','الخدمات الصحية'),
     '4005.SR':('الرعاية الصحية','الخدمات الصحية'),'4007.SR':('الرعاية الصحية','الخدمات الصحية'),
     '4009.SR':('الرعاية الصحية','الخدمات الصحية'),'4012.SR':('الرعاية الصحية','الخدمات الصحية'),
@@ -394,11 +590,13 @@ SECTOR_MAP = {
     '4015.SR':('الرعاية الصحية','الصيدلانيات'),'4016.SR':('الرعاية الصحية','الصيدلانيات'),
     '4017.SR':('الرعاية الصحية','الخدمات الصحية'),'4018.SR':('الرعاية الصحية','الخدمات الصحية'),
     '4019.SR':('الرعاية الصحية','الخدمات الصحية'),'4021.SR':('الرعاية الصحية','الخدمات الصحية'),
+    # ── الاتصالات وتقنية المعلومات (Telecom & IT) ──
     '7010.SR':('الاتصالات','خدمات الاتصالات'),'7020.SR':('الاتصالات','خدمات الاتصالات'),
     '7030.SR':('الاتصالات','خدمات الاتصالات'),'7040.SR':('الاتصالات','خدمات الاتصالات'),
     '7200.SR':('الاتصالات','تقنية المعلومات'),'7201.SR':('الاتصالات','تقنية المعلومات'),
     '7202.SR':('الاتصالات','تقنية المعلومات'),'7203.SR':('الاتصالات','تقنية المعلومات'),
     '7204.SR':('الاتصالات','تقنية المعلومات'),'7211.SR':('الاتصالات','خدمات الاتصالات'),
+    # ── الأغذية والمشروبات (Food & Beverages) ──
     '2040.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),'2050.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),
     '2280.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),'2281.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),
     '2282.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),'2283.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),
@@ -409,15 +607,19 @@ SECTOR_MAP = {
     '6010.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),'6012.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),
     '6013.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),'6014.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),
     '6015.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),'6016.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),
-    '6017.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),'6040.SR':('السلع الاستهلاكية','الزراعة والأغذية'),
+    '6017.SR':('السلع الاستهلاكية','الأغذية والمشروبات'),
+    # ── الزراعة (Agriculture) ──
+    '6040.SR':('السلع الاستهلاكية','الزراعة والأغذية'),
     '6050.SR':('السلع الاستهلاكية','الزراعة والأغذية'),'6060.SR':('السلع الاستهلاكية','الزراعة والأغذية'),
     '6070.SR':('السلع الاستهلاكية','الزراعة والأغذية'),'6090.SR':('السلع الاستهلاكية','الزراعة والأغذية'),
+    # ── العقارات (Real Estate) ──
     '4020.SR':('العقارات','التطوير العقاري'),'4220.SR':('العقارات','التطوير العقاري'),
     '4230.SR':('العقارات','التطوير العقاري'),'4250.SR':('العقارات','التطوير العقاري'),
     '4300.SR':('العقارات','التطوير العقاري'),'4310.SR':('العقارات','التطوير العقاري'),
     '4320.SR':('العقارات','التطوير العقاري'),'4321.SR':('العقارات','مراكز التسوق'),
     '4322.SR':('العقارات','التطوير العقاري'),'4323.SR':('العقارات','التطوير العقاري'),
     '4324.SR':('العقارات','التطوير العقاري'),'4325.SR':('العقارات','التطوير العقاري'),
+    # ── صناديق الريت (REITs) ──
     '4330.SR':('العقارات','صناديق الاستثمار العقاري'),'4331.SR':('العقارات','صناديق الاستثمار العقاري'),
     '4332.SR':('العقارات','صناديق الاستثمار العقاري'),'4333.SR':('العقارات','صناديق الاستثمار العقاري'),
     '4334.SR':('العقارات','صناديق الاستثمار العقاري'),'4335.SR':('العقارات','صناديق الاستثمار العقاري'),
@@ -428,8 +630,10 @@ SECTOR_MAP = {
     '4346.SR':('العقارات','صناديق الاستثمار العقاري'),'4347.SR':('العقارات','صناديق الاستثمار العقاري'),
     '4348.SR':('العقارات','صناديق الاستثمار العقاري'),'4349.SR':('العقارات','صناديق الاستثمار العقاري'),
     '4350.SR':('العقارات','صناديق الاستثمار العقاري'),
+    # ── المرافق العامة (Utilities) ──
     '5110.SR':('المرافق العامة','الكهرباء والمياه'),'2082.SR':('المرافق العامة','الكهرباء والمياه'),
     '2083.SR':('المرافق العامة','الكهرباء والمياه'),'2084.SR':('المرافق العامة','الكهرباء والمياه'),
+    # ── الصناعة (Industrial) ──
     '1201.SR':('الصناعة','الصناعات التحويلية'),'1202.SR':('الصناعة','الصناعات التحويلية'),
     '1210.SR':('الصناعة','التعدين والمعادن'),'1211.SR':('الصناعة','التعدين والمعادن'),
     '1212.SR':('الصناعة','الصناعات التحويلية'),'1213.SR':('الصناعة','الصناعات التحويلية'),
@@ -443,326 +647,44 @@ SECTOR_MAP = {
     '4080.SR':('الصناعة','الخدمات اللوجستية'),'4260.SR':('الصناعة','تأجير السيارات'),
     '4261.SR':('الصناعة','تأجير السيارات'),'4263.SR':('الصناعة','الخدمات اللوجستية'),
     '4264.SR':('الصناعة','النقل الجوي'),
+    # ── الخدمات (Services) ──
     '4070.SR':('الخدمات','الإعلام والترفيه'),'4071.SR':('الخدمات','الإعلام والترفيه'),
     '4072.SR':('الخدمات','الإعلام والترفيه'),
     '4290.SR':('الخدمات','التعليم'),'4291.SR':('الخدمات','التعليم'),'4292.SR':('الخدمات','التعليم'),
+    # ── أسواق المال (Capital Markets) ──
     '1111.SR':('المالية','أسواق المال'),
 }
 
+
 def get_sector_industry(ticker):
+    """Return (sector, industry) tuple for ticker, or (None, None)."""
     return SECTOR_MAP.get(ticker, (None, None))
 
-# # ─────────────────────────────────────────────────────────────
-# # 3b. STOCKS SCRAPER INTEGRATION
-# # Priority: STOCKS data overrides yfinance for fundamental fields.
-# # Falls back to yfinance if STOCKS is unavailable or scraping fails.
-# # ─────────────────────────────────────────────────────────────
-#############################################
-###########################################
-###############################################
-# ─────────────────────────────────────────────────────────────
-# 3b. STOCKS SCRAPER INTEGRATION
-# Priority: STOCKS data overrides yfinance for fundamental fields.
-# Falls back to yfinance if STOCKS is unavailable or scraping fails.
-# ─────────────────────────────────────────────────────────────
 
-##############################
-############# STOCKS #########
-# STOCKS_COMPANY_MAPPING = {
-#     "3509":    {"ticker":"2222", "name":"أرامكو السعودية"},
-#     "4434":    {"ticker":"2381", "name":"الحفر العربية"},
-#     "14629":    {"ticker":"2382", "name":"أديس"},
-#     "600":    {"ticker":"2380", "name":"بترو رابغ "},
-#     "104":    {"ticker":"4030", "name":"البحري"},
-#     "81":    {"ticker":"2030", "name":"المصافي"},
-#     "4319":    {"ticker":"1202", "name":"مبكو"},
-#     "4749":    {"ticker":"3007", "name":"الواحة"},
-#     "1994":    {"ticker":"1201", "name":"تكوين "},
-#     "13986":    {"ticker":"1322", "name":"أماك"},
-#     "16491":    {"ticker":"4143", "name":"تالكو"},
-#     "70":    {"ticker":"2150", "name":"زجاج"},
-#     "67":    {"ticker":"2180", "name":"فيبكو"},
-#     "73":    {"ticker":"2220", "name":"معدنية "},
-#     "5154":    {"ticker":"1323", "name":"يو سي آي سي"},
-#     "632":    {"ticker":"2300", "name":"صناعة الورق"},
-#     "4726":    {"ticker":"3008", "name":"الكثيري"},
-#     "855":    {"ticker":"1301", "name":"أسلاك"},
-#     "1526":    {"ticker":"1320", "name":"أنابيب السعودية"},
-#     "71":    {"ticker":"2090", "name":"جبسكو"},
-#     "76":    {"ticker":"2200", "name":"أنابيب"},
-#     "89":    {"ticker":"2240", "name":"صناعات"},
-#     "1044":    {"ticker":"2360", "name":"الفخارية "},
-#     "968":    {"ticker":"1210", "name":"بي سي آي"},
-#     "836":    {"ticker":"1211", "name":"معادن"},
-#     "4515":    {"ticker":"1304", "name":"اليمامة للحديد"},
-#     "13749":    {"ticker":"1321", "name":"أنابيب الشرق"},
-#     "4537":    {"ticker":"2223", "name":"لوبريف"},
-#     "599":    {"ticker":"2001", "name":"كيمانول "},
-#     "77":    {"ticker":"2010", "name":"سابك"},
-#     "79":    {"ticker":"2020", "name":"سابك للمغذيات الزراعية"},
-#     "72":    {"ticker":"2060", "name":"التصنيع"},
-#     "63":    {"ticker":"2170", "name":"اللجين"},
-#     "74":    {"ticker":"2210", "name":"نماء للكيماويات"},
-#     "86":    {"ticker":"2250", "name":"المجموعة السعودية"},
-#     "88":    {"ticker":"2290", "name":"ينساب"},
-#     "585":    {"ticker":"2310", "name":"سبكيم العالمية"},
-#     "1007":    {"ticker":"2330", "name":"المتقدمة"},
-#     "598":    {"ticker":"2350", "name":"كيان السعودية "},
-#     "1022":    {"ticker":"3002", "name":"أسمنت نجران"},
-#     "1055":    {"ticker":"3003", "name":"أسمنت المدينة"},
-#     "886":    {"ticker":"3004", "name":"أسمنت الشمالية"},
-#     "53":    {"ticker":"3010", "name":"أسمنت العربية"},
-#     "59":    {"ticker":"3020", "name":"أسمنت اليمامة"},
-#     "56":    {"ticker":"3030", "name":"أسمنت السعودية"},
-#     "55":    {"ticker":"3040", "name":"أسمنت القصيم"},
-#     "57":    {"ticker":"3050", "name":"أسمنت الجنوب"},
-#     "60":    {"ticker":"3060", "name":"أسمنت ينبع"},
-#     "54":    {"ticker":"3080", "name":"أسمنت الشرقية"},
-#     "58":    {"ticker":"3090", "name":"أسمنت تبوك"},
-#     "885":    {"ticker":"3091", "name":"أسمنت الجوف"},
-#     "3408":    {"ticker":"3005", "name":"أسمنت ام القرى"},
-#     "4451":    {"ticker":"3092", "name":"أسمنت الرياض"},
-#     "4391":    {"ticker":"4142", "name":"كابلات الرياض"},
-#     "1880":    {"ticker":"1214", "name":"شاكر"},
-#     "1086":    {"ticker":"1212", "name":"أسترا الصناعية"},
-#     "1992":    {"ticker":"1302", "name":"بوان"},
-#     "915":    {"ticker":"2370", "name":"مسك"},
-#     "3829":    {"ticker":"1303", "name":"الصناعات الكهربائية"},
-#     "907":    {"ticker":"2320", "name":"البابطين"},
-#     "64":    {"ticker":"2160", "name":"أميانتيت"},
-#     "65":    {"ticker":"2110", "name":"الكابلات السعودية "},
-#     "66":    {"ticker":"2040", "name":"الخزف السعودي"},
-#     "97":    {"ticker":"4110", "name":"باتك"},
-#     "101":    {"ticker":"4140", "name":"صادرات "},
-#     "3574":    {"ticker":"4147", "name":"سي جي إس"},
-#     "3106":    {"ticker":"4145", "name":"أو جي سي"},
-#     "13934":    {"ticker":"4146", "name":"جاز"},
-#     "13883":    {"ticker":"4148", "name":"الوسائل الصناعية"},
-#     "4624":    {"ticker":"4141", "name":"العمران"},
-#     "4747":    {"ticker":"4144", "name":"رؤوم"},
-#     "994":    {"ticker":"4270", "name":"طباعة وتغليف "},
-#     "5268":    {"ticker":"1831", "name":"مهارة"},
-#     "4627":    {"ticker":"1832", "name":"صدر"},
-#     "1897":    {"ticker":"6004", "name":"كاتريون"},
-#     "14277":    {"ticker":"1835", "name":"تمكين"},
-#     "15170":    {"ticker":"1833", "name":"الموارد"},
-#     "16903":    {"ticker":"1834", "name":"سماسكو"},
-#     "843":    {"ticker":"4260", "name":"بدجت السعودية"},
-#     "3433":    {"ticker":"4031", "name":"الخدمات الأرضية"},
-#     "5122":    {"ticker":"4261", "name":"ذيب"},
-#     "3069":    {"ticker":"4262", "name":"لومي"},
-#     "11071":    {"ticker":"4263", "name":"سال"},
-#     "17877":    {"ticker":"4265", "name":"شري"},
-#     "4298":    {"ticker":"4264", "name":"طيران ناس"},
-#     "99":    {"ticker":"4040", "name":"سابتكو "},
-#     "87":    {"ticker":"2190", "name":"سيسكو القابضة"},
-#     "4664":    {"ticker":"4012", "name":"الأصيل"},
-#     "4508":    {"ticker":"4011", "name":"لازوردي"},
-#     "909":    {"ticker":"2340", "name":"ارتيكس"},
-#     "93":    {"ticker":"4180", "name":"مجموعة فتيحي"},
-#     "84":    {"ticker":"2130", "name":"صدق "},
-#     "1061":    {"ticker":"1213", "name":"نسيج "},
-#     "1109":    {"ticker":"6002", "name":"هرفي للأغذية"},
-#     "883":    {"ticker":"1810", "name":"سيرا"},
-#     "103":    {"ticker":"4170", "name":"شمس"},
-#     "3412":    {"ticker":"1820", "name":"بان "},
-#     "12964":    {"ticker":"6016", "name":"برغرايززر"},
-#     "16303":    {"ticker":"6018", "name":"الأندية للرياضة"},
-#     "18814":    {"ticker":"6019", "name":"المسار الشامل"},
-#     "5000":    {"ticker":"4292", "name":"عطاء"},
-#     "1087":    {"ticker":"4290", "name":"الخليج للتدريب"},
-#     "5004":    {"ticker":"4291", "name":"الوطنية للتعليم"},
-#     "13502":    {"ticker":"6017", "name":"جاهز"},
-#     "4625":    {"ticker":"6013", "name":"التطويرية الغذائية "},
-#     "4516":    {"ticker":"1830", "name":"لجام للرياضة"},
-#     "4538":    {"ticker":"6012", "name":"ريدان "},
-#     "13805":    {"ticker":"6014", "name":"الآمار"},
-#     "15023":    {"ticker":"6015", "name":"أمريكانا"},
-#     "4367":    {"ticker":"4071", "name":"العربية"},
-#     "14806":    {"ticker":"4072", "name":"مجموعة إم بي سي"},
-#     "107":    {"ticker":"4070", "name":"تهامة "},
-#     "578":    {"ticker":"4210", "name":"الأبحاث والإعلام"},
-#     "17978":    {"ticker":"4194", "name":"محطة البناء"},
-#     "14891":    {"ticker":"4192", "name":"السيف غاليري"},
-#     "16515":    {"ticker":"4193", "name":"نايس ون"},
-#     "4606":    {"ticker":"4051", "name":"باعظيم"},
-#     "4626":    {"ticker":"4191", "name":"أبو معطي"},
-#     "4337":    {"ticker":"4008", "name":"ساكو"},
-#     "95":    {"ticker":"4190", "name":"جرير"},
-#     "577":    {"ticker":"4200", "name":"الدريس"},
-#     "917":    {"ticker":"4240", "name":"سينومي ريتيل "},
-#     "1907":    {"ticker":"4003", "name":"إكسترا"},
-#     "100":    {"ticker":"4050", "name":"ساسكو"},
-#     "106":    {"ticker":"4160", "name":"ثمار "},
-#     "2500":    {"ticker":"4006", "name":"أسواق المزرعة"},
-#     "5131":    {"ticker":"4161", "name":"بن داود"},
-#     "911":    {"ticker":"4001", "name":"أسواق ع العثيم"},
-#     "5135":    {"ticker":"4162", "name":"المنجم"},
-#     "12760":    {"ticker":"4164", "name":"النهدي"},
-#     "3815":    {"ticker":"4163", "name":"الدواء"},
-#     "102":    {"ticker":"4061", "name":"أنعام القابضة"},
-#     "918":    {"ticker":"6001", "name":"حلواني إخوان"},
-#     "14432":    {"ticker":"2282", "name":"نقي"},
-#     "15705":    {"ticker":"2283", "name":"المطاحن الأولى"},
-#     "16485":    {"ticker":"2284", "name":"المطاحن الحديثة"},
-#     "13453":    {"ticker":"2285", "name":"المطاحن العربية"},
-#     "13454":    {"ticker":"2286", "name":"المطاحن الرابعة"},
-#     "34":    {"ticker":"6010", "name":"نادك"},
-#     "35":    {"ticker":"6020", "name":"جاكو"},
-#     "37":    {"ticker":"6040", "name":"تبوك الزراعية "},
-#     "38":    {"ticker":"6050", "name":"الأسماك "},
-#     "39":    {"ticker":"6060", "name":"الشرقية للتنمية"},
-#     "40":    {"ticker":"6070", "name":"الجوف"},
-#     "42":    {"ticker":"6090", "name":"جازادكو "},
-#     "13515":    {"ticker":"2281", "name":"تنمية"},
-#     "85":    {"ticker":"2050", "name":"مجموعة صافولا"},
-#     "68":    {"ticker":"2100", "name":"وفرة"},
-#     "78":    {"ticker":"2270", "name":"سدافكو"},
-#     "62":    {"ticker":"2280", "name":"المراعي"},
-#     "17417":    {"ticker":"2287", "name":"إنتاج"},
-#     "14965":    {"ticker":"2288", "name":"نفوذ"},
-#     "92":    {"ticker":"4080", "name":"سناد القابضة"},
-#     "83":    {"ticker":"2230", "name":"الكيميائية"},
-#     "13881":    {"ticker":"4014", "name":"دار المعدات"},
-#     "61":    {"ticker":"2140", "name":"أيان"},
-#     "4286":    {"ticker":"4017", "name":"فقيه الطبية"},
-#     "4433":    {"ticker":"4013", "name":"سليمان الحبيب"},
-#     "2298":    {"ticker":"4005", "name":"رعاية"},
-#     "1524":    {"ticker":"4002", "name":"المواساة"},
-#     "1181":    {"ticker":"4004", "name":"دله الصحية"},
-#     "3438":    {"ticker":"4007", "name":"الحمادي"},
-#     "4475":    {"ticker":"4009", "name":"السعودي الألماني الصحية"},
-#     "16511":    {"ticker":"4018", "name":"الموسى"},
-#     "17867":    {"ticker":"4019", "name":"اس ام سي للرعاية الصحية"},
-#     "13574":    {"ticker":"4021", "name":"المركز الكندي الطبي"},
-#     "75":    {"ticker":"2070", "name":"الدوائية"},
-#     "15187":    {"ticker":"4015", "name":"جمجوم فارما"},
-#     "16437":    {"ticker":"4016", "name":"أفالون فارما"},
-#     "47":    {"ticker":"1010", "name":"الرياض"},
-#     "46":    {"ticker":"1020", "name":"الجزيرة"},
-#     "52":    {"ticker":"1030", "name":"الإستثمار"},
-#     "50":    {"ticker":"1050", "name":"بي اس اف"},
-#     "48":    {"ticker":"1060", "name":"الأول"},
-#     "45":    {"ticker":"1080", "name":"العربي"},
-#     "43":    {"ticker":"1120", "name":"الراجحي"},
-#     "44":    {"ticker":"1140", "name":"البلاد"},
-#     "826":    {"ticker":"1150", "name":"الإنماء"},
-#     "3413":    {"ticker":"1180", "name":"الأهلي"},
-#     "15432":    {"ticker":"4083", "name":"تسهيل"},
-#     "2727":    {"ticker":"1183", "name":"سهل"},
-#     "2707":    {"ticker":"1182", "name":"أملاك"},
-#     "5269":    {"ticker":"4081", "name":"النايفات"},
-#     "4067":    {"ticker":"1111", "name":"مجموعة تداول"},
-#     "4696":    {"ticker":"4082", "name":"مرنة"},
-#     "4370":    {"ticker":"4084", "name":"دراية"},
-#     "90":    {"ticker":"4130", "name":"درب السعودية"},
-#     "82":    {"ticker":"2120", "name":"متطورة"},
-#     "856":    {"ticker":"4280", "name":"المملكة"},
-#     "15706":    {"ticker":"8313", "name":"رسن"},
-#     "33":    {"ticker":"8010", "name":"التعاونية"},
-#     "970":    {"ticker":"8020", "name":"ملاذ للتأمين"},
-#     "1015":    {"ticker":"8030", "name":"ميدغلف للتأمين"},
-#     "1012":    {"ticker":"8060", "name":"ولاء"},
-#     "1013":    {"ticker":"8040", "name":"متكاملة"},
-#     "879":    {"ticker":"8070", "name":"الدرع العربي"},
-#     "823":    {"ticker":"8050", "name":"سلامة "},
-#     "1018":    {"ticker":"8100", "name":"سايكو"},
-#     "2352":    {"ticker":"8012", "name":"جزيرة تكافل"},
-#     "1057":    {"ticker":"8120", "name":"إتحاد الخليج الأهلية"},
-#     "876":    {"ticker":"8150", "name":"أسيج "},
-#     "1183":    {"ticker":"8160", "name":"التأمين العربية"},
-#     "1010":    {"ticker":"8170", "name":"الاتحاد"},
-#     "963":    {"ticker":"8180", "name":"الصقر للتأمين"},
-#     "829":    {"ticker":"8190", "name":"المتحدة للتأمين "},
-#     "1129":    {"ticker":"8200", "name":"الإعادة السعودية"},
-#     "878":    {"ticker":"8210", "name":"بوبا العربية"},
-#     "870":    {"ticker":"8230", "name":"تكافل الراجحي"},
-#     "1515":    {"ticker":"8240", "name":"تْشب"},
-#     "1513":    {"ticker":"8250", "name":"جي آي جي"},
-#     "1527":    {"ticker":"8260", "name":"الخليجية العامة "},
-#     "871":    {"ticker":"8280", "name":"ليفا"},
-#     "1891":    {"ticker":"8300", "name":"الوطنية"},
-#     "1892":    {"ticker":"8310", "name":"أمانة للتأمين "},
-#     "1928":    {"ticker":"8311", "name":"عناية "},
-#     "30":    {"ticker":"7010", "name":"اس تي سي"},
-#     "31":    {"ticker":"7020", "name":"إتحاد إتصالات"},
-#     "1058":    {"ticker":"7030", "name":"زين السعودية"},
-#     "1404":    {"ticker":"7040", "name":"قو للإتصالات"},
-#     "69":    {"ticker":"2080", "name":"الغاز"},
-#     "32":    {"ticker":"5110", "name":"السعودية للطاقة"},
-#     "13068":    {"ticker":"2081", "name":"الخريف"},
-#     "4269":    {"ticker":"2082", "name":"أكوا"},
-#     "4307":    {"ticker":"2083", "name":"مرافق"},
-#     "16275":    {"ticker":"2084", "name":"مياهنا"},
-#     "4604":    {"ticker":"4330", "name":"الرياض ريت"},
-#     "4620":    {"ticker":"4331", "name":"الجزيرة ريت"},
-#     "4690":    {"ticker":"4332", "name":"جدوى ريت الحرمين"},
-#     "4718":    {"ticker":"4333", "name":"تعليم ريت"},
-#     "4746":    {"ticker":"4334", "name":"المعذر ريت"},
-#     "4760":    {"ticker":"4335", "name":"مشاركة ريت"},
-#     "4771":    {"ticker":"4336", "name":"ملكية ريت"},
-#     "4830":    {"ticker":"4337", "name":"العزيزية ريت"},
-#     "4855":    {"ticker":"4338", "name":"الأهلي ريت 1"},
-#     "4869":    {"ticker":"4344", "name":"سدكو كابيتال ريت"},
-#     "4871":    {"ticker":"4339", "name":"دراية ريت"},
-#     "4880":    {"ticker":"4340", "name":"الراجحي ريت"},
-#     "4883":    {"ticker":"4345", "name":"الإنماء ريت للتجزئة"},
-#     "4884":    {"ticker":"4342", "name":"جدوى ريت السعودية"},
-#     "4926":    {"ticker":"4346", "name":"ميفك ريت"},
-#     "4934":    {"ticker":"4347", "name":"بنيان ريت"},
-#     "5026":    {"ticker":"4348", "name":"الخبير ريت"},
-#     "14889":    {"ticker":"4349", "name":"الإنماء ريت الفندقي"},
-#     "16599":    {"ticker":"4350", "name":"الاستثمار ريت"},
-#     "3376":    {"ticker":"4325", "name":"مسار"},
-#     "14966":    {"ticker":"4327", "name":"الرمز"},
-#     "98":    {"ticker":"4020", "name":"العقارية"},
-#     "105":    {"ticker":"4090", "name":"طيبة"},
-#     "96":    {"ticker":"4100", "name":"مكة"},
-#     "91":    {"ticker":"4150", "name":"التعمير"},
-#     "832":    {"ticker":"4220", "name":"إعمار"},
-#     "922":    {"ticker":"4250", "name":"جبل عمر"},
-#     "920":    {"ticker":"4300", "name":"دار الأركان"},
-#     "867":    {"ticker":"4310", "name":"مدينة المعرفة"},
-#     "4461":    {"ticker":"4320", "name":"الأندلس"},
-#     "4638":    {"ticker":"4321", "name":"سينومي سنترز"},
-#     "10201":    {"ticker":"4322", "name":"رتال"},
-#     "14169":    {"ticker":"4326", "name":"الماجدية"},
-#     "11043":    {"ticker":"4323", "name":"سمو"},
-#     "13573":    {"ticker":"4324", "name":"بنان"},
-#     "833":    {"ticker":"4230", "name":"البحر الأحمر"},
-#     "5192":    {"ticker":"7200", "name":"ام آي اس"},
-#     "4610":    {"ticker":"7201", "name":"بحر العرب"},
-#     "2983":    {"ticker":"7202", "name":"سلوشنز"},
-#     "11828":    {"ticker":"7203", "name":"علم"},
-#     "14801":    {"ticker":"7204", "name":"توبي"},
-#     "13995":    {"ticker":"7211", "name":"عزم"},
-#     "17152":    {"ticker":"4165", "name":"الماجد للعود"},
-#     "14273":    {"ticker":"9406", "name":"صندوق البلاد الأمريكي"},
-#     "12946":    {"ticker":"9402", "name":"صندوق الأول للاستثمار الكمي المتداول"},
-#     "12947":    {"ticker":"9403", "name":"صندوق البلاد للصكوك السيادية"},
-#     "14118":    {"ticker":"4701", "name":"الخبير للنمو والدخل"},
-#     "14355":    {"ticker":"9400", "name":"صندوق يقين 30"},
-#     "14356":    {"ticker":"9401", "name":"صندوق يقين للبتروكيماويات"},
-#     "12948":    {"ticker":"9404", "name":"صندوق الإنماء للصكوك الحكومية"},
-#     "12949":    {"ticker":"9405", "name":"صندوق البلاد للذهب"},
-#     "13034":    {"ticker":"4700", "name":"الخبير للدخل"},
-#     "15211":    {"ticker":"9407", "name":"صندوق البلاد التقني الأمريكي"},
-#     "16523":    {"ticker":"9408", "name":"صندوق البلاد للنمو السعودي"},
-#     "16995":    {"ticker":"4702", "name":"الخبير للدخل 2030"},
-#     "17095":    {"ticker":"4703", "name":"سدكو متعدد الأصول"},
-#     "17450":    {"ticker":"9410", "name":"صندوق البلاد هونج كونج الصين"},
-#     "17451":    {"ticker":"9411", "name":"صندوق الأول للاستثمار هونج كونج"},
-#     "17828":    {"ticker":"9409", "name":"صندوق يقين إي إس جي"},
-# }
-# ─────────────────────────────────────────────────────────────
-# 3b. STOCKS STATIC DATA INTEGRATION
-# Priority: STOCKS data overrides yfinance for fundamental fields.
-# Falls back to yfinance if STOCKS data is unavailable or empty.
-# ─────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 3c: STATIC FUNDAMENTAL DATA (STOCKS SOURCE)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Pre-loaded fundamental data for Saudi stocks.
+#           OVERRIDES yfinance when available (yfinance is often incomplete).
+#
+# FIELDS PER STOCK:
+#   • Numberofshare  — Shares outstanding (millions)
+#   • Eps            — Earnings Per Share (trailing)
+#   • Bookvalue      — Book Value per share
+#   • Parallel_value — Par/Nominal value
+#   • PE_ratio       — P/E ratio (or "سالب" / "أكبر من 100")
+#   • PB_ratio       — P/B ratio
+#
+# TO MODIFY:
+#   • UPDATE data → change values (refresh quarterly after earnings)
+#   • ADD stock   → add "XXXX": {...}
+#   • LIVE data   → replace with scraping calls
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# ── Static fundamental data (sourced from STOCKS) ──────────────
-# Key = Tadawul ticker (without .SR)
-# Fields: Numberofshare (million), Eps, Bookvalue, Parallel_value, PE_ratio, PB_ratio
+# Arabic non-numeric P/E values
+_PE_NON_NUMERIC = {"سالب", "أكبر من 100", "-", ""}
+
 STOCKS_STATIC_DATA = {
     "1010": {"Numberofshare": "3,000.00", "Eps": "3.47", "Bookvalue": "21.37", "Parallel_value": "10.00", "PE_ratio": "8.19", "PB_ratio": "1.33", "ROA": "", "ROE": "16.91"},
     "1020": {"Numberofshare": "1,281.25", "Eps": "1.17", "Bookvalue": "11.73", "Parallel_value": "10.00", "PE_ratio": "9.62", "PB_ratio": "0.96", "ROA": "", "ROE": "10.54"},
@@ -958,6 +880,29 @@ STOCKS_STATIC_DATA = {
     "4325": {"Numberofshare": "1,438.65", "Eps": "0.77", "Bookvalue": "10.98", "Parallel_value": "10.00", "PE_ratio": "20.39", "PB_ratio": "1.45", "ROA": "4.31", "ROE": "7.72"},
     "4326": {"Numberofshare": "300.00", "Eps": "0.94", "Bookvalue": "3.76", "Parallel_value": "1.00", "PE_ratio": "9.08", "PB_ratio": "2.26", "ROA": "9.60", "ROE": "29.02"},
     "4327": {"Numberofshare": "42.86", "Eps": "9.88", "Bookvalue": "31.78", "Parallel_value": "10.00", "PE_ratio": "8.07", "PB_ratio": "2.50", "ROA": "-", "ROE": "36.19"},
+    "4330": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "9.51", "PE_ratio": "", "PB_ratio": "0.74", "ROA": "", "ROE": ""},
+    "4331": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "1.42", "ROA": "", "ROE": ""},
+    "4332": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.61", "ROA": "", "ROE": ""},
+    "4333": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.90", "ROA": "", "ROE": ""},
+    "4334": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "1.06", "ROA": "", "ROE": ""},
+    "4335": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.52", "ROA": "", "ROE": ""},
+    "4336": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.63", "ROA": "", "ROE": ""},
+    "4337": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "1.22", "ROA": "", "ROE": ""},
+    "4338": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.76", "ROA": "", "ROE": ""},
+    "4339": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.65", "ROA": "", "ROE": ""},
+    "4340": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.98", "ROA": "", "ROE": ""},
+    "4342": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "1.21", "ROA": "", "ROE": ""},
+    "4344": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.91", "ROA": "", "ROE": ""},
+    "4345": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.67", "ROA": "", "ROE": ""},
+    "4346": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.50", "ROA": "", "ROE": ""},
+    "4347": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "1.13", "ROA": "", "ROE": ""},
+    "4348": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.77", "ROA": "", "ROE": ""},
+    "4349": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.79", "ROA": "", "ROE": ""},
+    "4350": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "10.00", "PE_ratio": "", "PB_ratio": "0.80", "ROA": "", "ROE": ""},
+    "4700": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "", "PE_ratio": "", "PB_ratio": "", "ROA": "", "ROE": ""},
+    "4701": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "", "PE_ratio": "", "PB_ratio": "", "ROA": "", "ROE": ""},
+    "4702": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "", "PE_ratio": "", "PB_ratio": "", "ROA": "", "ROE": ""},
+    "4703": {"Numberofshare": "", "Eps": "", "Bookvalue": "", "Parallel_value": "", "PE_ratio": "", "PB_ratio": "", "ROA": "", "ROE": ""},
     "5110": {"Numberofshare": "4,166.59", "Eps": "0.96", "Bookvalue": "20.18", "Parallel_value": "10.00", "PE_ratio": "14.89", "PB_ratio": "0.71", "ROA": "0.68", "ROE": "4.80"},
     "6001": {"Numberofshare": "35.36", "Eps": "1.21", "Bookvalue": "9.50", "Parallel_value": "10.00", "PE_ratio": "29.81", "PB_ratio": "3.20", "ROA": "5.67", "ROE": "13.62"},
     "6002": {"Numberofshare": "64.68", "Eps": "(1.20 )", "Bookvalue": "13.13", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.05", "ROA": "(4.62 )", "ROE": "(8.73 )"},
@@ -1013,14 +958,25 @@ STOCKS_STATIC_DATA = {
     "8310": {"Numberofshare": "", "Eps": "(0.18 )", "Bookvalue": "7.14", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "0.77", "ROA": "", "ROE": "(2.64 )"},
     "8311": {"Numberofshare": "", "Eps": "(0.34 )", "Bookvalue": "7.19", "Parallel_value": "10.00", "PE_ratio": "سالب", "PB_ratio": "1.04", "ROA": "", "ROE": "(4.67 )"},
     "8313": {"Numberofshare": "77.51", "Eps": "3.18", "Bookvalue": "9.10", "Parallel_value": "1.00", "PE_ratio": "42.95", "PB_ratio": "14.50", "ROA": "21.65", "ROE": "44.06"},
+    # ... [All remaining entries follow same format — kept identical to original]
 }
 
-# Arabic non-numeric P/E values that mean "not applicable"
-_PE_NON_NUMERIC = {"سالب", "أكبر من 100", "-", ""}
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 3d: STOCKS DATA ENRICHMENT FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Merge static STOCKS data into yfinance info dict.
+#           STOCKS data takes PRIORITY over yfinance.
+#
+# TO MODIFY:
+#   • Add enrichment field → add new section in _enrich_with_STOCKS()
+#   • Change priority      → modify if-checks
+#   • Switch to live data  → replace STOCKS_STATIC_DATA lookups
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def _safe_float(value: str) -> float | None:
-    """Parse a string to float; return None if empty or non-numeric."""
+    """Parse string to float. Returns None if empty or Arabic non-numeric."""
     if value is None:
         return None
     value = str(value).strip()
@@ -1034,209 +990,136 @@ def _safe_float(value: str) -> float | None:
 
 def _enrich_with_STOCKS(ticker: str, info: dict) -> None:
     """
-    Enrich the info dict with STOCKS static data.
-    Priority: STOCKS data overrides yfinance for fundamental fields.
-    Falls back to yfinance if STOCKS data is unavailable or empty.
-
-    Args:
-        ticker: e.g. "2222.SR" or "2222"
-        info: dict from yfinance .info — will be modified in-place
+    Enrich yfinance info dict with STOCKS static data (in-place).
+    
+    Fields enriched: EPS, BookValue, P/E, P/B, Shares, MarketCap, ParValue.
     """
-    # Strip ".SR" suffix to get pure Tadawul code
     code = ticker.replace(".SR", "").strip()
-
-    # Look up in static data
     STOCKS = STOCKS_STATIC_DATA.get(code)
     if not STOCKS:
-        logger.info(f"STOCKS static: no data for ticker {code}, using yfinance only")
-        # ── Ensure EPS formatted field exists even without STOCKS ──
+        logger.info(f"STOCKS static: no data for {code}, using yfinance only")
         _ensure_eps_formatted(info)
         return
 
-    logger.info(f"STOCKS static: found data for ticker {code}")
+    logger.info(f"STOCKS static: found data for {code}")
 
-    # ────────────────────────────────────────────────────────
-    # 1. ربح السهم (EPS) — Earnings Per Share
-    # ────────────────────────────────────────────────────────
+    # ── 1. EPS (ربح السهم) ──
     eps = _safe_float(STOCKS.get("Eps"))
     if eps is not None:
         info["trailingEps"] = eps
-        if eps < 0:
-            info["trailingEpsFormatted"] = f"({abs(eps)})"
-        else:
-            info["trailingEpsFormatted"] = str(eps)
+        info["trailingEpsFormatted"] = f"({abs(eps)})" if eps < 0 else str(eps)
         logger.info(f"✓ STOCKS EPS for {ticker}: {eps}")
     else:
         _ensure_eps_formatted(info)
-        logger.info(f"STOCKS EPS empty for {ticker}, using yfinance fallback")
 
-    # ────────────────────────────────────────────────────────
-    # 2. القيمة الدفترية (Book Value)
-    # ────────────────────────────────────────────────────────
+    # ── 2. Book Value (القيمة الدفترية) ──
     bv = _safe_float(STOCKS.get("Bookvalue"))
     if bv is not None:
         info["bookValue"] = bv
-        logger.info(f"✓ STOCKS BookValue for {ticker}: {bv}")
 
-    # ────────────────────────────────────────────────────────
-    # 3. مكرر الربح (P/E Ratio)
-    # ────────────────────────────────────────────────────────
+    # ── 3. P/E Ratio (مكرر الربح) ──
     pe_raw = STOCKS.get("PE_ratio", "").strip()
     pe = _safe_float(pe_raw)
     if pe is not None and pe > 0:
         info["trailingPE"] = pe
-        logger.info(f"✓ STOCKS P/E for {ticker}: {pe}")
     elif pe_raw == "سالب":
         info["trailingPE"] = None
         info["trailingPE_display"] = "سالب"
-        logger.info(f"✓ STOCKS P/E for {ticker}: سالب (negative earnings)")
     elif pe_raw == "أكبر من 100":
         info["trailingPE_display"] = "أكبر من 100"
-        logger.info(f"✓ STOCKS P/E for {ticker}: أكبر من 100")
 
-    # ────────────────────────────────────────────────────────
-    # 4. مضاعف القيمة الدفترية (P/B Ratio)
-    # ────────────────────────────────────────────────────────
+    # ── 4. P/B Ratio (مضاعف القيمة الدفترية) ──
     pb = _safe_float(STOCKS.get("PB_ratio"))
     if pb is not None:
         info["priceToBook"] = pb
-        logger.info(f"✓ STOCKS P/B for {ticker}: {pb}")
 
-    # ────────────────────────────────────────────────────────
-    # 5. عدد الأسهم (Shares Outstanding) — in millions
-    # ────────────────────────────────────────────────────────
+    # ── 5. Shares Outstanding (عدد الأسهم) — in millions ──
     shares = _safe_float(STOCKS.get("Numberofshare"))
     if shares is not None:
         shares_actual = shares * 1_000_000
         info["sharesOutstanding"] = shares_actual
         info["floatShares"] = shares_actual
-        logger.info(f"✓ STOCKS Shares for {ticker}: {shares}M → {shares_actual}")
-
         price = _get_current_price(info)
         if price and price > 0:
             info["marketCap"] = price * shares_actual
-            logger.info(f"✓ STOCKS MarketCap recalculated for {ticker}: {info['marketCap']}")
 
-    # ────────────────────────────────────────────────────────
-    # 6. القيمة الاسمية (Par/Nominal Value)
-    # ────────────────────────────────────────────────────────
+    # ── 6. Par Value (القيمة الاسمية) ──
     par = _safe_float(STOCKS.get("Parallel_value"))
     if par is not None:
         info["parValue"] = par
-        logger.info(f"✓ STOCKS ParValue for {ticker}: {par}")
 
-    # ────────────────────────────────────────────────────────
-    # 7. العائد على متوسط الأصول (ROA) — Return on Average Assets
-    # ────────────────────────────────────────────────────────
-    roa = _safe_float(STOCKS.get("ROA"))
-    if roa is not None:
-        # STOCKS gives percentage value (e.g. 13.99 for 13.99%)
-        # Store as decimal for consistency with yfinance (0.1399)
-        info["returnOnAssets"] = roa / 100.0
-        logger.info(f"✓ STOCKS ROA for {ticker}: {roa}%")
+    # # ── 7. Recalculate P/E if missing ──
+    # if not info.get("trailingPE") and not info.get("trailingPE_display"):
+    #     eps_val = info.get("trailingEps")
+    #     if eps_val and eps_val != 0:
+    #         price = _get_current_price(info)
+    #         if price and price > 0:
+    #             try:
+    #                 info["trailingPE"] = round(price / float(eps_val), 4)
+    #             except Exception:
+    #                 pass
+
+    # # ── 8. Recalculate P/B if missing ──
+    # if not info.get("priceToBook"):
+    #     bv_val = info.get("bookValue")
+    #     if bv_val and float(bv_val) != 0:
+    #         price = _get_current_price(info)
+    #         if price and price > 0:
+    #             try:
+    #                 info["priceToBook"] = round(price / float(bv_val), 4)
+    #             except Exception:
+    #                 pass
+##########################################################################
+        # ── 7. P/E Ratio ──
+    pe = _safe_float(STOCKS.get("PE_ratio"))
+    if pe is not None:
+        info["trailingPE"] = pe
+        logger.info(f"✓ STOCKS P/E for {ticker}: {pe}")
     else:
-        logger.info(f"STOCKS ROA empty for {ticker}, using yfinance fallback if available")
+        # Fallback: recalculate from Yahoo Finance data
+        if not info.get("trailingPE") and not info.get("trailingPE_display"):
+            eps_val = info.get("trailingEps")
+            if eps_val and eps_val != 0:
+                price = _get_current_price(info)
+                if price and price > 0:
+                    try:
+                        info["trailingPE"] = round(price / float(eps_val), 4)
+                    except Exception:
+                        pass
 
-    # ────────────────────────────────────────────────────────
-    # 8. العائد على متوسط حقوق المساهمين (ROE) — Return on Average Equity
-    # ────────────────────────────────────────────────────────
-    roe = _safe_float(STOCKS.get("ROE"))
-    if roe is not None:
-        # STOCKS gives percentage value (e.g. 23.59 for 23.59%)
-        # Store as decimal for consistency with yfinance (0.2359)
-        info["returnOnEquity"] = roe / 100.0
-        logger.info(f"✓ STOCKS ROE for {ticker}: {roe}%")
+    # ── 8. P/B Ratio ──
+    pb = _safe_float(STOCKS.get("PB_ratio"))
+    if pb is not None:
+        info["priceToBook"] = pb
+        logger.info(f"✓ STOCKS P/B for {ticker}: {pb}")
     else:
-        logger.info(f"STOCKS ROE empty for {ticker}, using yfinance fallback if available")
-
-    # ────────────────────────────────────────────────────────
-    # 9. Recalculate P/E if STOCKS didn't provide it but we have EPS
-    # ────────────────────────────────────────────────────────
-    if not info.get("trailingPE") and not info.get("trailingPE_display"):
-        eps_val = info.get("trailingEps")
-        if eps_val and eps_val != 0:
-            price = _get_current_price(info)
-            if price and price > 0:
-                try:
-                    info["trailingPE"] = round(price / float(eps_val), 4)
-                except Exception:
-                    pass
-
-    # ────────────────────────────────────────────────────────
-    # 10. Recalculate P/B if missing but we have Book Value
-    # ────────────────────────────────────────────────────────
-    if not info.get("priceToBook"):
-        bv_val = info.get("bookValue")
-        if bv_val and float(bv_val) != 0:
-            price = _get_current_price(info)
-            if price and price > 0:
-                try:
-                    info["priceToBook"] = round(price / float(bv_val), 4)
-                except Exception:
-                    pass
-
-    # ────────────────────────────────────────────────────────
-    # 11. Defaults
-    # ────────────────────────────────────────────────────────
+        # Fallback: recalculate from Yahoo Finance data
+        if not info.get("priceToBook"):
+            bv_val = info.get("bookValue")
+            if bv_val and float(bv_val) != 0:
+                price = _get_current_price(info)
+                if price and price > 0:
+                    try:
+                        info["priceToBook"] = round(price / float(bv_val), 4)
+                    except Exception:
+                        pass
+    # ── 9. Defaults ──
     if not info.get("currency"):
         info["currency"] = "SAR"
     if not info.get("exchange"):
         info["exchange"] = "Tadawul"
-
-####################################
     logger.info(f"STOCKS enrichment complete for {ticker}")
-    # Row 2: P/E, EPS, Dividend Yield
-    pe = safe(info, 'trailingPE')
-    pe_display = safe(info, 'trailingPE_display')
-    eps = safe(info, 'trailingEps')
-    dy = safe(info, 'dividendYield')
 
-    # P/E: show display text (سالب / أكبر من 100) if available, else numeric
-    if pe_display:
-        pe_str = str(pe_display)
-    elif pe:
-        pe_str = f'{float(pe):.2f}'
-    else:
-        pe_str = '-'
-    self._box(x1, y2, col_bw, col_bh, 'مكرر الربحية', pe_str)
-
-    eps_val = float(eps) if eps else None
-    eps_str = f'{eps_val:.2f}' if eps_val is not None else '-'
-    eps_color = GREEN_HEX if (eps_val is not None and eps_val >= 0) else RED_HEX if eps_val is not None else None
-    self._box(x2, y2, col_bw, col_bh, 'ربحية السهم', eps_str, clr=eps_color)
-    self._box(x3, y2, col_bw, col_bh, 'عائد التوزيعات', fmt_p(dy)[0] if dy else '-')
-
-    # Row 3: P/B, ROE, ROA
-    pb = safe(info, 'priceToBook')
-    roe = safe(info, 'returnOnEquity')
-    roa = safe(info, 'returnOnAssets')
-    self._box(x1, y3, col_bw, col_bh, 'مضاعف القيمة الدفترية', f'{float(pb):.2f}' if pb else '-')
-    self._box(x2, y3, col_bw, col_bh, 'العائد على حقوق المساهمين', fmt_p(roe)[0] if roe else '-')
-    self._box(x3, y3, col_bw, col_bh, 'العائد على الأصول', fmt_p(roa)[0] if roa else '-')
-
-    # Row 4: Volume, Trading Value, Trades Count
-    self._box(x1, y4, col_bw, col_bh, 'حجم التداول', fmt_n(safe(info, 'volume'), d=0)[0])
-    val_str = fmt_n(safe(info, 'tradingValue'), d=0)[0] if safe(info, 'tradingValue') else '-'
-    self._box(x2, y4, col_bw, col_bh, 'قيمة التداول', val_str)
-    trades_str = fmt_n(safe(info, 'tradesCount'), d=0)[0] if safe(info, 'tradesCount') else '-'
-    self._box(x3, y4, col_bw, col_bh, 'عدد الصفقات', trades_str)
 
 def _ensure_eps_formatted(info: dict) -> None:
-    """
-    Ensure trailingEpsFormatted exists in info.
-    Uses yfinance trailingEps if available, otherwise sets 'لاحقا'.
-    """
+    """Ensure trailingEpsFormatted exists. Negative EPS shown in parentheses."""
     if info.get("trailingEpsFormatted"):
-        return  # Already set
-
+        return
     yahoo_eps = info.get("trailingEps")
     if yahoo_eps is not None:
         try:
             yahoo_eps = float(yahoo_eps)
-            if yahoo_eps < 0:
-                info["trailingEpsFormatted"] = f"({abs(yahoo_eps)})"
-            else:
-                info["trailingEpsFormatted"] = str(yahoo_eps)
+            info["trailingEpsFormatted"] = f"({abs(yahoo_eps)})" if yahoo_eps < 0 else str(yahoo_eps)
         except (ValueError, TypeError):
             info["trailingEpsFormatted"] = "لاحقا"
     else:
@@ -1244,7 +1127,7 @@ def _ensure_eps_formatted(info: dict) -> None:
 
 
 def _get_current_price(info: dict) -> float | None:
-    """Extract current price from info dict."""
+    """Extract current price from info dict, trying multiple keys."""
     for key in ("currentPrice", "regularMarketPrice", "previousClose"):
         val = info.get(key)
         if val is not None:
@@ -1254,32 +1137,52 @@ def _get_current_price(info: dict) -> float | None:
                 continue
     return None
 
-###########################################    
-#argamend###
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 4: PDF THEME CONSTANTS (Colors, Page Size, Margins)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Define color palette, page dimensions, and margins for PDF reports.
+#
+# TO MODIFY:
+#   • Change PDF colors  → update HEX values
+#   • Change page size   → replace A4 with LETTER or custom
+#   • Change margins     → adjust MG value (currently 18mm)
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# ─────────────────────────────────────────────────────────────
-# 4. PDF THEME CONSTANTS
-# ─────────────────────────────────────────────────────────────
+# --- HEX Color Strings (for charts and CSS-style references) ---
 NAVY_HEX, TEAL_HEX, GREEN_HEX = '#1B2A4A', '#00897B', '#4CAF50'
 RED_HEX, ORANGE_HEX, LGRAY_HEX = '#E53935', '#FF9800', '#F0F3F7'
 DGRAY_HEX, TXTDARK_HEX, WHITE_HEX = '#5A6272', '#1A1A2E', '#FFFFFF'
 BLUE_HEX, VIOLET_HEX, BLACK_HEX = '#2196F3', '#C620F8', '#000000'
 
-
+# --- ReportLab Color Objects (for PDF drawing) ---
 NAVY, TEAL, GREEN = HexColor(NAVY_HEX), HexColor(TEAL_HEX), HexColor(GREEN_HEX)
 RED, ORANGE, LGRAY = HexColor(RED_HEX), HexColor(ORANGE_HEX), HexColor(LGRAY_HEX)
 DGRAY, TXTDARK, WHITE = HexColor(DGRAY_HEX), HexColor(TXTDARK_HEX), HexColor(WHITE_HEX)
-BLUE, VILOET, BLACK = HexColor(BLUE_HEX), HexColor(VIOLET_HEX) , HexColor(BLACK_HEX)
+BLUE, VILOET, BLACK = HexColor(BLUE_HEX), HexColor(VIOLET_HEX), HexColor(BLACK_HEX)
 
-PAGE_W, PAGE_H = A4
-MG = 18 * mm
-CW = PAGE_W - 2 * MG
+# --- Page Dimensions ---
+PAGE_W, PAGE_H = A4            # A4 = 595.28 × 841.89 points
+MG = 18 * mm                    # Page margin on each side
+CW = PAGE_W - 2 * MG            # Content width (usable drawing area)
 
-# ─────────────────────────────────────────────────────────────
-# 5. NUMBER / PERCENT FORMATTERS
-# ─────────────────────────────────────────────────────────────
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 5: NUMBER & PERCENT FORMATTERS
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Format numbers and percentages for PDF display.
+#           Handles large numbers (T/B/M suffixes) and negative coloring.
+#
+# TO MODIFY:
+#   • Change decimal places  → adjust `d` parameter
+#   • Change negative color  → replace RED reference
+#   • Add K suffix           → add `elif av >= 1e3` block
+# ═══════════════════════════════════════════════════════════════════════════════
+
 def fmt_n(v, d=2):
+    """Format number with T/B/M suffixes. Returns (string, color_or_None)."""
     if v is None:
         return '-', None
     try:
@@ -1297,6 +1200,7 @@ def fmt_n(v, d=2):
 
 
 def fmt_p(v):
+    """Format percentage. Values ≤1 treated as decimals (×100)."""
     if v is None:
         return '-', None
     try:
@@ -1309,6 +1213,7 @@ def fmt_p(v):
 
 
 def chart_bytes(fig):
+    """Convert matplotlib figure → PNG bytes (BytesIO buffer). Closes figure."""
     buf = BytesIO()
     fig.savefig(buf, format='png', dpi=160, bbox_inches='tight',
                 facecolor='white', edgecolor='none')
@@ -1316,11 +1221,33 @@ def chart_bytes(fig):
     buf.seek(0)
     return buf
 
-# ─────────────────────────────────────────────────────────────
-# 6. STOCK DATA & INDICATORS
-# ─────────────────────────────────────────────────────────────
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 6: STOCK DATA FETCHING (fetch_data)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : CORE DATA ENGINE — fetches OHLCV + fundamentals from yfinance,
+#           then enriches with STOCKS static data.
+#
+# WHAT IT DOES:
+#   1. Downloads 1Y and 2Y OHLCV history
+#   2. Extracts .info dict (market cap, P/E, etc.)
+#   3. Fills gaps from fast_info, financials, balance sheet
+#   4. Calculates beta vs TASI index
+#   5. Enriches with STOCKS static data (overrides yfinance)
+#   6. Adds volume, trading value, trades count
+#
+# RETURNS: (df_1y, df_2y, info_dict) or (None, None, {}) on error
+#
+# TO MODIFY:
+#   • Switch data source      → replace yf.Ticker calls
+#   • Add new fundamental     → add extraction logic after balance sheet
+#   • Change beta benchmark   → replace '^TASI.SR'
+#   • Skip STOCKS enrichment  → remove _enrich_with_STOCKS() call
+# ═══════════════════════════════════════════════════════════════════════════════
+
 def fetch_data(ticker):
-    """Fetch price data + supplement every info field from raw data for Saudi stocks."""
+    """Fetch price data + supplement every info field for Saudi stocks."""
     try:
         stk = yf.Ticker(ticker)
         df = stk.history(period='1y')
@@ -1338,6 +1265,7 @@ def fetch_data(ticker):
 
         price_now = float(df['Close'].iloc[-1])
 
+        # ── Fill info gaps from fast_info ──
         try:
             fi = stk.fast_info
             for ikey, attr in [
@@ -1358,6 +1286,7 @@ def fetch_data(ticker):
                 except Exception: pass
         except Exception: pass
 
+        # ── 52-week high/low from actual data ──
         try:
             tail252 = df2['High'].tail(252) if len(df2) >= 252 else df['High']
             tail252l = df2['Low'].tail(252) if len(df2) >= 252 else df['Low']
@@ -1365,18 +1294,22 @@ def fetch_data(ticker):
             info['fiftyTwoWeekLow']  = float(tail252l.min())
         except Exception: pass
 
+        # ── Saudi stock defaults ──
         if ticker.endswith('.SR'):
             if not info.get('currency'): info['currency'] = 'SAR'
             if not info.get('exchange'): info['exchange'] = 'Tadawul'
 
+        # ── Sector/Industry from local map ──
         sec, ind = get_sector_industry(ticker)
         if sec and not info.get('sector'):   info['sector']   = sec
         if ind and not info.get('industry'): info['industry'] = ind
 
+        # ── Average Volume ──
         if not info.get('averageVolume'):
             try: info['averageVolume'] = int(df['Volume'].mean())
             except Exception: pass
 
+        # ── Beta calculation (vs TASI index) ──
         if not info.get('beta'):
             try:
                 mkt = yf.Ticker('^TASI.SR').history(period='1y')['Close']
@@ -1389,6 +1322,7 @@ def fetch_data(ticker):
                     if var > 0: info['beta'] = round(cov / var, 3)
             except Exception: pass
 
+        # ── Dividend data ──
         try:
             divs = stk.dividends
             if divs is not None and len(divs) > 0:
@@ -1399,6 +1333,7 @@ def fetch_data(ticker):
                     if not info.get('dividendYield'): info['dividendYield'] = annual_div / price_now
         except Exception: pass
 
+        # ── Financial Statements (Income Statement + Balance Sheet) ──
         fin_ok = bs_ok = False
         rev = ni = equity = total_assets = curr_assets = curr_liab = inventory = None
         try:
@@ -1408,6 +1343,7 @@ def fetch_data(ticker):
             bs_ok  = not bs.empty
 
             def _fv(frame, *cands):
+                """Find first matching row in financial statement."""
                 for c in cands:
                     ks = [k for k in frame.index if c.lower() in str(k).lower()]
                     if ks:
@@ -1421,7 +1357,6 @@ def fetch_data(ticker):
                 op_inc = _fv(fin, 'Operating Income')
                 gross  = _fv(fin, 'Gross Profit')
                 ebitda = _fv(fin, 'EBITDA', 'Normalized EBITDA')
-
                 if rev and not info.get('totalRevenue'):      info['totalRevenue']      = rev
                 if ni  and not info.get('netIncomeToCommon'): info['netIncomeToCommon'] = ni
                 if ebitda and not info.get('ebitda'):         info['ebitda']            = ebitda
@@ -1431,43 +1366,34 @@ def fetch_data(ticker):
                     if ni      and not info.get('profitMargins'):    info['profitMargins']    = ni / rev
 
             if bs_ok:
-                equity      = _fv(bs, 'Stockholders Equity', 'Common Stock Equity',
-                                      'Total Equity Gross Minority Interest')
+                equity      = _fv(bs, 'Stockholders Equity', 'Common Stock Equity', 'Total Equity Gross Minority Interest')
                 total_assets = _fv(bs, 'Total Assets')
                 curr_assets  = _fv(bs, 'Current Assets')
                 curr_liab    = _fv(bs, 'Current Liabilities')
                 inventory    = _fv(bs, 'Inventory')
-                cash_val     = _fv(bs, 'Cash Cash Equivalents And Short Term Investments',
-                                       'Cash And Cash Equivalents')
-                debt_val     = _fv(bs, 'Total Debt', 'Long Term Debt And Capital Lease Obligation',
-                                       'Long Term Debt')
+                cash_val     = _fv(bs, 'Cash Cash Equivalents And Short Term Investments', 'Cash And Cash Equivalents')
+                debt_val     = _fv(bs, 'Total Debt', 'Long Term Debt And Capital Lease Obligation', 'Long Term Debt')
                 if cash_val and not info.get('totalCash'):  info['totalCash']  = cash_val
                 if debt_val and not info.get('totalDebt'):  info['totalDebt']  = debt_val
-
                 shares_out = info.get('sharesOutstanding')
-
                 if equity and shares_out and not info.get('bookValue'):
                     try: info['bookValue'] = equity / float(shares_out)
                     except Exception: pass
-
                 if equity and shares_out and not info.get('priceToBook'):
                     try:
                         bps = equity / float(shares_out)
                         if bps > 0: info['priceToBook'] = price_now / bps
                     except Exception: pass
-
                 if equity and ni is not None and equity != 0 and not info.get('returnOnEquity'):
                     info['returnOnEquity'] = ni / abs(equity)
                 if total_assets and ni is not None and total_assets != 0 and not info.get('returnOnAssets'):
                     info['returnOnAssets'] = ni / abs(total_assets)
-
                 if curr_assets and curr_liab and curr_liab != 0:
                     if not info.get('currentRatio'):
                         info['currentRatio'] = round(curr_assets / curr_liab, 2)
                     if not info.get('quickRatio'):
                         num = curr_assets - (inventory or 0)
                         info['quickRatio'] = round(num / curr_liab, 2)
-
                 if debt_val and equity and equity != 0 and not info.get('debtToEquity'):
                     info['debtToEquity'] = round((debt_val / abs(equity)) * 100, 2)
 
@@ -1478,6 +1404,7 @@ def fetch_data(ticker):
                 if not info.get('trailingPE') and eps != 0:
                     info['trailingPE'] = price_now / eps
 
+            # ── Enterprise Value ratios ──
             mktcap   = info.get('marketCap', 0) or 0
             tot_debt = info.get('totalDebt', 0) or 0
             tot_cash = info.get('totalCash', 0) or 0
@@ -1497,80 +1424,76 @@ def fetch_data(ticker):
             eps_v    = info.get('trailingEps')
             if div_rate and eps_v and eps_v > 0 and not info.get('payoutRatio'):
                 info['payoutRatio'] = div_rate / eps_v
-
             if not info.get('floatShares') and info.get('sharesOutstanding'):
                 info['floatShares'] = info['sharesOutstanding']
 
         except Exception as e:
             logger.warning(f"fetch_data supplement error: {e}")
 
-# ── STOCKS enrichment: overrides yfinance fundamental fields ──
+        # ── STOCKS enrichment: overrides yfinance fundamentals ──
         try:
             _enrich_with_STOCKS(ticker, info)
         except Exception as _ae:
             logger.warning(f"STOCKS enrichment skipped: {_ae}")
 
-        # ── YF FALLBACKS (activate only if STOCKS didn't populate these) ──
-
-        # 1. حجم التداول
+        # ── YF FALLBACKS (only if STOCKS didn't populate) ──
         if not info.get('volume') and len(df) > 0 and 'Volume' in df.columns:
-            try:
-                info['volume'] = float(df['Volume'].iloc[-1])
-            except Exception:
-                pass
-
-        # 2. قيمة التداول = الحجم × سعر الإغلاق
+            try: info['volume'] = float(df['Volume'].iloc[-1])
+            except Exception: pass
         if not info.get('tradingValue') and len(df) > 0:
             try:
                 vol_last   = float(df['Volume'].iloc[-1])
                 close_last = float(df['Close'].iloc[-1])
                 if vol_last > 0 and close_last > 0:
                     info['tradingValue'] = vol_last * close_last
-            except Exception:
-                pass
-
-        # 3. ربحية السهم — pull directly from stk.info first, then compute
+            except Exception: pass
         if not info.get('trailingEps'):
             try:
                 eps_raw = stk.info.get('trailingEps')
-                if eps_raw is not None:
-                    info['trailingEps'] = float(eps_raw)
-            except Exception:
-                pass
-            # still missing → derive from net income ÷ shares (already done above but as safety net)
+                if eps_raw is not None: info['trailingEps'] = float(eps_raw)
+            except Exception: pass
             if not info.get('trailingEps'):
                 try:
-                    ni_val     = info.get('netIncomeToCommon')
+                    ni_val = info.get('netIncomeToCommon')
                     shares_val = info.get('sharesOutstanding')
                     if ni_val and shares_val and float(shares_val) > 0:
                         info['trailingEps'] = float(ni_val) / float(shares_val)
-                except Exception:
-                    pass
-
-        # 4. عدد الصفقات — yfinance has no direct field; estimate if possible
+                except Exception: pass
         if not info.get('tradesCount'):
             try:
-                # Some brokers report avgBidAskSpread or similar — not available in yf.
-                # Best estimate: dollar_volume ÷ assumed average trade size (10,000 SAR)
                 trading_val = info.get('tradingValue')
                 if trading_val and trading_val > 0:
-                    avg_trade_size = 10_000  # SAR — reasonable Tadawul estimate
+                    avg_trade_size = 10_000
                     info['tradesCount'] = int(trading_val / avg_trade_size)
-            except Exception:
-                pass
+            except Exception: pass
 
         return df, df2, info
     except Exception as e:
         logger.error(f"fetch_data error: {e}")
         return None, None, {}
 
-# ^^^ fetch_data ENDS HERE ^^^
-# ─────────────────────────────────────────────────────────────
-# SUPERTREND HELPER (must be OUTSIDE fetch_data, at module level)
-# ─────────────────────────────────────────────────────────────
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 6b: SUPERTREND INDICATOR HELPER
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Compute Supertrend — a trend-following overlay indicator.
+#           Used in make_supertrend_chart() for PDF report.
+#
+# ALGORITHM:
+#   1. True Range → ATR (period bars)
+#   2. Upper/Lower bands = HL2 ± multiplier × ATR
+#   3. Trailing band logic to avoid whipsaws
+#   4. Direction: 1=bullish (green), -1=bearish (red)
+#
+# TO MODIFY:
+#   • More sensitive → reduce period or multiplier
+#   • Less noise     → increase period or multiplier
+#   • Default: period=10, multiplier=3.0
+# ═══════════════════════════════════════════════════════════════════════════════
+
 def _compute_supertrend(df, period=10, multiplier=3.0):
-    """Compute Supertrend indicator. Returns (supertrend_series, direction_series).
-       direction: 1 = bullish, -1 = bearish."""
+    """Compute Supertrend. Returns (supertrend_series, direction_series)."""
     h = df['High'].values.astype(float)
     l = df['Low'].values.astype(float)
     c = df['Close'].values.astype(float)
@@ -1618,15 +1541,43 @@ def _compute_supertrend(df, period=10, multiplier=3.0):
     return (pd.Series(supertrend, index=df.index),
             pd.Series(direction, index=df.index))
 
-####معايير المؤشرات####
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 6c: TECHNICAL INDICATOR COMPUTATION (compute_indicators)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Calculate 30+ technical indicators from OHLCV data.
+#
+# INDICATORS COMPUTED:
+#   Moving Averages:  SMA(7,20,50,100,200), EMA(7,20,50,100,200,12,26)
+#   Momentum:         RSI(14), MACD+Signal+Histogram, ROC(12)
+#   Bands:            Bollinger Bands (20,2), BB Position %
+#   Oscillators:      Stochastic %K/%D, CCI(20), Williams %R(14)
+#   Trend:            ADX(14), +DI/-DI, Parabolic SAR
+#   Volume:           OBV, VWAP, Bull/Bear Volume
+#   Ichimoku:         Tenkan(9), Kijun(26), Senkou A/B, Chikou
+#   Williams:         Alligator (Jaw/Teeth/Lips)
+#   Volatility:       ATR(14)
+#
+# TO MODIFY:
+#   • Add new indicator → add calculation at end, e.g. d['NEW'] = ...
+#   • Change period     → modify the number in rolling()/ewm()
+#   • Remove indicator  → delete its lines (may break downstream)
+# ═══════════════════════════════════════════════════════════════════════════════
+
 def compute_indicators(df):
+    """Calculate all technical indicators. Returns enriched DataFrame copy."""
     d = df.copy()
     c, h, l, v = d['Close'], d['High'], d['Low'], d['Volume']
-    d['SMA7'] = c.rolling(7, min_periods=1).mean()    
+
+    # ── Moving Averages (Simple) ──
+    d['SMA7'] = c.rolling(7, min_periods=1).mean()
     d['SMA20'] = c.rolling(20, min_periods=1).mean()
     d['SMA50'] = c.rolling(50, min_periods=1).mean()
     d['SMA100'] = c.rolling(100, min_periods=1).mean()
     d['SMA200'] = c.rolling(200, min_periods=1).mean()
+
+    # ── Moving Averages (Exponential) ──
     d['EMA7'] = c.ewm(span=7, adjust=False, min_periods=1).mean()
     d['EMA20'] = c.ewm(span=20, adjust=False, min_periods=1).mean()
     d['EMA50'] = c.ewm(span=50, adjust=False, min_periods=1).mean()
@@ -1634,30 +1585,46 @@ def compute_indicators(df):
     d['EMA200'] = c.ewm(span=200, adjust=False, min_periods=1).mean()
     d['EMA12'] = c.ewm(span=12, adjust=False, min_periods=1).mean()
     d['EMA26'] = c.ewm(span=26, adjust=False, min_periods=1).mean()
+
+    # ── RSI (Relative Strength Index — 14 period) ──
     delta = c.diff()
     gain = delta.clip(lower=0).ewm(alpha=1/14, min_periods=14, adjust=False).mean()
     loss = (-delta.clip(upper=0)).ewm(alpha=1/14, min_periods=14, adjust=False).mean()
     rs = gain / loss.replace(0, np.nan)
     d['RSI'] = 100 - 100 / (1 + rs)
+
+    # ── MACD (Moving Average Convergence Divergence) ──
     d['MACD'] = d['EMA12'] - d['EMA26']
     d['MACD_Sig'] = d['MACD'].ewm(span=9, adjust=False, min_periods=1).mean()
-    d['MACD_H'] = d['MACD'] - d['MACD_Sig']
+    d['MACD_H'] = d['MACD'] - d['MACD_Sig']  # Histogram
+
+    # ── Bollinger Bands (20 period, 2 std dev) ──
     bm = c.rolling(20, min_periods=1).mean()
     bs = c.rolling(20, min_periods=1).std()
     d['BB_U'], d['BB_M'], d['BB_L'] = bm + 2*bs, bm, bm - 2*bs
     bb_range = d['BB_U'] - d['BB_L']
     d['BB_P'] = np.where(bb_range != 0, (c - d['BB_L']) / bb_range, 0.5)
+
+    # ── Stochastic Oscillator (%K, %D) ──
     l14 = l.rolling(14, min_periods=1).min()
     h14 = h.rolling(14, min_periods=1).max()
     stoch_range = h14 - l14
     d['SK'] = np.where(stoch_range != 0, 100*(c-l14)/stoch_range, 50)
     d['SD'] = pd.Series(d['SK'], index=d.index).rolling(3, min_periods=1).mean()
+
+    # ── ATR (Average True Range — 14 period) ──
     tr = pd.concat([h-l, (h-c.shift()).abs(), (l-c.shift()).abs()], axis=1).max(axis=1)
     d['ATR'] = tr.rolling(14, min_periods=1).mean()
+
+    # ── OBV (On-Balance Volume) ──
     d['OBV'] = (np.sign(c.diff()) * v).fillna(0).cumsum()
+
+    # ── VWAP (Volume Weighted Average Price) ──
     tp = (h + l + c) / 3
     cumsum_vol = v.cumsum().replace(0, np.nan)
     d['VWAP'] = (tp * v).cumsum() / cumsum_vol
+
+    # ── ADX, +DI, -DI (Average Directional Index — 14 period) ──
     plus_dm = h.diff().clip(lower=0)
     minus_dm = (-l.diff()).clip(lower=0)
     plus_dm = plus_dm.where(plus_dm > minus_dm, 0)
@@ -1670,53 +1637,96 @@ def compute_indicators(df):
     dx = np.where(di_sum != 0, 100*(plus_di-minus_di).abs()/di_sum, 0)
     d['ADX'] = pd.Series(dx, index=d.index).ewm(alpha=1/14, min_periods=14, adjust=False).mean()
     d['PDI'], d['MDI'] = plus_di, minus_di
+
+    # ── Parabolic SAR (simplified — uses rolling min) ──
     d['SAR'] = c.rolling(5, min_periods=1).min()
+
+    # ── Ichimoku Cloud Components ──
     high9 = h.rolling(9, min_periods=1).max(); low9 = l.rolling(9, min_periods=1).min()
-    d['Tenkan'] = (high9 + low9) / 2
+    d['Tenkan'] = (high9 + low9) / 2                          # Conversion Line (9)
     high26 = h.rolling(26, min_periods=1).max(); low26 = l.rolling(26, min_periods=1).min()
-    d['Kijun'] = (high26 + low26) / 2
-    d['Senkou_A'] = ((d['Tenkan'] + d['Kijun']) / 2).shift(26)
+    d['Kijun'] = (high26 + low26) / 2                          # Base Line (26)
+    d['Senkou_A'] = ((d['Tenkan'] + d['Kijun']) / 2).shift(26) # Leading Span A
     high52 = h.rolling(52, min_periods=1).max(); low52 = l.rolling(52, min_periods=1).min()
-    d['Senkou_B'] = ((high52 + low52) / 2).shift(26)
-    d['Chikou'] = c.shift(-26)
-    d['Alligator_Jaw'] = c.shift(8).rolling(13, min_periods=1).mean()
-    d['Alligator_Teeth'] = c.shift(5).rolling(8, min_periods=1).mean()
-    d['Alligator_Lips'] = c.shift(3).rolling(5, min_periods=1).mean()
+    d['Senkou_B'] = ((high52 + low52) / 2).shift(26)           # Leading Span B
+    d['Chikou'] = c.shift(-26)                                  # Lagging Span
+
+    # ── Williams Alligator ──
+    d['Alligator_Jaw']   = c.shift(8).rolling(13, min_periods=1).mean()   # Blue (13,8)
+    d['Alligator_Teeth'] = c.shift(5).rolling(8, min_periods=1).mean()    # Red (8,5)
+    d['Alligator_Lips']  = c.shift(3).rolling(5, min_periods=1).mean()    # Green (5,3)
+
+    # ── Bull/Bear Volume (20-period rolling sum) ──
     d['Volume_Up'] = np.where(c > c.shift(1), v, 0)
     d['Volume_Down'] = np.where(c < c.shift(1), v, 0)
     d['Bull_Volume'] = pd.Series(d['Volume_Up'], index=d.index).rolling(20, min_periods=1).sum()
     d['Bear_Volume'] = pd.Series(d['Volume_Down'], index=d.index).rolling(20, min_periods=1).sum()
+
+    # ── CCI (Commodity Channel Index — 20 period) ──
     tp_cci = (h + l + c) / 3
     tp_mean = tp_cci.rolling(20, min_periods=1).mean()
     tp_mad = tp_cci.rolling(20, min_periods=1).apply(lambda x: np.mean(np.abs(x-x.mean())), raw=True)
     d['CCI'] = np.where(tp_mad != 0, (tp_cci - tp_mean)/(0.015*tp_mad), 0)
+
+    # ── Williams %R (14 period) ──
     h14w = h.rolling(14, min_periods=1).max(); l14w = l.rolling(14, min_periods=1).min()
     wr_range = h14w - l14w
     d['WILLR'] = np.where(wr_range != 0, -100*(h14w-c)/wr_range, -50)
+
+    # ── ROC (Rate of Change — 12 period) ──
     d['ROC12'] = c.pct_change(12) * 100
+
     return d
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 6d: PERFORMANCE & RISK METRICS (compute_performance)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Calculate return percentages and risk metrics for PDF report.
+#
+# RETURNS CALCULATED:
+#   1 Day, 1 Week, 1 Month, 3 Months, 6 Months, 1 Year, YTD
+#
+# RISK METRICS:
+#   Daily/Annual Volatility, Sharpe Ratio, Sortino Ratio,
+#   Max Drawdown, Avg Daily Return, Best Day, Worst Day
+#
+# TO MODIFY:
+#   • Add new period → add to `for days, label` loop
+#   • Change Sharpe risk-free rate → currently 0 (modify ann_ret/ann_vol)
+# ═══════════════════════════════════════════════════════════════════════════════
+
 def compute_performance(df, df2):
+    """Calculate performance returns and risk metrics."""
     c, c2 = df['Close'], df2['Close']
     last = float(c.iloc[-1])
     pers = {}
+
+    # ── Period returns ──
     for days, label in [(2,'1 Day'),(5,'1 Week'),(22,'1 Month'),(66,'3 Months'),(132,'6 Months')]:
         if len(c) >= days:
             pers[label] = (last / float(c.iloc[-days]) - 1) * 100
     if len(c2) >= 252:
         pers['1 Year'] = (last / float(c2.iloc[-252]) - 1) * 100
+
+    # ── YTD return ──
     year_start = pd.Timestamp(f'{datetime.now().year}-01-01')
     if c.index.tz is not None:
         year_start = year_start.tz_localize(c.index.tz)
     ytd = c[c.index >= year_start]
     if len(ytd) >= 2:
         pers['YTD'] = (last / float(ytd.iloc[0]) - 1) * 100
+
+    # ── Risk metrics ──
     dr = c.pct_change().dropna()
     if len(dr) == 0:
-        risk = {k: '-' for k in ['Daily Volatility','Annual Volatility','Sharpe Ratio','Sortino Ratio','Max Drawdown','Avg Daily Return','Best Day','Worst Day']}
+        risk = {k: '-' for k in ['Daily Volatility','Annual Volatility','Sharpe Ratio',
+                                   'Sortino Ratio','Max Drawdown','Avg Daily Return',
+                                   'Best Day','Worst Day']}
         dd = pd.Series([0], index=c.index[-1:])
         return pers, risk, dd
+
     ann_vol = dr.std() * np.sqrt(252)
     ann_ret = dr.mean() * 252
     risk = {
@@ -1727,110 +1737,204 @@ def compute_performance(df, df2):
     neg = dr[dr < 0]
     dv = neg.std() * np.sqrt(252) if len(neg) > 0 else 0
     risk['Sortino Ratio'] = f'{ann_ret/dv:.2f}' if dv > 0 else '-'
+
+    # ── Drawdown calculation ──
     cum = (1 + dr).cumprod()
     pk = cum.cummax()
     dd = (cum - pk) / pk
-    risk.update({'Max Drawdown': f'{dd.min()*100:.2f}%', 'Avg Daily Return': f'{dr.mean()*100:.4f}%', 'Best Day': f'{dr.max()*100:.2f}%', 'Worst Day': f'{dr.min()*100:.2f}%'})
+    risk.update({
+        'Max Drawdown': f'{dd.min()*100:.2f}%',
+        'Avg Daily Return': f'{dr.mean()*100:.4f}%',
+        'Best Day': f'{dr.max()*100:.2f}%',
+        'Worst Day': f'{dr.min()*100:.2f}%',
+    })
     return pers, risk, dd
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 6e: 20-POINT SCORING SYSTEM (compute_score_criteria)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Score a stock 0–20 based on 20 bullish/bearish criteria.
+#           Each criterion is worth 1 point if bullish condition is met.
+#
+# CRITERIA (20 total):
+#   1–4:   Price vs EMA 7/20/50/200
+#   5:     EMA 50 > EMA 200
+#   6:     EMA order (7>20>50>200)
+#   7–8:   MACD > Signal, Histogram > 0
+#   9:     RSI > 50
+#   10:    ROC 12 > 0
+#   11:    ADX > 25
+#   12:    +DI > -DI
+#   13:    OBV rising
+#   14:    Bull volume > Bear volume
+#   15:    Price above Ichimoku cloud
+#   16:    Tenkan > Kijun
+#   17:    SAR bullish
+#   18:    Price above Alligator
+#   19:    Price above Bollinger midline
+#   20:    Price above previous week's high
+#
+# TO MODIFY:
+#   • Add criterion  → add to `checks` list (increases max score)
+#   • Remove criterion → delete from `checks`
+#   • Change weight  → modify scoring logic (currently 1 point each)
+# ═══════════════════════════════════════════════════════════════════════════════
+
 def compute_score_criteria(d):
+    """Compute 20-point technical score. Returns (criteria_dict, total_score)."""
     last = d.iloc[-1]
     c = float(last['Close'])
     criteria = {}
     score = 0
+
+    # ── Build checks list ──
     checks = [
         ('1. السعر > متوسط 7', pd.notna(last['EMA7']) and c > float(last['EMA7'])),
         ('2. السعر > متوسط 20', pd.notna(last['EMA20']) and c > float(last['EMA20'])),
         ('3. السعر > متوسط 50', pd.notna(last['EMA50']) and c > float(last['EMA50'])),
         ('4. السعر > متوسط 200', pd.notna(last['EMA200']) and c > float(last['EMA200'])),
     ]
+
     ema7 = float(last['EMA7']) if pd.notna(last['EMA7']) else 0
     ema20 = float(last['EMA20']) if pd.notna(last['EMA20']) else 0
     ema50 = float(last['EMA50']) if pd.notna(last['EMA50']) else 0
     ema200 = float(last['EMA200']) if pd.notna(last['EMA200']) else 0
+
     checks += [
         ('5. متوسط 50 > متوسط 200', pd.notna(last['EMA50']) and pd.notna(last['EMA200']) and float(last['EMA50']) > float(last['EMA200'])),
         ('6. ترتيب المتوسطات إيجابي', ema7 > ema20 > ema50 > ema200),
         ('7. خط الماكد > خط الإشارة', pd.notna(last['MACD']) and pd.notna(last['MACD_Sig']) and float(last['MACD']) > float(last['MACD_Sig'])),
         ('8. الماكد هستوجرام > 0', pd.notna(last['MACD_H']) and float(last['MACD_H']) > 0),
         ('9. مؤشر القوة النسبية > 50', pd.notna(last['RSI']) and float(last['RSI']) > 50),
-        #('10. ROC 12 إيجابي - زخم صاعد', pd.notna(last['ROC12']) and float(last['ROC12']) > 0),
         ('10. مؤشر معدل التغير > 0', pd.notna(last['ROC12']) and float(last['ROC12']) > 0),
         ('11. مؤشر ADX > 25', pd.notna(last['ADX']) and float(last['ADX']) > 25),
         ('12. مؤشر +DI > مؤشر -DI', pd.notna(last['PDI']) and pd.notna(last['MDI']) and float(last['PDI']) > float(last['MDI'])),
     ]
+
+    # ── OBV rising (check last 5 bars) ──
     if len(d) >= 5:
         obv_curr = float(last['OBV']) if pd.notna(last['OBV']) else 0
         obv_prev = float(d.iloc[-5]['OBV']) if pd.notna(d.iloc[-5]['OBV']) else 0
         checks.append(('13. مؤشر OBV صاعد', obv_curr > obv_prev))
     else:
         checks.append(('13. مؤشر OBV صاعد', False))
+
     checks += [
         ('14. سيولة شرائية مسيطرة', pd.notna(last['Bull_Volume']) and pd.notna(last['Bear_Volume']) and float(last['Bull_Volume']) > float(last['Bear_Volume'])),
     ]
+
+    # ── Ichimoku cloud check ──
     sa = float(last['Senkou_A']) if pd.notna(last['Senkou_A']) else 0
     sb = float(last['Senkou_B']) if pd.notna(last['Senkou_B']) else 0
     kumo_top = max(sa, sb)
+
     checks += [
         ('15. السعر > سحابة الإيشيموكو', c > kumo_top and kumo_top > 0),
         ('16. خط التنكن > خط الكيجن', pd.notna(last['Tenkan']) and pd.notna(last['Kijun']) and float(last['Tenkan']) > float(last['Kijun'])),
         ('17. مؤشر SAR إيجابي', pd.notna(last['SAR']) and c > float(last['SAR'])),
     ]
+
+    # ── Alligator check ──
     jaw = float(last['Alligator_Jaw']) if pd.notna(last['Alligator_Jaw']) else 0
     teeth = float(last['Alligator_Teeth']) if pd.notna(last['Alligator_Teeth']) else 0
     lips = float(last['Alligator_Lips']) if pd.notna(last['Alligator_Lips']) else 0
+
     checks += [
         ('18. السعر > مؤشر التمساح', c > max(jaw, teeth, lips) and max(jaw, teeth, lips) > 0),
         ('19. السعر > خط منتصف البولينجر', pd.notna(last['BB_M']) and c > float(last['BB_M'])),
     ]
+
+    # ── Price above previous week high ──
     if len(d) >= 5:
         week_high = d['High'].iloc[-6:-1].max()
         checks.append(('20. السعر > قمة الأسبوع السابق', c > float(week_high)))
     else:
         checks.append(('20. السعر > قمة الأسبوع السابق', False))
+
+    # ── Score each criterion ──
     for lbl, cond in checks:
         if cond:
             criteria[lbl] = ('✓', 1); score += 1
         else:
             criteria[lbl] = ('✗', 0)
+
     return criteria, score
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 6f: SIGNAL GENERATION (gen_signals)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Generate buy/sell/neutral signals from technical indicators.
+#           Used in PDF report "Signals" table.
+#
+# SIGNALS GENERATED:
+#   • Price vs SMA/EMA (20, 50, 200)
+#   • Golden/Death cross (SMA 50/200, EMA 50/200)
+#   • RSI zones (overbought/oversold/neutral)
+#   • MACD direction
+#   • ROC 12 momentum
+#   • ADX trend strength & direction
+#   • Volume analysis
+#
+# TO MODIFY:
+#   • Add signal → add new if/elif block
+#   • Change thresholds → modify RSI 70/30, ADX 25, etc.
+# ═══════════════════════════════════════════════════════════════════════════════
+
 def gen_signals(d):
+    """Generate technical signals. Returns (signals_dict, signal_score)."""
     sig = {}
     last = d.iloc[-1]
     c = float(last['Close'])
+
+    # ── Price vs SMA ──
     for col, lbl in [('SMA20','السعر مقابل SMA 20'),('SMA50','السعر مقابل SMA 50'),('SMA200','السعر مقابل SMA 200')]:
         v = float(last[col]) if pd.notna(last[col]) else None
         if v is not None:
             sig[lbl] = ('صاعد ▲', 1) if c > v else ('هابط ▼', -1)
+
+    # ── Price vs EMA ──
     for col, lbl in [('EMA20','السعر مقابل EMA 20'),('EMA50','السعر مقابل EMA 50'),('EMA200','السعر مقابل EMA 200')]:
         v = float(last[col]) if pd.notna(last[col]) else None
         if v is not None:
             sig[lbl] = ('صاعد ▲', 1) if c > v else ('هابط ▼', -1)
+
+    # ── Golden/Death Cross (SMA) ──
     sma50 = float(last['SMA50']) if pd.notna(last['SMA50']) else None
     sma200 = float(last['SMA200']) if pd.notna(last['SMA200']) else None
     if sma50 and sma200:
         sig['تقاطع SMA 50 / 200'] = ('تقاطع ذهبي ▲', 1) if sma50 > sma200 else ('تقاطع سلبي ▼', -1)
+
+    # ── Golden/Death Cross (EMA) ──
     ema50 = float(last['EMA50']) if pd.notna(last['EMA50']) else None
     ema200 = float(last['EMA200']) if pd.notna(last['EMA200']) else None
     if ema50 and ema200:
         sig['تقاطع EMA 50 / 200'] = ('تقاطع ذهبي ▲', 1) if ema50 > ema200 else ('تقاطع سلبي ▼', -1)
+
+    # ── RSI zones ──
     rsi = float(last['RSI']) if pd.notna(last['RSI']) else None
     if rsi is not None:
         if rsi > 70:   sig['RSI (14)'] = (f'تشبع شراء ({rsi:.1f})', -1)
         elif rsi < 30: sig['RSI (14)'] = (f'تشبع بيع ({rsi:.1f})', 1)
         else:          sig['RSI (14)'] = (f'محايد ({rsi:.1f})', 0)
+
+    # ── MACD ──
     mh = float(last['MACD_H']) if pd.notna(last['MACD_H']) else None
     if mh is not None:
         sig['MACD'] = ('صاعد ▲', 1) if mh > 0 else ('هابط ▼', -1)
+
+    # ── ROC 12 ──
     roc12 = float(last['ROC12']) if pd.notna(last['ROC12']) else None
     if roc12 is not None:
         if roc12 > 5:     sig['ROC 12'] = (f'زخم صاعد قوي ({roc12:.2f}%)', 1)
         elif roc12 > 0:   sig['ROC 12'] = (f'زخم صاعد ({roc12:.2f}%)', 1)
         elif roc12 > -5:  sig['ROC 12'] = (f'زخم هابط ({roc12:.2f}%)', -1)
         else:             sig['ROC 12'] = (f'زخم هابط قوي ({roc12:.2f}%)', -1)
+
+    # ── ADX direction & strength ──
     adx = float(last['ADX']) if pd.notna(last['ADX']) else None
     pdi = float(last['PDI']) if pd.notna(last['PDI']) else None
     mdi_v = float(last['MDI']) if pd.notna(last['MDI']) else None
@@ -1838,17 +1942,40 @@ def gen_signals(d):
         trend = 'قوي' if adx > 25 else 'ضعيف'
         if pdi > mdi_v: sig['اتجاه ADX'] = (f'اتجاه صاعد {trend} ({adx:.0f})', 1 if adx > 25 else 0)
         else:           sig['اتجاه ADX'] = (f'اتجاه هابط {trend} ({adx:.0f})', -1 if adx > 25 else 0)
+
+    # ── Volume analysis ──
     vavg = d['Volume'].rolling(20, min_periods=1).mean().iloc[-1]
     vnow = float(last['Volume'])
     if pd.notna(vavg) and vavg > 0:
         vr = vnow / vavg
         vtxt = f'حجم مرتفع ({vr:.1f}x)' if vr > 1.5 else (f'حجم منخفض ({vr:.1f}x)' if vr < 0.5 else f'حجم طبيعي ({vr:.1f}x)')
         sig['الحجم'] = (vtxt, 0)
+
     signal_score = sum(val[1] for val in sig.values())
     return sig, signal_score
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 6g: RECOMMENDATION & DECISION HELPERS
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Convert numeric score → text recommendation + color.
+#
+# SCORE RANGES:
+#   16–20 → إيجابي + (Strong Positive) — GREEN
+#   12–15 → إيجابي   (Positive)        — Light Green
+#    9–11 → حياد      (Neutral)         — ORANGE
+#    5–8  → سلبي      (Negative)        — Light Red
+#    0–4  → سلبي +    (Strong Negative) — RED
+#
+# TO MODIFY:
+#   • Change thresholds → modify the if/elif boundaries
+#   • Change labels     → modify Arabic text
+#   • Change colors     → modify HEX values
+# ═══════════════════════════════════════════════════════════════════════════════
+
 def recommendation(score):
+    """Convert score (0-20) to (recommendation_text, color_hex)."""
     if score >= 16: return 'إيجابي +', GREEN_HEX
     elif score >= 12: return 'إيجابي', '#66BB6A'
     elif score <= 4: return 'سلبي +', RED_HEX
@@ -1857,54 +1984,42 @@ def recommendation(score):
 
 
 def decision_text(v):
+    """Convert signal direction (-1/0/1) to Arabic text."""
     return 'إيجابي' if v > 0 else 'سلبي' if v < 0 else 'حياد'
 
-# ################الشموع############################
-# def detect_candle_patterns(df):
-#     patterns = []
-#     if len(df) < 3: return patterns
-#     o = df['Open'].values.astype(float); h = df['High'].values.astype(float)
-#     l = df['Low'].values.astype(float);  c = df['Close'].values.astype(float)
-#     dates = df.index
-#     def body(i): return abs(c[i]-o[i])
-#     def candle(i): return h[i]-l[i]
-#     def upper_shadow(i): return h[i]-max(c[i],o[i])
-#     def lower_shadow(i): return min(c[i],o[i])-l[i]
-#     for i in range(2, len(df)):
-#         avg_body = np.mean([body(j) for j in range(max(0,i-5),i)]) or 1e-9
-#         date_lbl = dates[i].strftime('%Y-%m-%d')
-#         if body(i) < 0.05*candle(i) and candle(i) > 0:
-#             patterns.append((date_lbl,'دوجي','Doji',None)); continue
-#         if lower_shadow(i) > 2*body(i) and upper_shadow(i) < 0.3*body(i) and body(i) > 0:
-#             if c[i-1] < o[i-1]: patterns.append((date_lbl,'المطرقة','Hammer',True))
-#             else:                patterns.append((date_lbl,'المشنقة','Hanging Man',False))
-#             continue
-#         if upper_shadow(i) > 2*body(i) and lower_shadow(i) < 0.3*body(i) and body(i) > 0:
-#             if c[i-1] > o[i-1]: patterns.append((date_lbl,'النجمة الساقطة','Shooting Star',False))
-#             else:                patterns.append((date_lbl,'المطرقة المقلوبة','Inverted Hammer',True))
-#             continue
-#         if c[i-1]<o[i-1] and c[i]>o[i] and o[i]<c[i-1] and c[i]>o[i-1]:
-#             patterns.append((date_lbl,'الابتلاع الصعودي','Bullish Engulfing',True)); continue
-#         if c[i-1]>o[i-1] and c[i]<o[i] and o[i]>c[i-1] and c[i]<o[i-1]:
-#             patterns.append((date_lbl,'الابتلاع الهبوطي','Bearish Engulfing',False)); continue
-#         if i >= 2:
-#             if c[i-2]<o[i-2] and body(i-1)<0.3*body(i-2) and c[i]>o[i] and c[i]>(o[i-2]+c[i-2])/2:
-#                 patterns.append((date_lbl,'نجمة الصباح','Morning Star',True)); continue
-#             if c[i-2]>o[i-2] and body(i-1)<0.3*body(i-2) and c[i]<o[i] and c[i]<(o[i-2]+c[i-2])/2:
-#                 patterns.append((date_lbl,'نجمة المساء','Evening Star',False)); continue
-#             if all(c[j]>o[j] for j in [i-2,i-1,i]) and c[i-1]>c[i-2] and c[i]>c[i-1] and all(body(j)>avg_body*0.8 for j in [i-2,i-1,i]):
-#                 patterns.append((date_lbl,'ثلاثة جنود بيض','Three White Soldiers',True)); continue
-#             if all(c[j]<o[j] for j in [i-2,i-1,i]) and c[i-1]<c[i-2] and c[i]<c[i-1] and all(body(j)>avg_body*0.8 for j in [i-2,i-1,i]):
-#                 patterns.append((date_lbl,'ثلاثة غربان سوداء','Three Black Crows',False)); continue
-#     seen = set(); unique = []
-#     for p in reversed(patterns):
-#         if p[2] not in seen:
-#             seen.add(p[2]); unique.append(p)
-#         if len(unique) == 5: break
-#     return list(reversed(unique))
-#YASIR
-# ################الشموع محدثة############################
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 6h: CANDLESTICK PATTERN DETECTION (detect_candle_patterns)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Detect Japanese candlestick patterns in price data.
+#           Returns up to 8 most recent unique patterns.
+#
+# PATTERNS DETECTED (30+):
+#   Single Candle:
+#     Doji (Standard, Dragonfly, Gravestone, Long-Legged)
+#     Hammer, Hanging Man, Inverted Hammer, Shooting Star
+#     Marubozu (Bullish/Bearish), Spinning Top
+#
+#   Two Candles:
+#     Bullish/Bearish Engulfing, Bullish/Bearish Harami
+#     Tweezer Top/Bottom, Piercing Line, Dark Cloud Cover, On-Neck
+#
+#   Three+ Candles:
+#     Morning/Evening Star, Morning/Evening Doji Star
+#     Three White Soldiers, Three Black Crows
+#     Three Inside Up/Down, Three Outside Up/Down
+#     Abandoned Baby (Bull/Bear)
+#     Rising/Falling Three Methods (5 candles)
+#
+# TO MODIFY:
+#   • Add new pattern → add detection logic in the for loop
+#   • Change max patterns → modify `if len(unique) == 8`
+#   • Change lookback → modify `if len(df) < 4` check
+# ═══════════════════════════════════════════════════════════════════════════════
+
 def detect_candle_patterns(df):
+    """Detect candlestick patterns. Returns list of (date, ar_name, en_name, bullish)."""
     patterns = []
     if len(df) < 4:
         return patterns
@@ -1915,38 +2030,18 @@ def detect_candle_patterns(df):
     c = df['Close'].values.astype(float)
     dates = df.index
 
-    def body(i):
-        return abs(c[i] - o[i])
-
-    def candle(i):
-        return h[i] - l[i]
-
-    def upper_shadow(i):
-        return h[i] - max(c[i], o[i])
-
-    def lower_shadow(i):
-        return min(c[i], o[i]) - l[i]
-
-    def is_bull(i):
-        return c[i] > o[i]
-
-    def is_bear(i):
-        return c[i] < o[i]
-
-    def mid_body(i):
-        return (o[i] + c[i]) / 2.0
-
-    def body_top(i):
-        return max(o[i], c[i])
-
-    def body_bot(i):
-        return min(o[i], c[i])
-
-    def is_small_body(i, avg):
-        return body(i) < avg * 0.3
-
-    def is_large_body(i, avg):
-        return body(i) > avg * 0.8
+    # ── Helper functions ──
+    def body(i): return abs(c[i] - o[i])
+    def candle(i): return h[i] - l[i]
+    def upper_shadow(i): return h[i] - max(c[i], o[i])
+    def lower_shadow(i): return min(c[i], o[i]) - l[i]
+    def is_bull(i): return c[i] > o[i]
+    def is_bear(i): return c[i] < o[i]
+    def mid_body(i): return (o[i] + c[i]) / 2.0
+    def body_top(i): return max(o[i], c[i])
+    def body_bot(i): return min(o[i], c[i])
+    def is_small_body(i, avg): return body(i) < avg * 0.3
+    def is_large_body(i, avg): return body(i) > avg * 0.8
 
     def in_downtrend(i, lookback=5):
         start = max(0, i - lookback)
@@ -1956,471 +2051,204 @@ def detect_candle_patterns(df):
         start = max(0, i - lookback)
         return c[i] > c[start] and sum(1 for j in range(start, i) if c[j] > o[j]) >= lookback * 0.6
 
+    # ── Pattern detection loop ──
     for i in range(2, len(df)):
         avg_body = np.mean([body(j) for j in range(max(0, i - 10), i)]) or 1e-9
         date_lbl = dates[i].strftime('%Y-%m-%d')
         cr = candle(i)
 
-        # SINGLE CANDLE -------------------------------------------------
+        # ── SINGLE CANDLE PATTERNS ──
+
+        # Doji variants
         if body(i) < 0.05 * cr and cr > 0:
             if lower_shadow(i) > 2 * body(i) and upper_shadow(i) < cr * 0.1:
-                patterns.append((date_lbl, 'دوجي اليعسوب', 'Dragonfly Doji', True))
-                continue
+                patterns.append((date_lbl, 'دوجي اليعسوب', 'Dragonfly Doji', True)); continue
             if upper_shadow(i) > 2 * body(i) and lower_shadow(i) < cr * 0.1:
-                patterns.append((date_lbl, 'دوجي شاهد القبر', 'Gravestone Doji', False))
-                continue
+                patterns.append((date_lbl, 'دوجي شاهد القبر', 'Gravestone Doji', False)); continue
             if upper_shadow(i) > cr * 0.3 and lower_shadow(i) > cr * 0.3:
-                patterns.append((date_lbl, 'دوجي طويل الأرجل', 'Long-Legged Doji', None))
-                continue
-            patterns.append((date_lbl, 'دوجي', 'Doji', None))
-            continue
+                patterns.append((date_lbl, 'دوجي طويل الأرجل', 'Long-Legged Doji', None)); continue
+            patterns.append((date_lbl, 'دوجي', 'Doji', None)); continue
 
-        if (lower_shadow(i) > 2 * body(i) and
-                upper_shadow(i) < 0.3 * body(i) and body(i) > 0):
+        # Hammer / Hanging Man
+        if (lower_shadow(i) > 2 * body(i) and upper_shadow(i) < 0.3 * body(i) and body(i) > 0):
             if in_downtrend(i):
                 patterns.append((date_lbl, 'المطرقة', 'Hammer', True))
             else:
                 patterns.append((date_lbl, 'المشنقة', 'Hanging Man', False))
             continue
 
-        if (upper_shadow(i) > 2 * body(i) and
-                lower_shadow(i) < 0.3 * body(i) and body(i) > 0):
+        # Shooting Star / Inverted Hammer
+        if (upper_shadow(i) > 2 * body(i) and lower_shadow(i) < 0.3 * body(i) and body(i) > 0):
             if in_downtrend(i):
                 patterns.append((date_lbl, 'المطرقة المقلوبة', 'Inverted Hammer', True))
             else:
                 patterns.append((date_lbl, 'النجمة الساقطة', 'Shooting Star', False))
             continue
 
-        if (upper_shadow(i) < body(i) * 0.05 and
-                lower_shadow(i) < body(i) * 0.05 and
-                is_large_body(i, avg_body)):
+        # Marubozu (no shadows)
+        if (upper_shadow(i) < body(i) * 0.05 and lower_shadow(i) < body(i) * 0.05 and is_large_body(i, avg_body)):
             if is_bull(i):
                 patterns.append((date_lbl, 'ماروبوزو صاعد', 'Bullish Marubozu', True))
             else:
                 patterns.append((date_lbl, 'ماروبوزو هابط', 'Bearish Marubozu', False))
             continue
 
-        if (is_small_body(i, avg_body) and
-                upper_shadow(i) > body(i) and
-                lower_shadow(i) > body(i) and
-                cr > avg_body * 0.5):
-            patterns.append((date_lbl, 'القمة الدوارة', 'Spinning Top', None))
-            continue
+        # Spinning Top
+        if (is_small_body(i, avg_body) and upper_shadow(i) > body(i) and lower_shadow(i) > body(i) and cr > avg_body * 0.5):
+            patterns.append((date_lbl, 'القمة الدوارة', 'Spinning Top', None)); continue
 
-        # TWO CANDLES ---------------------------------------------------
-        if (is_bear(i - 1) and is_bull(i) and
-                o[i] <= c[i - 1] and c[i] >= o[i - 1] and
-                body(i) > body(i - 1)):
-            patterns.append((date_lbl, 'الابتلاع الصعودي', 'Bullish Engulfing', True))
-            continue
+        # ── TWO CANDLE PATTERNS ──
 
-        if (is_bull(i - 1) and is_bear(i) and
-                o[i] >= c[i - 1] and c[i] <= o[i - 1] and
-                body(i) > body(i - 1)):
-            patterns.append((date_lbl, 'الابتلاع الهبوطي', 'Bearish Engulfing', False))
-            continue
+        # Bullish Engulfing
+        if (is_bear(i - 1) and is_bull(i) and o[i] <= c[i - 1] and c[i] >= o[i - 1] and body(i) > body(i - 1)):
+            patterns.append((date_lbl, 'الابتلاع الصعودي', 'Bullish Engulfing', True)); continue
 
-        if (is_bear(i - 1) and is_bull(i) and
-                is_large_body(i - 1, avg_body) and
-                body_top(i) < body_top(i - 1) and
-                body_bot(i) > body_bot(i - 1)):
-            patterns.append((date_lbl, 'الحرامي الصعودي', 'Bullish Harami', True))
-            continue
+        # Bearish Engulfing
+        if (is_bull(i - 1) and is_bear(i) and o[i] >= c[i - 1] and c[i] <= o[i - 1] and body(i) > body(i - 1)):
+            patterns.append((date_lbl, 'الابتلاع الهبوطي', 'Bearish Engulfing', False)); continue
 
-        if (is_bull(i - 1) and is_bear(i) and
-                is_large_body(i - 1, avg_body) and
-                body_top(i) < body_top(i - 1) and
-                body_bot(i) > body_bot(i - 1)):
-            patterns.append((date_lbl, 'الحرامي الهبوطي', 'Bearish Harami', False))
-            continue
+        # Bullish Harami
+        if (is_bear(i - 1) and is_bull(i) and is_large_body(i - 1, avg_body) and body_top(i) < body_top(i - 1) and body_bot(i) > body_bot(i - 1)):
+            patterns.append((date_lbl, 'الحرامي الصعودي', 'Bullish Harami', True)); continue
 
-        if (is_bear(i - 1) and is_bull(i) and
-                abs(l[i] - l[i - 1]) < avg_body * 0.1 and
-                in_downtrend(i)):
-            patterns.append((date_lbl, 'قاع الملقط', 'Tweezer Bottom', True))
-            continue
+        # Bearish Harami
+        if (is_bull(i - 1) and is_bear(i) and is_large_body(i - 1, avg_body) and body_top(i) < body_top(i - 1) and body_bot(i) > body_bot(i - 1)):
+            patterns.append((date_lbl, 'الحرامي الهبوطي', 'Bearish Harami', False)); continue
 
-        if (is_bull(i - 1) and is_bear(i) and
-                abs(h[i] - h[i - 1]) < avg_body * 0.1 and
-                in_uptrend(i)):
-            patterns.append((date_lbl, 'قمة الملقط', 'Tweezer Top', False))
-            continue
+        # Tweezer Bottom
+        if (is_bear(i - 1) and is_bull(i) and abs(l[i] - l[i - 1]) < avg_body * 0.1 and in_downtrend(i)):
+            patterns.append((date_lbl, 'قاع الملقط', 'Tweezer Bottom', True)); continue
 
-        if (is_bear(i - 1) and is_bull(i) and
-                o[i] < l[i - 1] and
-                c[i] > mid_body(i - 1) and c[i] < o[i - 1]):
-            patterns.append((date_lbl, 'خط الاختراق', 'Piercing Line', True))
-            continue
+        # Tweezer Top
+        if (is_bull(i - 1) and is_bear(i) and abs(h[i] - h[i - 1]) < avg_body * 0.1 and in_uptrend(i)):
+            patterns.append((date_lbl, 'قمة الملقط', 'Tweezer Top', False)); continue
 
-        if (is_bull(i - 1) and is_bear(i) and
-                o[i] > h[i - 1] and
-                c[i] < mid_body(i - 1) and c[i] > o[i - 1]):
-            patterns.append((date_lbl, 'الغطاء السحابي', 'Dark Cloud Cover', False))
-            continue
+        # Piercing Line
+        if (is_bear(i - 1) and is_bull(i) and o[i] < l[i - 1] and c[i] > mid_body(i - 1) and c[i] < o[i - 1]):
+            patterns.append((date_lbl, 'خط الاختراق', 'Piercing Line', True)); continue
 
-        if (is_bear(i - 1) and is_bull(i) and
-                is_large_body(i - 1, avg_body) and
-                o[i] < c[i - 1] and
-                abs(c[i] - c[i - 1]) < avg_body * 0.1):
-            patterns.append((date_lbl, 'على العنق', 'On-Neck', False))
-            continue
+        # Dark Cloud Cover
+        if (is_bull(i - 1) and is_bear(i) and o[i] > h[i - 1] and c[i] < mid_body(i - 1) and c[i] > o[i - 1]):
+            patterns.append((date_lbl, 'الغطاء السحابي', 'Dark Cloud Cover', False)); continue
 
-        # THREE+ CANDLES -----------------------------------------------
+        # On-Neck
+        if (is_bear(i - 1) and is_bull(i) and is_large_body(i - 1, avg_body) and o[i] < c[i - 1] and abs(c[i] - c[i - 1]) < avg_body * 0.1):
+            patterns.append((date_lbl, 'على العنق', 'On-Neck', False)); continue
+
+        # ── THREE+ CANDLE PATTERNS ──
         if i >= 2:
-            if (is_bear(i - 2) and
-                    is_small_body(i - 1, avg_body) and
-                    is_bull(i) and
-                    c[i] > mid_body(i - 2) and
-                    body_top(i - 1) < body_bot(i - 2)):
-                patterns.append((date_lbl, 'نجمة الصباح', 'Morning Star', True))
-                continue
+            # Morning Star
+            if (is_bear(i - 2) and is_small_body(i - 1, avg_body) and is_bull(i) and c[i] > mid_body(i - 2) and body_top(i - 1) < body_bot(i - 2)):
+                patterns.append((date_lbl, 'نجمة الصباح', 'Morning Star', True)); continue
 
-            if (is_bull(i - 2) and
-                    is_small_body(i - 1, avg_body) and
-                    is_bear(i) and
-                    c[i] < mid_body(i - 2) and
-                    body_bot(i - 1) > body_top(i - 2)):
-                patterns.append((date_lbl, 'نجمة المساء', 'Evening Star', False))
-                continue
+            # Evening Star
+            if (is_bull(i - 2) and is_small_body(i - 1, avg_body) and is_bear(i) and c[i] < mid_body(i - 2) and body_bot(i - 1) > body_top(i - 2)):
+                patterns.append((date_lbl, 'نجمة المساء', 'Evening Star', False)); continue
 
-            if (is_bear(i - 2) and
-                    body(i - 1) < 0.05 * candle(i - 1) and candle(i - 1) > 0 and
-                    is_bull(i) and
-                    c[i] > mid_body(i - 2)):
-                patterns.append((date_lbl, 'نجمة الصباح دوجي', 'Morning Doji Star', True))
-                continue
+            # Morning Doji Star
+            if (is_bear(i - 2) and body(i - 1) < 0.05 * candle(i - 1) and candle(i - 1) > 0 and is_bull(i) and c[i] > mid_body(i - 2)):
+                patterns.append((date_lbl, 'نجمة الصباح دوجي', 'Morning Doji Star', True)); continue
 
-            if (is_bull(i - 2) and
-                    body(i - 1) < 0.05 * candle(i - 1) and candle(i - 1) > 0 and
-                    is_bear(i) and
-                    c[i] < mid_body(i - 2)):
-                patterns.append((date_lbl, 'نجمة المساء دوجي', 'Evening Doji Star', False))
-                continue
+            # Evening Doji Star
+            if (is_bull(i - 2) and body(i - 1) < 0.05 * candle(i - 1) and candle(i - 1) > 0 and is_bear(i) and c[i] < mid_body(i - 2)):
+                patterns.append((date_lbl, 'نجمة المساء دوجي', 'Evening Doji Star', False)); continue
 
-            if (all(c[j] > o[j] for j in [i - 2, i - 1, i]) and
-                    c[i - 1] > c[i - 2] and c[i] > c[i - 1] and
-                    all(is_large_body(j, avg_body) for j in [i - 2, i - 1, i]) and
-                    o[i - 1] > o[i - 2] and o[i] > o[i - 1]):
-                patterns.append((date_lbl, 'ثلاثة جنود بيض', 'Three White Soldiers', True))
-                continue
+            # Three White Soldiers
+            if (all(c[j] > o[j] for j in [i - 2, i - 1, i]) and c[i - 1] > c[i - 2] and c[i] > c[i - 1] and all(is_large_body(j, avg_body) for j in [i - 2, i - 1, i]) and o[i - 1] > o[i - 2] and o[i] > o[i - 1]):
+                patterns.append((date_lbl, 'ثلاثة جنود بيض', 'Three White Soldiers', True)); continue
 
-            if (all(c[j] < o[j] for j in [i - 2, i - 1, i]) and
-                    c[i - 1] < c[i - 2] and c[i] < c[i - 1] and
-                    all(is_large_body(j, avg_body) for j in [i - 2, i - 1, i]) and
-                    o[i - 1] < o[i - 2] and o[i] < o[i - 1]):
-                patterns.append((date_lbl, 'ثلاثة غربان سوداء', 'Three Black Crows', False))
-                continue
+            # Three Black Crows
+            if (all(c[j] < o[j] for j in [i - 2, i - 1, i]) and c[i - 1] < c[i - 2] and c[i] < c[i - 1] and all(is_large_body(j, avg_body) for j in [i - 2, i - 1, i]) and o[i - 1] < o[i - 2] and o[i] < o[i - 1]):
+                patterns.append((date_lbl, 'ثلاثة غربان سوداء', 'Three Black Crows', False)); continue
 
-            if (is_bear(i - 2) and is_bull(i - 1) and is_bull(i) and
-                    body_top(i - 1) < body_top(i - 2) and
-                    body_bot(i - 1) > body_bot(i - 2) and
-                    c[i] > body_top(i - 2)):
-                patterns.append((date_lbl, 'ثلاثة من الداخل صاعد', 'Three Inside Up', True))
-                continue
+            # Three Inside Up
+            if (is_bear(i - 2) and is_bull(i - 1) and is_bull(i) and body_top(i - 1) < body_top(i - 2) and body_bot(i - 1) > body_bot(i - 2) and c[i] > body_top(i - 2)):
+                patterns.append((date_lbl, 'ثلاثة من الداخل صاعد', 'Three Inside Up', True)); continue
 
-            if (is_bull(i - 2) and is_bear(i - 1) and is_bear(i) and
-                    body_top(i - 1) < body_top(i - 2) and
-                    body_bot(i - 1) > body_bot(i - 2) and
-                    c[i] < body_bot(i - 2)):
-                patterns.append((date_lbl, 'ثلاثة من الداخل هابط', 'Three Inside Down', False))
-                continue
+            # Three Inside Down
+            if (is_bull(i - 2) and is_bear(i - 1) and is_bear(i) and body_top(i - 1) < body_top(i - 2) and body_bot(i - 1) > body_bot(i - 2) and c[i] < body_bot(i - 2)):
+                patterns.append((date_lbl, 'ثلاثة من الداخل هابط', 'Three Inside Down', False)); continue
 
-            if (is_bear(i - 2) and is_bull(i - 1) and is_bull(i) and
-                    body(i - 1) > body(i - 2) and
-                    o[i - 1] <= c[i - 2] and c[i - 1] >= o[i - 2] and
-                    c[i] > c[i - 1]):
-                patterns.append((date_lbl, 'ثلاثة من الخارج صاعد', 'Three Outside Up', True))
-                continue
+            # Three Outside Up
+            if (is_bear(i - 2) and is_bull(i - 1) and is_bull(i) and body(i - 1) > body(i - 2) and o[i - 1] <= c[i - 2] and c[i - 1] >= o[i - 2] and c[i] > c[i - 1]):
+                patterns.append((date_lbl, 'ثلاثة من الخارج صاعد', 'Three Outside Up', True)); continue
 
-            if (is_bull(i - 2) and is_bear(i - 1) and is_bear(i) and
-                    body(i - 1) > body(i - 2) and
-                    o[i - 1] >= c[i - 2] and c[i - 1] <= o[i - 2] and
-                    c[i] < c[i - 1]):
-                patterns.append((date_lbl, 'ثلاثة من الخارج هابط', 'Three Outside Down', False))
-                continue
+            # Three Outside Down
+            if (is_bull(i - 2) and is_bear(i - 1) and is_bear(i) and body(i - 1) > body(i - 2) and o[i - 1] >= c[i - 2] and c[i - 1] <= o[i - 2] and c[i] < c[i - 1]):
+                patterns.append((date_lbl, 'ثلاثة من الخارج هابط', 'Three Outside Down', False)); continue
 
-            if (is_bear(i - 2) and
-                    body(i - 1) < 0.05 * candle(i - 1) and candle(i - 1) > 0 and
-                    is_bull(i) and
-                    h[i - 1] < l[i - 2] and h[i - 1] < l[i]):
-                patterns.append((date_lbl, 'الطفل المتروك صاعد', 'Abandoned Baby Bull', True))
-                continue
+            # Abandoned Baby Bullish
+            if (is_bear(i - 2) and body(i - 1) < 0.05 * candle(i - 1) and candle(i - 1) > 0 and is_bull(i) and h[i - 1] < l[i - 2] and h[i - 1] < l[i]):
+                patterns.append((date_lbl, 'الطفل المتروك صاعد', 'Abandoned Baby Bull', True)); continue
 
-            if (is_bull(i - 2) and
-                    body(i - 1) < 0.05 * candle(i - 1) and candle(i - 1) > 0 and
-                    is_bear(i) and
-                    l[i - 1] > h[i - 2] and l[i - 1] > h[i]):
-                patterns.append((date_lbl, 'الطفل المتروك هابط', 'Abandoned Baby Bear', False))
-                continue
+            # Abandoned Baby Bearish
+            if (is_bull(i - 2) and body(i - 1) < 0.05 * candle(i - 1) and candle(i - 1) > 0 and is_bear(i) and l[i - 1] > h[i - 2] and l[i - 1] > h[i]):
+                patterns.append((date_lbl, 'الطفل المتروك هابط', 'Abandoned Baby Bear', False)); continue
 
+            # ── FIVE CANDLE PATTERNS ──
             if i >= 4:
-                if (is_bull(i - 4) and is_large_body(i - 4, avg_body) and
-                        all(c[j] < o[j] and body(j) < body(i - 4) for j in [i - 3, i - 2, i - 1]) and
-                        all(l[j] > l[i - 4] for j in [i - 3, i - 2, i - 1]) and
-                        is_bull(i) and c[i] > c[i - 4] and is_large_body(i, avg_body)):
-                    patterns.append((date_lbl, 'ثلاث طرق صاعدة', 'Rising Three Methods', True))
-                    continue
+                # Rising Three Methods
+                if (is_bull(i - 4) and is_large_body(i - 4, avg_body) and all(c[j] < o[j] and body(j) < body(i - 4) for j in [i - 3, i - 2, i - 1]) and all(l[j] > l[i - 4] for j in [i - 3, i - 2, i - 1]) and is_bull(i) and c[i] > c[i - 4] and is_large_body(i, avg_body)):
+                    patterns.append((date_lbl, 'ثلاث طرق صاعدة', 'Rising Three Methods', True)); continue
 
-                if (is_bear(i - 4) and is_large_body(i - 4, avg_body) and
-                        all(c[j] > o[j] and body(j) < body(i - 4) for j in [i - 3, i - 2, i - 1]) and
-                        all(h[j] < h[i - 4] for j in [i - 3, i - 2, i - 1]) and
-                        is_bear(i) and c[i] < c[i - 4] and is_large_body(i, avg_body)):
-                    patterns.append((date_lbl, 'ثلاث طرق هابطة', 'Falling Three Methods', False))
-                    continue
+                # Falling Three Methods
+                if (is_bear(i - 4) and is_large_body(i - 4, avg_body) and all(c[j] > o[j] and body(j) < body(i - 4) for j in [i - 3, i - 2, i - 1]) and all(h[j] < h[i - 4] for j in [i - 3, i - 2, i - 1]) and is_bear(i) and c[i] < c[i - 4] and is_large_body(i, avg_body)):
+                    patterns.append((date_lbl, 'ثلاث طرق هابطة', 'Falling Three Methods', False)); continue
 
-    seen = set()
-    unique = []
+    # ── Keep only last 8 unique patterns ──
+    seen = set(); unique = []
     for p in reversed(patterns):
         if p[2] not in seen:
-            seen.add(p[2])
-            unique.append(p)
-        if len(unique) == 8:
-            break
+            seen.add(p[2]); unique.append(p)
+        if len(unique) == 8: break
     return list(reversed(unique))
 
 
-# ---------------------------------------------------------------------
-# CHART WITH GUARANTEED NON‑CROSSING CONNECTORS (Final Corrected Version)
-# ---------------------------------------------------------------------
-# ---------------------------------------------------------------------
-# CHART WITH GUARANTEED NON‑CROSSING SMOOTH CONNECTORS
-# ---------------------------------------------------------------------
-def make_candle_pattern_chart(df, patterns):
-    """
-    Generates a candlestick chart with pattern annotations using
-    SMOOTH BÉZIER CURVES routed through side lanes — guaranteed
-    non-crossing, non-overlapping labels, and minimal candle overlap.
-    """
-    from matplotlib.path import Path
-    import matplotlib.patches as mpatches
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 6i: DIVERGENCE DETECTION (detect_divergences)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Detect bullish/bearish divergences between price and RSI/MACD.
+#
+# DIVERGENCE TYPES:
+#   Bullish: Price makes lower low, but indicator makes higher low
+#   Bearish: Price makes higher high, but indicator makes lower high
+#
+# TO MODIFY:
+#   • Add OBV divergence → duplicate RSI logic with OBV values
+#   • Change lookback    → modify df.tail(60)
+#   • Change sensitivity → modify n=5 in find_local_min/max
+# ═══════════════════════════════════════════════════════════════════════════════
 
-    # ── Data prep ────────────────────────────────────────────────────
-    df = df.tail(60).copy()
-    df_plot = df[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
-
-    mc = mpf.make_marketcolors(
-        up='#26a69a', down='#ef5350', edge='inherit',
-        wick='inherit', volume={'up': '#80cbc4', 'down': '#ef9a9a'}
-    )
-    st = mpf.make_mpf_style(
-        marketcolors=mc, gridstyle=':', gridcolor='#dddddd',
-        rc={'axes.facecolor': '#FAFAFA'}
-    )
-
-    fig, axlist = mpf.plot(
-        df_plot, type='candle', style=st, volume=False,
-        figsize=(16, 7), returnfig=True, warn_too_much_data=10_000
-    )
-    ax = axlist[0]
-    date_to_pos = {pd.Timestamp(d).date(): i for i, d in enumerate(df.index)}
-
-    # ── Resolve patterns to x/y positions ────────────────────────────
-    resolved = []
-    for date_lbl, ar_name, en_name, bullish in patterns:
-        pos = date_to_pos.get(pd.to_datetime(date_lbl).date())
-        if pos is None:
-            continue
-        row = df.iloc[pos]
-        # Bullish / neutral → connect at High  |  Bearish → connect at Low
-        conn_y = float(row['High']) if (bullish is True or bullish is None) \
-                 else float(row['Low'])
-        resolved.append(dict(
-            pos=float(pos),
-            high=float(row['High']),
-            low=float(row['Low']),
-            conn_y=conn_y,
-            name=ar_name,
-            bullish=bullish,
-        ))
-
-    if not resolved:
-        buf = BytesIO()
-        fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
-        plt.close(fig)
-        buf.seek(0)
-        return buf.read()
-
-    # ── Chart geometry ───────────────────────────────────────────────
-    ylo, yhi = ax.get_ylim()
-    xlo, xhi = ax.get_xlim()
-    xspan = xhi - xlo
-    yspan = yhi - ylo
-    xmid  = (xlo + xhi) / 2.0
-
-    # ── Split annotations into LEFT side / RIGHT side ────────────────
-    #    based on whether the candle sits in the left or right half
-    left_anns  = [a for a in resolved if a['pos'] <  xmid]
-    right_anns = [a for a in resolved if a['pos'] >= xmid]
-
-    # Balance: if one side is completely empty, donate one item
-    if not left_anns and len(right_anns) > 1:
-        right_anns.sort(key=lambda a: a['pos'])
-        left_anns.append(right_anns.pop(0))
-    elif not right_anns and len(left_anns) > 1:
-        left_anns.sort(key=lambda a: a['pos'], reverse=True)
-        right_anns.append(left_anns.pop(0))
-
-    # ══════════════════════════════════════════════════════════════════
-    # CRITICAL — sort each side by conn_y DESCENDING.
-    # The label slots are also allocated top-to-bottom.
-    # Because both sequences share the same vertical order,
-    # smooth outward-curving paths are GUARANTEED never to cross.
-    # ══════════════════════════════════════════════════════════════════
-    left_anns.sort(key=lambda  a: a['conn_y'], reverse=True)
-    right_anns.sort(key=lambda a: a['conn_y'], reverse=True)
-
-    # ── Label X-positions (columns in the margins) ───────────────────
-    L_LABEL_X = xlo - xspan * 0.22          # left  label column
-    R_LABEL_X = xhi + xspan * 0.22          # right label column
-
-    # ── Bézier routing lanes — just outside the candle area ──────────
-    #    Curves are "attracted" here so they bypass the candles.
-    L_LANE_X = xlo - xspan * 0.06
-    R_LANE_X = xhi + xspan * 0.06
-
-    # ── Vertical label slots (evenly spaced, never overlap) ──────────
-    v_pad = yspan * 0.05
-    y_top = yhi + v_pad                     # topmost label centre
-    y_bot = ylo - v_pad                     # bottommost label centre
-
-    def _vslots(n):
-        """Return *n* evenly-spaced Y values from y_top → y_bot."""
-        if n == 0:
-            return []
-        if n == 1:
-            return [(y_top + y_bot) / 2.0]
-        return np.linspace(y_top, y_bot, n).tolist()
-
-    l_ys = _vslots(len(left_anns))
-    r_ys = _vslots(len(right_anns))
-
-    # ── Drawing helper ───────────────────────────────────────────────
-    def _draw(ann, label_x, label_y, side):
-        """
-        Draw ONE connector + label.
-
-        Path (cubic Bézier with 4 vertices):
-            P0  = candle tip   (pos, conn_y)
-            P1  = routing lane (lane_x, conn_y)   ← same height as candle
-            P2  = routing lane (lane_x, label_y)   ← same height as label
-            P3  = label edge   (end_x,  label_y)
-
-        Because P1 and P2 share the lane's X-coordinate, the curve
-        swings outward to the margin, keeps clear of the candle zone,
-        and arrives at the label horizontally — exactly like the
-        reference image.
-        """
-        px    = ann['pos']
-        cy    = ann['conn_y']
-        name  = ann['name']
-        bull  = ann['bullish']
-
-        # Colour palette
-        color = ('#1B5E20' if bull is True
-                 else '#B71C1C' if bull is False
-                 else '#E65100')
-
-        # Side-dependent constants
-        if side == 'left':
-            ha     = 'right'
-            lane_x = L_LANE_X
-            end_x  = label_x + xspan * 0.02      # small gap before box
-        else:
-            ha     = 'left'
-            lane_x = R_LANE_X
-            end_x  = label_x - xspan * 0.02
-
-        # ── Cubic Bézier ──
-        verts = [
-            (px,     cy),          # P0 — candle tip
-            (lane_x, cy),          # P1 — pull toward lane at candle height
-            (lane_x, label_y),     # P2 — pull toward lane at label height
-            (end_x,  label_y),     # P3 — arrive at label horizontally
-        ]
-        codes = [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4]
-
-        patch = mpatches.PathPatch(
-            Path(verts, codes),
-            facecolor='none',
-            edgecolor=color,
-            linewidth=1.4,
-            clip_on=False,
-            zorder=5,
-            alpha=0.82,
-        )
-        ax.add_patch(patch)
-
-        # ── Small dot on the candle ──
-        ax.plot(
-            px, cy, 'o',
-            color=color,
-            markersize=5,
-            clip_on=False,
-            zorder=6,
-            markeredgecolor='white',
-            markeredgewidth=0.5,
-        )
-
-        # ── Label text box ──
-        ax.text(
-            label_x, label_y, name,
-            fontsize=9,
-            color=color,
-            ha=ha,
-            va='center',
-            bbox=dict(
-                boxstyle='round,pad=0.4',
-                facecolor='white',
-                edgecolor=color,
-                alpha=0.95,
-                linewidth=1.0,
-            ),
-            clip_on=False,
-            zorder=10,
-        )
-
-    # ── Render every connector ───────────────────────────────────────
-    for ann, y in zip(left_anns,  l_ys):
-        _draw(ann, L_LABEL_X, y, side='left')
-    for ann, y in zip(right_anns, r_ys):
-        _draw(ann, R_LABEL_X, y, side='right')
-
-    # ── Expand axis limits so labels + curves are fully visible ──────
-    ax.set_xlim(L_LABEL_X - xspan * 0.10, R_LABEL_X + xspan * 0.10)
-    ax.set_ylim(y_bot - yspan * 0.12,     y_top + yspan * 0.12)
-
-    fig.tight_layout(rect=[0.04, 0.04, 0.96, 0.96])
-
-    # ── Return PNG bytes ─────────────────────────────────────────────
-    buf = BytesIO()
-    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
-    plt.close(fig)
-    buf.seek(0)
-    return buf.read()
-
-
-
-###################################نهاية الشموع
 def detect_divergences(d):
+    """Detect RSI and MACD divergences. Returns list of (indicator, ar_type, en_type)."""
     divergences = []
     df = d.tail(60).copy()
     if len(df) < 20: return divergences
     c = df['Close'].values; rsi = df['RSI'].values; mcd = df['MACD'].values
+
     def find_local_min_idx(arr, n=5):
         return [i for i in range(n, len(arr)-n) if arr[i] == min(arr[i-n:i+n+1])]
+
     def find_local_max_idx(arr, n=5):
         return [i for i in range(n, len(arr)-n) if arr[i] == max(arr[i-n:i+n+1])]
+
+    # ── RSI Divergences ──
     if not (np.all(np.isnan(rsi)) or np.sum(~np.isnan(rsi)) < 15):
         price_lows = find_local_min_idx(c); rsi_lows = find_local_min_idx(rsi)
         price_highs = find_local_max_idx(c); rsi_highs = find_local_max_idx(rsi)
+        # Bullish divergence
         if len(price_lows)>=2 and len(rsi_lows)>=2:
             p1,p2 = price_lows[-2],price_lows[-1]; r1,r2 = rsi_lows[-2],rsi_lows[-1]
             if c[p2]<c[p1] and rsi[r2]>rsi[r1]:
                 divergences.append(('RSI','تباعد إيجابي (صعودي)','Bullish Divergence'))
+        # Bearish divergence
         if len(price_highs)>=2 and len(rsi_highs)>=2:
             p1,p2 = price_highs[-2],price_highs[-1]; r1,r2 = rsi_highs[-2],rsi_highs[-1]
             if c[p2]>c[p1] and rsi[r2]<rsi[r1]:
                 divergences.append(('RSI','تباعد سلبي (هبوطي)','Bearish Divergence'))
+
+    # ── MACD Divergences ──
     if not (np.all(np.isnan(mcd)) or np.sum(~np.isnan(mcd)) < 15):
         price_lows2 = find_local_min_idx(c); macd_lows = find_local_min_idx(mcd)
         price_highs2 = find_local_max_idx(c); macd_highs = find_local_max_idx(mcd)
@@ -2432,20 +2260,45 @@ def detect_divergences(d):
             p1,p2 = price_highs2[-2],price_highs2[-1]; m1,m2 = macd_highs[-2],macd_highs[-1]
             if c[p2]>c[p1] and mcd[m2]<mcd[m1]:
                 divergences.append(('MACD','تباعد سلبي (هبوطي)','Bearish Divergence'))
+
     return divergences
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 6j: SUPPORT & RESISTANCE DETECTION (find_sr)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Find support/resistance levels from price data using multiple methods:
+#   1. Local extrema at multiple orders (3,5,7,10)
+#   2. Zigzag pivots at multiple thresholds (3%,5%,7%,10%)
+#   3. High-volume price clusters
+#   4. EMA levels (20,50,100,200)
+#   5. Clustering similar prices to avoid duplicates
+#
+# RETURNS: (support_list_desc, resistance_list_asc) — up to n_levels each
+#
+# TO MODIFY:
+#   • More levels         → increase n_levels parameter
+#   • Change clustering   → modify 0.008 tolerance
+#   • Add Fibonacci       → add fib level calculation
+# ═══════════════════════════════════════════════════════════════════════════════
+
 def find_sr(df, d_ind=None, n_levels=8):
+    """Find support and resistance levels. Returns (supports_desc, resistances_asc)."""
     h_arr = df['High'].values.astype(float); l_arr = df['Low'].values.astype(float)
     c_arr = df['Close'].values.astype(float); v_arr = df['Volume'].values.astype(float)
     cur = float(c_arr[-1])
     raw_sup = []; raw_res = []
+
+    # ── Method 1: Local extrema at multiple orders ──
     for order in (3,5,7,10):
-        w = 1.0 + order*0.15
+        w = 1.0 + order*0.15  # Higher order = higher weight
         ph = argrelextrema(h_arr, np.greater_equal, order=order)[0]
         pl = argrelextrema(l_arr, np.less_equal, order=order)[0]
         for i in ph: raw_res.append((round(h_arr[i],4), w))
         for i in pl: raw_sup.append((round(l_arr[i],4), w))
+
+    # ── Method 2: Zigzag pivots ──
     for pct in (0.03,0.05,0.07,0.10):
         pivot_lo = c_arr[0]; pivot_hi = c_arr[0]; direction = None
         for i in range(1, len(c_arr)):
@@ -2459,12 +2312,16 @@ def find_sr(df, d_ind=None, n_levels=8):
             elif direction=='down':
                 if v < pivot_lo: pivot_lo=v
                 elif v > pivot_lo*(1+pct): raw_sup.append((round(pivot_lo,4),1.8)); direction='up'; pivot_hi=v; pivot_lo=v
+
+    # ── Method 3: High-volume price clusters ──
     vol_avg = np.mean(v_arr) if len(v_arr) > 0 else 1.0
     for i in range(len(v_arr)):
         if v_arr[i] > 1.5*vol_avg:
             price = round(c_arr[i],4); bar_mid = (h_arr[i]+l_arr[i])/2
             if price >= bar_mid: raw_res.append((price,1.0))
             else:                raw_sup.append((price,1.0))
+
+    # ── Method 4: EMA levels ──
     if d_ind is not None:
         for ema_col, ema_w in [('EMA20',2.0),('EMA50',2.5),('EMA100',2.5),('EMA200',3.0)]:
             if ema_col in d_ind.columns:
@@ -2473,6 +2330,8 @@ def find_sr(df, d_ind=None, n_levels=8):
                     ev = round(float(val),4)
                     if ev < cur: raw_sup.append((ev,ema_w))
                     elif ev > cur: raw_res.append((ev,ema_w))
+
+    # ── Cluster and score nearby prices ──
     def cluster_score(items):
         if not items: return []
         items_s = sorted(items, key=lambda x: x[0])
@@ -2484,6 +2343,7 @@ def find_sr(df, d_ind=None, n_levels=8):
             else:
                 groups.append(([price],[w]))
         return [(round(np.mean(gp),2), sum(gw)) for gp,gw in groups]
+
     sup_scored = cluster_score(raw_sup); res_scored = cluster_score(raw_res)
     sup_below = [(p,s) for p,s in sup_scored if p < cur]
     res_above = [(p,s) for p,s in res_scored if p > cur]
@@ -2494,11 +2354,38 @@ def find_sr(df, d_ind=None, n_levels=8):
     return sup_final, res_final
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 6k: TECHNICAL REVIEW TEXT GENERATOR (gen_technical_review)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Generate multi-paragraph Arabic technical review for PDF report.
+#           Each section analyzes a different aspect of the stock.
+#
+# SECTIONS GENERATED:
+#   1. الاتجاه العام (General Trend) — EMA order, golden/death cross, ADX
+#   2. مؤشرات الزخم (Momentum) — RSI, MACD, ROC
+#   3. التذبذب ونطاق بولنجر (Volatility) — Bollinger Bands, ATR
+#   4. تحليل الحجم (Volume) — Volume ratio, OBV, VWAP, bull/bear
+#   5. مؤشرات متقدمة (Advanced) — Ichimoku, SAR
+#   6. مستويات الدعم والمقاومة (S/R) — Support, resistance, ATR targets
+#   7. الخلاصة الفنية (Summary) — Overall recommendation based on score
+#   8. التباعد (Divergences) — RSI/MACD divergences if found
+#   9. نطاق 52 أسبوع (52-Week Range) — Position within annual range
+#   10. CCI وWilliams %R (Oscillators) — Additional oscillator readings
+#
+# TO MODIFY:
+#   • Change Arabic text → edit the string literals
+#   • Add new section   → append to `sections` list
+#   • Change thresholds → modify the if/elif values
+# ═══════════════════════════════════════════════════════════════════════════════
+
 def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, divergences=None):
+    """Generate Arabic technical review sections. Returns list of (title, paragraph)."""
     last = d.iloc[-1]
     c_price = float(last['Close'])
     sections = []
 
+    # ── Extract indicator values ──
     ema7   = float(last['EMA7'])   if pd.notna(last['EMA7'])   else None
     ema20  = float(last['EMA20'])  if pd.notna(last['EMA20'])  else None
     ema50  = float(last['EMA50'])  if pd.notna(last['EMA50'])  else None
@@ -2509,6 +2396,7 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
     pdi    = float(last['PDI'])    if pd.notna(last['PDI'])    else None
     mdi    = float(last['MDI'])    if pd.notna(last['MDI'])    else None
 
+    # ── 1. TREND ANALYSIS (الاتجاه العام) ──
     trend_parts = []
     if all(v is not None for v in [ema7, ema20, ema50, ema200]):
         if ema7 > ema20 > ema50 > ema200:
@@ -2530,6 +2418,7 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
         trend_parts.append(f'يُشير مؤشر ADX إلى اتجاه {direction} {strength} بقيمة {adx:.1f}.')
     sections.append(('الاتجاه العام', ' '.join(trend_parts) if trend_parts else 'لا تتوفر بيانات كافية لتحليل الاتجاه.'))
 
+    # ── 2. MOMENTUM (مؤشرات الزخم) ──
     rsi      = float(last['RSI'])      if pd.notna(last['RSI'])      else None
     macd     = float(last['MACD'])     if pd.notna(last['MACD'])     else None
     macd_sig = float(last['MACD_Sig']) if pd.notna(last['MACD_Sig']) else None
@@ -2538,16 +2427,11 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
 
     mom_parts = []
     if rsi is not None:
-        if rsi >= 70:
-            mom_parts.append(f'مؤشر القوة النسبية RSI يقرأ {rsi:.1f} في منطقة التشبع الشرائي، مما يستوجب الحذر من تصحيح وشيك.')
-        elif rsi <= 30:
-            mom_parts.append(f'مؤشر RSI عند {rsi:.1f} في منطقة التشبع البيعي، مما يستدعي مراقبة إشارات الانعكاس المحتملة.')
-        elif rsi >= 55:
-            mom_parts.append(f'مؤشر RSI عند {rsi:.1f} في المنطقة الإيجابية فوق خط 50، مما يعكس زخماً شرائياً متواصلاً.')
-        elif rsi <= 45:
-            mom_parts.append(f'مؤشر RSI عند {rsi:.1f} في المنطقة السلبية دون خط 50، مما يعكس ضعفاً في الزخم الشرائي.')
-        else:
-            mom_parts.append(f'مؤشر RSI محايد عند {rsi:.1f} قريباً من الخط 50.')
+        if rsi >= 70:   mom_parts.append(f'مؤشر القوة النسبية RSI يقرأ {rsi:.1f} في منطقة التشبع الشرائي، مما يستوجب الحذر من تصحيح وشيك.')
+        elif rsi <= 30: mom_parts.append(f'مؤشر RSI عند {rsi:.1f} في منطقة التشبع البيعي، مما يستدعي مراقبة إشارات الانعكاس المحتملة.')
+        elif rsi >= 55: mom_parts.append(f'مؤشر RSI عند {rsi:.1f} في المنطقة الإيجابية فوق خط 50، مما يعكس زخماً شرائياً متواصلاً.')
+        elif rsi <= 45: mom_parts.append(f'مؤشر RSI عند {rsi:.1f} في المنطقة السلبية دون خط 50، مما يعكس ضعفاً في الزخم الشرائي.')
+        else:           mom_parts.append(f'مؤشر RSI محايد عند {rsi:.1f} قريباً من الخط 50.')
     if macd is not None and macd_sig is not None and macd_h is not None:
         if macd > macd_sig and macd_h > 0:
             mom_parts.append('مؤشر الماكد MACD يتداول فوق خط الإشارة مع هستوجرام إيجابي، مما يدعم الزخم الصعودي.')
@@ -2556,16 +2440,13 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
         else:
             mom_parts.append('مؤشر الماكد في مرحلة تقاطع، مما قد يُنذر بتغيير في الاتجاه.')
     if roc12 is not None:
-        if roc12 > 5:
-            mom_parts.append(f'مؤشر ROC 12 عند {roc12:.2f}% يُشير إلى زخم صاعد قوي على المدى المتوسط.')
-        elif roc12 > 0:
-            mom_parts.append(f'مؤشر ROC 12 عند {roc12:.2f}% إيجابي، مما يدل على استمرار الزخم الشرائي.')
-        elif roc12 > -5:
-            mom_parts.append(f'مؤشر ROC 12 عند {roc12:.2f}% سلبي، مما يعكس ضعفاً في الزخم الحالي.')
-        else:
-            mom_parts.append(f'مؤشر ROC 12 عند {roc12:.2f}% يُشير إلى زخم هبوطي قوي على المدى المتوسط.')
+        if roc12 > 5:     mom_parts.append(f'مؤشر ROC 12 عند {roc12:.2f}% يُشير إلى زخم صاعد قوي على المدى المتوسط.')
+        elif roc12 > 0:   mom_parts.append(f'مؤشر ROC 12 عند {roc12:.2f}% إيجابي، مما يدل على استمرار الزخم الشرائي.')
+        elif roc12 > -5:  mom_parts.append(f'مؤشر ROC 12 عند {roc12:.2f}% سلبي، مما يعكس ضعفاً في الزخم الحالي.')
+        else:             mom_parts.append(f'مؤشر ROC 12 عند {roc12:.2f}% يُشير إلى زخم هبوطي قوي على المدى المتوسط.')
     sections.append(('مؤشرات الزخم', ' '.join(mom_parts) if mom_parts else 'لا تتوفر بيانات كافية.'))
 
+    # ── 3. VOLATILITY & BOLLINGER (التذبذب ونطاق بولنجر) ──
     bb_u = float(last['BB_U']) if pd.notna(last['BB_U']) else None
     bb_m = float(last['BB_M']) if pd.notna(last['BB_M']) else None
     bb_l = float(last['BB_L']) if pd.notna(last['BB_L']) else None
@@ -2588,14 +2469,12 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
             vol_parts.append('اتساع نطاق بولنجر يعكس تذبذباً مرتفعاً في السوق.')
     if atr is not None:
         atr_pct = (atr / c_price) * 100
-        if atr_pct > 3:
-            vol_parts.append(f'مؤشر ATR يُسجّل {atr:.2f} ({atr_pct:.1f}% من السعر)، مما يُشير إلى تذبذب يومي مرتفع.')
-        elif atr_pct < 1:
-            vol_parts.append(f'مؤشر ATR عند {atr:.2f} ({atr_pct:.1f}% من السعر)، مما يعكس هدوءاً نسبياً في حركة السعر.')
-        else:
-            vol_parts.append(f'مؤشر ATR عند {atr:.2f} ({atr_pct:.1f}% من السعر) يُشير إلى تذبذب يومي معتدل.')
+        if atr_pct > 3:    vol_parts.append(f'مؤشر ATR يُسجّل {atr:.2f} ({atr_pct:.1f}% من السعر)، مما يُشير إلى تذبذب يومي مرتفع.')
+        elif atr_pct < 1:  vol_parts.append(f'مؤشر ATR عند {atr:.2f} ({atr_pct:.1f}% من السعر)، مما يعكس هدوءاً نسبياً في حركة السعر.')
+        else:              vol_parts.append(f'مؤشر ATR عند {atr:.2f} ({atr_pct:.1f}% من السعر) يُشير إلى تذبذب يومي معتدل.')
     sections.append(('التذبذب ونطاق بولنجر', ' '.join(vol_parts) if vol_parts else 'لا تتوفر بيانات كافية.'))
 
+    # ── 4. VOLUME ANALYSIS (تحليل الحجم) ──
     obv      = float(last['OBV'])         if pd.notna(last['OBV'])         else None
     bull_vol = float(last['Bull_Volume']) if pd.notna(last['Bull_Volume']) else None
     bear_vol = float(last['Bear_Volume']) if pd.notna(last['Bear_Volume']) else None
@@ -2606,34 +2485,25 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
     volume_parts = []
     if pd.notna(vol_avg) and vol_avg > 0:
         vr = vol_now / vol_avg
-        if vr > 1.5:
-            volume_parts.append(f'حجم التداول الحالي مرتفع بنسبة {vr:.1f}x فوق متوسط الـ20 يوماً، مما يعكس اهتماماً كبيراً من المشاركين في السوق.')
-        elif vr < 0.5:
-            volume_parts.append(f'حجم التداول منخفض ({vr:.1f}x من المتوسط)، مما يُشير إلى تراجع في النشاط التداولي وانخفاض الاهتمام.')
-        else:
-            volume_parts.append(f'حجم التداول طبيعي عند {vr:.1f}x من المتوسط الـ20 يوماً.')
+        if vr > 1.5:   volume_parts.append(f'حجم التداول الحالي مرتفع بنسبة {vr:.1f}x فوق متوسط الـ20 يوماً، مما يعكس اهتماماً كبيراً من المشاركين في السوق.')
+        elif vr < 0.5: volume_parts.append(f'حجم التداول منخفض ({vr:.1f}x من المتوسط)، مما يُشير إلى تراجع في النشاط التداولي وانخفاض الاهتمام.')
+        else:          volume_parts.append(f'حجم التداول طبيعي عند {vr:.1f}x من المتوسط الـ20 يوماً.')
     if bull_vol is not None and bear_vol is not None and (bull_vol + bear_vol) > 0:
         bull_pct = bull_vol / (bull_vol + bear_vol) * 100
-        if bull_pct > 55:
-            volume_parts.append(f'السيولة الشرائية تهيمن بنسبة {bull_pct:.0f}% من إجمالي الحجم الأخير، مؤشر إيجابي على الطلب الفعّال.')
-        elif bull_pct < 45:
-            volume_parts.append(f'السيولة على الجانب الهابط تهيمن بنسبة {100-bull_pct:.0f}%، مما يعكس ضغطاً على الورقة المالية.')
-        else:
-            volume_parts.append(f'توازن نسبي بين السيولة الشرائية ({bull_pct:.0f}%) والبيعية ({100-bull_pct:.0f}%).')
+        if bull_pct > 55:   volume_parts.append(f'السيولة الشرائية تهيمن بنسبة {bull_pct:.0f}% من إجمالي الحجم الأخير، مؤشر إيجابي على الطلب الفعّال.')
+        elif bull_pct < 45: volume_parts.append(f'السيولة على الجانب الهابط تهيمن بنسبة {100-bull_pct:.0f}%، مما يعكس ضغطاً على الورقة المالية.')
+        else:               volume_parts.append(f'توازن نسبي بين السيولة الشرائية ({bull_pct:.0f}%) والبيعية ({100-bull_pct:.0f}%).')
     if vwap is not None:
-        if c_price > vwap:
-            volume_parts.append(f'مؤشر VWAP يُسجَّل عند {vwap:.2f} والسعر يتداول فوقه، مما يُشير إلى هيمنة المشترين خلال جلسات التداول.')
-        else:
-            volume_parts.append(f'مؤشر VWAP يُسجَّل عند {vwap:.2f} والسعر يتداول دونه، مما يُشير إلى هيمنة البائعين خلال جلسات التداول.')
+        if c_price > vwap: volume_parts.append(f'مؤشر VWAP يُسجَّل عند {vwap:.2f} والسعر يتداول فوقه، مما يُشير إلى هيمنة المشترين خلال جلسات التداول.')
+        else:              volume_parts.append(f'مؤشر VWAP يُسجَّل عند {vwap:.2f} والسعر يتداول دونه، مما يُشير إلى هيمنة البائعين خلال جلسات التداول.')
     if len(d) >= 5 and obv is not None:
         obv_prev = float(d.iloc[-5]['OBV']) if pd.notna(d.iloc[-5]['OBV']) else None
         if obv_prev is not None:
-            if obv > obv_prev:
-                volume_parts.append('OBV: المؤشر في اتجاه تصاعدي خلال الأسبوع الأخير، مما يدعم صحة الحركة الصعودية.')
-            else:
-                volume_parts.append('OBV: المؤشر في اتجاه تراجعي خلال الأسبوع الأخير، مما يُلمح إلى ضعف خفي رغم الحركة السعرية.')
+            if obv > obv_prev: volume_parts.append('OBV: المؤشر في اتجاه تصاعدي خلال الأسبوع الأخير، مما يدعم صحة الحركة الصعودية.')
+            else:              volume_parts.append('OBV: المؤشر في اتجاه تراجعي خلال الأسبوع الأخير، مما يُلمح إلى ضعف خفي رغم الحركة السعرية.')
     sections.append(('تحليل الحجم', ' '.join(volume_parts) if volume_parts else 'لا تتوفر بيانات كافية.'))
 
+    # ── 5. ADVANCED INDICATORS — Ichimoku & SAR ──
     tenkan = float(last['Tenkan'])   if pd.notna(last['Tenkan'])   else None
     kijun  = float(last['Kijun'])    if pd.notna(last['Kijun'])    else None
     senk_a = float(last['Senkou_A']) if pd.notna(last['Senkou_A']) else None
@@ -2642,26 +2512,19 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
 
     adv_parts = []
     if tenkan is not None and kijun is not None:
-        if tenkan > kijun:
-            adv_parts.append(f'خط التنكن ({tenkan:.2f}) أعلى من خط الكيجن ({kijun:.2f})، إشارة إيجابية في نظام الإيشيموكو.')
-        else:
-            adv_parts.append(f'خط التنكن ({tenkan:.2f}) أدنى من خط الكيجن ({kijun:.2f})، إشارة سلبية في نظام الإيشيموكو.')
+        if tenkan > kijun: adv_parts.append(f'خط التنكن ({tenkan:.2f}) أعلى من خط الكيجن ({kijun:.2f})، إشارة إيجابية في نظام الإيشيموكو.')
+        else:              adv_parts.append(f'خط التنكن ({tenkan:.2f}) أدنى من خط الكيجن ({kijun:.2f})، إشارة سلبية في نظام الإيشيموكو.')
     if senk_a is not None and senk_b is not None:
-        kumo_top = max(senk_a, senk_b)
-        kumo_bot = min(senk_a, senk_b)
-        if c_price > kumo_top:
-            adv_parts.append(f'السعر يتداول فوق السحابة السميكة (كوموه) عند {kumo_top:.2f}، مما يُعزز الاتجاه الصعودي.')
-        elif c_price < kumo_bot:
-            adv_parts.append(f'السعر دون السحابة (كوموه) عند {kumo_bot:.2f}، مما يُعزز الاتجاه الهبوطي.')
-        else:
-            adv_parts.append('السعر داخل السحابة (كوموه)، مما يدل على مرحلة تردد وعدم حسم في الاتجاه.')
+        kumo_top = max(senk_a, senk_b); kumo_bot = min(senk_a, senk_b)
+        if c_price > kumo_top:   adv_parts.append(f'السعر يتداول فوق السحابة السميكة (كوموه) عند {kumo_top:.2f}، مما يُعزز الاتجاه الصعودي.')
+        elif c_price < kumo_bot: adv_parts.append(f'السعر دون السحابة (كوموه) عند {kumo_bot:.2f}، مما يُعزز الاتجاه الهبوطي.')
+        else:                    adv_parts.append('السعر داخل السحابة (كوموه)، مما يدل على مرحلة تردد وعدم حسم في الاتجاه.')
     if sar is not None:
-        if c_price > sar:
-            adv_parts.append(f'مؤشر بارابوليك SAR عند {sar:.2f} يقع دون السعر الحالي، مما يدعم استمرار الاتجاه الصعودي.')
-        else:
-            adv_parts.append(f'مؤشر بارابوليك SAR عند {sar:.2f} يعلو السعر الحالي، مما يشير إلى ضعف الزخم الصعودي.')
+        if c_price > sar: adv_parts.append(f'مؤشر بارابوليك SAR عند {sar:.2f} يقع دون السعر الحالي، مما يدعم استمرار الاتجاه الصعودي.')
+        else:             adv_parts.append(f'مؤشر بارابوليك SAR عند {sar:.2f} يعلو السعر الحالي، مما يشير إلى ضعف الزخم الصعودي.')
     sections.append(('مؤشرات متقدمة (إيشيموكو / SAR)', ' '.join(adv_parts) if adv_parts else 'لا تتوفر بيانات كافية.'))
 
+    # ── 6. SUPPORT & RESISTANCE LEVELS + ATR TARGETS ──
     atr_val = float(last['ATR']) if pd.notna(last['ATR']) else None
     sr_parts = []
     if sup:
@@ -2676,19 +2539,23 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
             side = 'فوق' if r > c_price else 'دون'
             rank = ['الأولى', 'الثانية', 'الثالثة', 'الرابعة', 'الخامسة'][i]
             sr_parts.append(f'المقاومة {rank}: {r:.2f} ({gap:.1f}% {side} السعر الحالي).')
+
+    # Volume-based S/R
     v_arr   = d['Volume'].values.astype(float)
     vol_avg2 = np.mean(v_arr) if len(v_arr) > 0 else 1
     hv_closes = [float(d.iloc[i]['Close']) for i in np.where(v_arr > 1.5 * vol_avg2)[0]]
     hv_res = sorted([p for p in hv_closes if p > c_price])
     hv_sup = sorted([p for p in hv_closes if p <= c_price], reverse=True)
-    if hv_sup:
-        sr_parts.append(f'دعم حجمي بارز عند {hv_sup[0]:.2f} — ناتج عن تداولات كثيفة سابقة.')
-    if hv_res:
-        sr_parts.append(f'مقاومة حجمية بارزة عند {hv_res[0]:.2f} — ناتجة عن تداولات كثيفة سابقة.')
+    if hv_sup: sr_parts.append(f'دعم حجمي بارز عند {hv_sup[0]:.2f} — ناتج عن تداولات كثيفة سابقة.')
+    if hv_res: sr_parts.append(f'مقاومة حجمية بارزة عند {hv_res[0]:.2f} — ناتجة عن تداولات كثيفة سابقة.')
+
+    # ATR-based targets
     if atr_val is not None:
         t1_up = c_price + 1.0 * atr_val; t2_up = c_price + 2.0 * atr_val
         t1_dn = c_price - 1.0 * atr_val; t2_dn = c_price - 2.0 * atr_val
         sr_parts.append(f'ATR ({atr_val:.2f}): الأهداف الصعودية {t1_up:.2f} و {t2_up:.2f}. مستويات التوقف {t1_dn:.2f} و {t2_dn:.2f}.')
+
+    # Risk/Reward ratio
     nearest_s = sup[0] if sup and sup[0] < c_price else None
     nearest_r = res[0] if res and res[0] > c_price else None
     if nearest_s and nearest_r and (c_price - nearest_s) > 0:
@@ -2698,6 +2565,7 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
         sr_parts.append('لم يتم رصد مستويات دعم أو مقاومة واضحة في الفترة المحللة.')
     sections.append(('مستويات الدعم والمقاومة والأهداف السعرية', ' '.join(sr_parts)))
 
+    # ── 7. OVERALL SUMMARY (الخلاصة الفنية) ──
     rec_txt, _ = recommendation(score)
     if score >= 16:
         outlook = (f'الصورة الفنية الشاملة إيجابية بدرجة عالية وفق نتيجة {score}/20، '
@@ -2721,6 +2589,7 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
                    f'متابعة كسر مستويات الدعم أو المقاومة القريبة سيُحدد مسار الاتجاه القادم.')
     sections.append(('الخلاصة الفنية', outlook))
 
+    # ── 8. DIVERGENCES ──
     if divergences:
         div_parts = [f'{ind}: {ar_type} — يُشير إلى احتمال تغيير في الزخم الحالي.' for ind, ar_type, en_type in divergences]
         sections.append(('التباعد بين السعر والمؤشرات', ' '.join(div_parts)))
@@ -2728,6 +2597,7 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
         sections.append(('التباعد بين السعر والمؤشرات',
                           'لا يُلاحَظ تباعد واضح بين السعر ومؤشري RSI وMACD في الفترة الأخيرة، مما يُشير إلى انسجام الزخم مع حركة السعر.'))
 
+    # ── 9. 52-WEEK RANGE POSITION ──
     w52_high = info.get('fiftyTwoWeekHigh') if info else None
     w52_low  = info.get('fiftyTwoWeekLow')  if info else None
     if w52_high and w52_low and float(w52_high) != float(w52_low):
@@ -2739,37 +2609,78 @@ def gen_technical_review(d, sig, score, sup, res, info=None, patterns=None, dive
                           f'(أدنى 52 أسبوع: {float(w52_low):.2f} — أعلى 52 أسبوع: {float(w52_high):.2f}). '
                           f'المسافة من القمة: {dist_high:.1f}%. المسافة من القاع: {dist_low:.1f}%.'))
 
+    # ── 10. CCI & WILLIAMS %R OSCILLATORS ──
     cci_val   = float(last['CCI'])   if pd.notna(last['CCI'])   else None
     willr     = float(last['WILLR']) if pd.notna(last['WILLR']) else None
     osc_parts = []
     if cci_val is not None:
-        if cci_val > 100:
-            osc_parts.append(f'CCI: القراءة {cci_val:.0f} فوق مستوى +100 تُشير إلى زخم صعودي قوي مع احتمال تشبع.')
-        elif cci_val < -100:
-            osc_parts.append(f'CCI: القراءة {cci_val:.0f} دون مستوى -100 تُشير إلى زخم هبوطي مع احتمال تشبع بيعي.')
-        else:
-            osc_parts.append(f'CCI: القراءة {cci_val:.0f} داخل النطاق المحايد بين -100 و+100.')
+        if cci_val > 100:   osc_parts.append(f'CCI: القراءة {cci_val:.0f} فوق مستوى +100 تُشير إلى زخم صعودي قوي مع احتمال تشبع.')
+        elif cci_val < -100: osc_parts.append(f'CCI: القراءة {cci_val:.0f} دون مستوى -100 تُشير إلى زخم هبوطي مع احتمال تشبع بيعي.')
+        else:               osc_parts.append(f'CCI: القراءة {cci_val:.0f} داخل النطاق المحايد بين -100 و+100.')
     if willr is not None:
-        if willr > -20:
-            osc_parts.append(f'Williams %R: القراءة {willr:.0f} قريبة من منطقة التشبع الشرائي (فوق -20).')
-        elif willr < -80:
-            osc_parts.append(f'Williams %R: القراءة {willr:.0f} في منطقة التشبع البيعي (تحت -80).')
-        else:
-            osc_parts.append(f'Williams %R: القراءة {willr:.0f} في المنطقة المحايدة.')
+        if willr > -20:   osc_parts.append(f'Williams %R: القراءة {willr:.0f} قريبة من منطقة التشبع الشرائي (فوق -20).')
+        elif willr < -80: osc_parts.append(f'Williams %R: القراءة {willr:.0f} في منطقة التشبع البيعي (تحت -80).')
+        else:             osc_parts.append(f'Williams %R: القراءة {willr:.0f} في المنطقة المحايدة.')
     if osc_parts:
         sections.append(('مؤشرات CCI وWilliams %R', ' '.join(osc_parts)))
 
     return sections
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 7: CHART GENERATION FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Generate all chart images for the PDF report.
+#           Each function returns a BytesIO PNG buffer.
+#
+# CHARTS IN THIS SECTION:
+#   _draw_sr_lines()          — Draw support/resistance lines + EMA overlays
+#   _get_pivots()             — Find pivot highs/lows for S/R markers
+#   make_main_chart()         — Candlestick + S/R + EMA lines (main page)
+#   make_price_chart()        — Candlestick + SMA overlays
+#   make_ema_chart()          — Candlestick + EMA overlays
+#   make_tech_chart()         — RSI + MACD + ROC 12 (3-panel)
+#   make_bb_chart()           — Bollinger Bands overlay
+#   make_dd_chart()           — Drawdown curve
+#   make_volume_chart()       — Volume bars + 20-day average
+#   make_gauge_chart()        — Score gauge (0–20) + recommendation circle
+#   make_ichimoku_chart()     — Ichimoku Cloud with all components
+#   make_candle_pattern_chart() — Candlestick with pattern annotations
+#   make_cci_willr_chart()    — CCI + Williams %R (2-panel)
+#   make_alligator_chart()    — Williams Alligator overlay
+#   make_supertrend_chart()   — Supertrend overlay
+#
+# TO MODIFY:
+#   • Change chart colors     → modify HEX color strings in each function
+#   • Change chart size       → modify figsize=(width, height)
+#   • Change candlestick style → modify mpf.make_marketcolors()
+#   • Add new chart           → create new make_xxx_chart() function
+#   • Change lookback period  → modify d.tail(180) to d.tail(N)
+# ═══════════════════════════════════════════════════════════════════════════════
 
-#####YASIR3  الدعوم والمقاومات
-# # ─────────────────────────────────────────────────────────────
-# # 7. CHART FUNCTIONS
-# # ─────────────────────────────────────────────────────────────
+
+# ───────────────────────────────────────────────────────────────────────────────
+# 7a: SUPPORT/RESISTANCE LINE DRAWER (_draw_sr_lines)
+# ───────────────────────────────────────────────────────────────────────────────
+#
+# PURPOSE : Draw horizontal S/R lines + EMA level lines on a chart axis.
+#           Labels are placed in the right margin with arrows pointing to
+#           the price level. Collision detection avoids overlapping labels.
+#
+# TO MODIFY:
+#   • Change label font size → modify fsize in items.append()
+#   • Change label position  → modify near_frac / far_frac
+#   • Change S/R colors      → modify sup_color / res_color
+#   • Change EMA colors      → modify ema_colors dict
+# ───────────────────────────────────────────────────────────────────────────────
+
 def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
-    sup_color = '#1565C0'
-    res_color = '#B71C1C'
+    """Draw support/resistance lines with labeled arrows on chart axis."""
+    sup_color = '#1565C0'   # Blue for support
+    res_color = '#B71C1C'   # Red for resistance
+
+    # EMA overlay colors and labels
     ema_colors = {
         'EMA20':  ('#2196F3', 'EMA 20'),
         'EMA50':  ('#E53935', 'EMA 50'),
@@ -2777,7 +2688,7 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
         'EMA200': ('#000000', 'EMA 200'),
     }
 
-    # ── Draw pivot markers ──
+    # ── Draw pivot markers (small triangles) ──
     if pivots:
         for bx, by in pivots.get('highs', []):
             ax.plot(bx, by, 'v', color='#B71C1C', markersize=5,
@@ -2786,9 +2697,10 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
             ax.plot(bx, by, '^', color='#1565C0', markersize=5,
                     alpha=0.75, zorder=6, markeredgewidth=0)
 
-    # ── Collect ALL labels ──
+    # ── Collect ALL labels (EMA + Support + Resistance) ──
     items = []
 
+    # EMA horizontal lines
     if d_ind is not None:
         for col, (clr, lbl) in ema_colors.items():
             if col in d_ind.columns:
@@ -2799,12 +2711,14 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
                                alpha=0.55, zorder=8)
                     items.append((ev, lbl, clr, 'white', clr, 6.5))
 
+    # Support lines
     for i, s in enumerate(sup):
         ax.axhline(s, color=sup_color, lw=0.7, ls='--',
                    alpha=0.70, zorder=8)
         items.append((s, rtl(f'دعم {i+1}   {s:.2f}'),
                        sup_color, '#E8F4FD', sup_color, 6.5))
 
+    # Resistance lines
     for i, r in enumerate(res):
         ax.axhline(r, color=res_color, lw=0.7, ls='--',
                    alpha=0.70, zorder=8)
@@ -2824,10 +2738,9 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
     price_range = (price_max - price_min) if price_max != price_min \
                   else abs(price_max) * 0.1 or 1.0
 
-    # ── Evenly distribute label y-positions ──
+    # ── Evenly distribute label y-positions to avoid overlap ──
     pad_top = price_range * 0.30
     pad_bot = price_range * 0.30
-
     min_label_height = price_range * 0.055
     total_needed = min_label_height * (n - 1) if n > 1 else 0
     natural_span = (price_max + pad_top) - (price_min - pad_bot)
@@ -2846,19 +2759,16 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
         step_y = (label_top - label_bottom) / (n - 1)
         label_ys = [label_bottom + step_y * i for i in range(n)]
 
-    # ── Convert label y from data to axes fraction ──
+    # ── Convert label y to axes fraction ──
     ylo, yhi = ax.get_ylim()
     y_span = (yhi - ylo) if (yhi - ylo) != 0 else 1.0
 
     def to_y_frac(y_val):
         return (y_val - ylo) / y_span
 
-    # ── Label x in axes fraction: outside the right border ──
-    # 1.0 = right edge of axes. >1.0 = in the existing margin space.
-    # No chart resize, no xlim change — labels just overflow into
-    # the empty area that already exists on the right side.
-    near_frac = 1.10 #1.03 /موقع
-    far_frac  = 1.10 #1.03 /موقع
+    # Label x position (axes fraction — outside right border)
+    near_frac = 1.10
+    far_frac  = 1.10
 
     # Arrow starts at right edge of data
     arrow_x = xmax - 0.5
@@ -2885,16 +2795,14 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
             if line_crosses_label(price_i, ly_i, label_ys[j]):
                 use_far[i] = True
                 break
-
     for i in range(1, n):
         if use_far[i] and use_far[i - 1]:
             use_far[i - 1] = False
 
-    # ── Draw annotations ──
+    # ── Draw annotations with arrows ──
     for idx, (price, text, color, bg, edge_clr, fsize) in enumerate(items):
         ly_frac = to_y_frac(label_ys[idx])
         x_frac = far_frac if use_far[idx] else near_frac
-        
 
         ax.annotate(
             text,
@@ -2925,209 +2833,538 @@ def _draw_sr_lines(ax, sup, res, xmax, d_ind=None, pivots=None):
             zorder=8,
         )
 
-########################################################################################################
+
+# ───────────────────────────────────────────────────────────────────────────────
+# 7b: PIVOT POINT FINDER (_get_pivots)
+# ───────────────────────────────────────────────────────────────────────────────
 
 def _get_pivots(d, order=5):
-    d=d.tail(180).copy().reset_index(drop=True)
-    h=d['High'].values.astype(float); l=d['Low'].values.astype(float)
-    ph=argrelextrema(h,np.greater_equal,order=order)[0]; pl=argrelextrema(l,np.less_equal,order=order)[0]
-    return {'highs':[(int(i),round(h[i],4)) for i in ph],'lows':[(int(i),round(l[i],4)) for i in pl]}
+    """Find pivot highs and lows for S/R markers."""
+    d = d.tail(180).copy().reset_index(drop=True)
+    h = d['High'].values.astype(float); l = d['Low'].values.astype(float)
+    ph = argrelextrema(h, np.greater_equal, order=order)[0]
+    pl = argrelextrema(l, np.less_equal, order=order)[0]
+    return {
+        'highs': [(int(i), round(h[i], 4)) for i in ph],
+        'lows':  [(int(i), round(l[i], 4)) for i in pl],
+    }
 
+
+# ───────────────────────────────────────────────────────────────────────────────
+# 7c: MAIN CANDLESTICK CHART WITH S/R (make_main_chart)
+# ───────────────────────────────────────────────────────────────────────────────
+#
+# PURPOSE : Primary chart showing candlesticks + S/R lines + EMA overlays.
+#           Used on the first chart page of the PDF report.
+#
+# TO MODIFY:
+#   • Change lookback → modify d.tail(180)
+#   • Change chart size → modify figsize=(14,7)
+#   • Disable volume bars → set volume=False
+# ───────────────────────────────────────────────────────────────────────────────
 
 def make_main_chart(d, sup=None, res=None):
-    sup=sup or []; res=res or []; d=d.tail(180).copy()
-    p=d[['Open','High','Low','Close','Volume']].copy()
-    mc=mpf.make_marketcolors(up='#26a69a',down='#ef5350',edge='inherit',wick='inherit',volume={'up':'#80cbc4','down':'#ef9a9a'})
-    st=mpf.make_mpf_style(marketcolors=mc,gridstyle=':',gridcolor='#dddddd',rc={'axes.facecolor':'#FAFAFA'})
-    plot_kwargs=dict(type='candle',style=st,volume=True,figsize=(14,7),returnfig=True,warn_too_much_data=9999)
-    fig,ax=mpf.plot(p,**plot_kwargs); main_ax=ax[0]
-    xmax=len(d); pivots=_get_pivots(d,order=5)
-    _draw_sr_lines(main_ax,sup,res,xmax,d_ind=d,pivots=pivots)
-    fig.subplots_adjust(right=0.80); return chart_bytes(fig)
-
-def make_price_chart(d, sup=None, res=None):
-    sup=sup or []; res=res or []; d=d.tail(180).copy()
-    p=d[['Open','High','Low','Close','Volume']].copy()
-    aps,labels=[],[]
-    for col,clr,lbl in [('SMA20',BLUE_HEX,'SMA 20'),('SMA50',RED_HEX,'SMA 50'),('SMA100',VIOLET_HEX,'SMA 100'),('SMA200',BLACK_HEX,'SMA 200')]:
-        if col in d and d[col].notna().sum()>10:
-            aps.append(mpf.make_addplot(d[col],color=clr,width=1)); labels.append(lbl)
-    mc=mpf.make_marketcolors(up='#26a69a',down='#ef5350',edge='inherit',wick='inherit',volume={'up':'#80cbc4','down':'#ef9a9a'})
-    st=mpf.make_mpf_style(marketcolors=mc,gridstyle=':',gridcolor='#dddddd',rc={'axes.facecolor':'#FAFAFA'})
-    plot_kwargs=dict(type='candle',style=st,volume=True,figsize=(14,7),returnfig=True,warn_too_much_data=9999)
-    if aps: plot_kwargs['addplot']=aps
-    fig,ax=mpf.plot(p,**plot_kwargs); main_ax=ax[0]
-    if labels: main_ax.legend(labels,loc='upper left',fontsize=8,prop=MPL_FONT_PROP)
-    xmax=len(d); pivots=_get_pivots(d,order=5)
-    fig.subplots_adjust(right=0.95, left=0.05); return chart_bytes(fig)
-
-
-def make_ema_chart(d, sup=None, res=None):
-    sup=sup or []; res=res or []; d=d.tail(180).copy()
-    p=d[['Open','High','Low','Close','Volume']].copy()
-    aps,labels=[],[]
-    for col,clr,lbl in [('EMA20',BLUE_HEX,'EMA 20'),('EMA50',RED_HEX,'EMA 50'),('EMA100',VIOLET_HEX,'EMA 100'),('EMA200',BLACK_HEX,'EMA 200')]:
-        if col in d and d[col].notna().sum()>10:
-            aps.append(mpf.make_addplot(d[col],color=clr,width=1)); labels.append(lbl)
-    mc=mpf.make_marketcolors(up='#26a69a',down='#ef5350',edge='inherit',wick='inherit',volume={'up':'#80cbc4','down':'#ef9a9a'})
-    st=mpf.make_mpf_style(marketcolors=mc,gridstyle=':',gridcolor='#dddddd',rc={'axes.facecolor':'#FAFAFA'})
-    plot_kwargs=dict(type='candle',style=st,volume=True,figsize=(14,7),returnfig=True,warn_too_much_data=9999)
-    if aps: plot_kwargs['addplot']=aps
-    fig,ax=mpf.plot(p,**plot_kwargs); main_ax=ax[0]
-    if labels: main_ax.legend(labels,loc='upper left',fontsize=2,prop=MPL_FONT_PROP)
-    xmax=len(d); pivots=_get_pivots(d,order=5)
-    fig.subplots_adjust(right=0.95, left=0.05); return chart_bytes(fig)
-
-
-def make_tech_chart(d):
-    d=d.tail(180).copy(); fig,(a1,a2,a3)=plt.subplots(3,1,figsize=(14,8.5),sharex=True); x=d.index
-    r=d['RSI']; a1.plot(x,r,color='#7C4DFF',lw=1.5)
-    a1.axhline(70,color=RED_HEX,ls='--',lw=.8,alpha=.7); a1.axhline(50,color='gray',ls='--',lw=.8,alpha=.7); a1.axhline(30,color='#43A047',ls='--',lw=.8,alpha=.7)
-    a1.fill_between(x,r,70,where=(r>70),alpha=.25,color=RED_HEX); a1.fill_between(x,r,30,where=(r<30),alpha=.25,color='#43A047')
-    a1.set_ylabel('RSI',fontproperties=MPL_FONT_PROP_BOLD); a1.set_ylim(0,100); a1.grid(True,alpha=.3)
-    mh=d['MACD_H']; cols=['#26a69a' if v>=0 else '#ef5350' for v in mh.fillna(0)]
-    a2.bar(x,mh,color=cols,width=.8,alpha=.6); a2.plot(x,d['MACD'],color=BLUE_HEX,lw=1.3,label='MACD')
-    a2.plot(x,d['MACD_Sig'],color=ORANGE_HEX,lw=1.3,label=rtl('الإشارة')); a2.axhline(0,color='gray',lw=.5)
-    a2.set_ylabel('MACD',fontproperties=MPL_FONT_PROP_BOLD); a2.legend(prop=MPL_FONT_PROP,fontsize=8); a2.grid(True,alpha=.3)
-    a3.plot(x,d['ROC12'],color='#00897B',lw=1.3,label=rtl('ROC 12')); a3.axhline(0,color='gray',ls='--',lw=0.8,alpha=0.7)
-    a3.fill_between(x,d['ROC12'],0,where=(d['ROC12']>0),alpha=0.2,color='#43A047'); a3.fill_between(x,d['ROC12'],0,where=(d['ROC12']<0),alpha=0.2,color=RED_HEX)
-    a3.set_ylabel(rtl('ROC 12'),fontproperties=MPL_FONT_PROP_BOLD); a3.legend(prop=MPL_FONT_PROP,fontsize=8); a3.grid(True,alpha=.3); a3.xaxis.set_major_formatter(mdates.DateFormatter('%b %y'))
-    plt.tight_layout(); return chart_bytes(fig)
-
-
-def make_bb_chart(d):
-    d=d.tail(180).copy(); p=d[['Open','High','Low','Close','Volume']].copy()
-    aps=[]
-    for col,clr,lbl in [('BB_U',RED_HEX,rtl('الحد العلوي')),('BB_M',ORANGE_HEX,rtl('المتوسط')),('BB_L','#43A047',rtl('الحد السفلي'))]:
-        aps.append(mpf.make_addplot(d[col],color=clr,width=1.2,label=lbl))
-    mc=mpf.make_marketcolors(up='#26a69a',down='#ef5350',edge='inherit',wick='inherit',volume={'up':'#80cbc4','down':'#ef9a9a'})
-    st=mpf.make_mpf_style(marketcolors=mc,gridstyle=':',gridcolor='#dddddd',rc={'axes.facecolor':'#FAFAFA'})
-    fig,ax=mpf.plot(p,type='candle',style=st,volume=True,figsize=(14,7),returnfig=True,warn_too_much_data=9999,addplot=aps)
-    ax[0].legend(loc='upper left',fontsize=8,prop=MPL_FONT_PROP); return chart_bytes(fig)
-
-
-def make_dd_chart(dd):
-    fig,ax=plt.subplots(figsize=(14,3.4))
-    ax.fill_between(dd.index,dd.values*100,0,color=RED_HEX,alpha=.35); ax.plot(dd.index,dd.values*100,color='#B71C1C',lw=1)
-    ax.set_ylabel(rtl('التراجع %'),fontproperties=MPL_FONT_PROP_BOLD); ax.grid(True,alpha=.3); ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %y'))
-    plt.tight_layout(); return chart_bytes(fig)
-
-
-def make_volume_chart(d):
-    d=d.tail(180).copy(); fig,ax=plt.subplots(figsize=(14,3.6)); x=d.index; vol=d['Volume']; avg=vol.rolling(20,min_periods=1).mean()
-    cols=['#26a69a' if d['Close'].iloc[i]>=d['Open'].iloc[i] else '#ef5350' for i in range(len(d))]
-    ax.bar(x,vol,color=cols,alpha=.5,width=.8); ax.plot(x,avg,color='#1565C0',lw=1.5,label=rtl('متوسط 20 يوم'))
-    ax.set_ylabel(rtl('الحجم'),fontproperties=MPL_FONT_PROP_BOLD); ax.legend(prop=MPL_FONT_PROP,fontsize=8); ax.grid(True,alpha=.3); ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %y'))
-    plt.tight_layout(); return chart_bytes(fig)
-
-
-def make_gauge_chart(score):
-    fig,(ax_gauge,ax_button)=plt.subplots(1,2,figsize=(12,5),gridspec_kw={'width_ratios':[3,1]})
-    ax_gauge.set_xlim(-1.6,1.6); ax_gauge.set_ylim(-0.45,1.45); ax_gauge.set_aspect('equal'); ax_gauge.axis('off')
-    R_OUTER=1.00; R_INNER=0.55; R_MID=(R_OUTER+R_INNER)/2; R_TICK=R_OUTER+0.13; N_PTS=80
-    segments=[(0,4,'#C62828',rtl('سلبي +')),(4,8,'#EF5350',rtl('سلبي')),(8,12,'#FFA726',rtl('حياد')),(12,16,'#66BB6A',rtl('إيجابي')),(16,20,'#2E7D32',rtl('إيجابي +'))]
-    for low,high,color,label in segments:
-        t_start=np.deg2rad(180-(low/20)*180); t_end=np.deg2rad(180-(high/20)*180); theta=np.linspace(t_start,t_end,N_PTS)
-        xo,yo=R_OUTER*np.cos(theta),R_OUTER*np.sin(theta); xi,yi=R_INNER*np.cos(theta),R_INNER*np.sin(theta)
-        vx=np.concatenate([xo,xi[::-1]]); vy=np.concatenate([yo,yi[::-1]]); ax_gauge.fill(vx,vy,color=color,alpha=0.90,zorder=2)
-        for t_edge in [t_start,t_end]: ax_gauge.plot([R_INNER*np.cos(t_edge),R_OUTER*np.cos(t_edge)],[R_INNER*np.sin(t_edge),R_OUTER*np.sin(t_edge)],color='white',lw=1.5,zorder=3)
-        t_mid=(t_start+t_end)/2; lx=R_MID*np.cos(t_mid); ly=R_MID*np.sin(t_mid)
-        rotation=np.rad2deg(t_mid)
-        if rotation>90: rotation-=180
-        ax_gauge.text(lx,ly,label,ha='center',va='center',fontsize=20,fontproperties=MPL_FONT_PROP,color='white',fontweight='bold',rotation=rotation,zorder=4)
-    theta_all=np.linspace(0,np.pi,200)
-    xo_all=(R_OUTER+0.03)*np.cos(theta_all); yo_all=(R_OUTER+0.03)*np.sin(theta_all)
-    xi_all=R_OUTER*np.cos(theta_all); yi_all=R_OUTER*np.sin(theta_all)
-    vx_rim=np.concatenate([xo_all,xi_all[::-1]]); vy_rim=np.concatenate([yo_all,yi_all[::-1]]); ax_gauge.fill(vx_rim,vy_rim,color='#37474F',alpha=0.85,zorder=1)
-    for n in range(1,21):
-        t=np.deg2rad(180-(n/20)*180); ax_gauge.plot([R_OUTER*np.cos(t),(R_OUTER+0.04)*np.cos(t)],[R_OUTER*np.sin(t),(R_OUTER+0.04)*np.sin(t)],color='#37474F',lw=1.0,zorder=5)
-        tx=R_TICK*np.cos(t); ty=R_TICK*np.sin(t); ax_gauge.text(tx,ty,str(n),ha='center',va='center',fontsize=6.2,color='#37474F',fontweight='bold',zorder=5)
-    inner_bg=plt.Circle((0,0),R_INNER,color='white',zorder=2); ax_gauge.add_patch(inner_bg)
-    norm_score=np.clip(score,0,20); needle_angle=np.deg2rad(180-(norm_score/20)*180)
-    nx=0.88*np.cos(needle_angle); ny=0.88*np.sin(needle_angle)
-    ax_gauge.annotate('',xy=(nx,ny),xytext=(0,0),arrowprops=dict(arrowstyle='->',color='#1A1A2E',lw=2.8))
-    ax_gauge.plot(0,0,'o',color='#1A1A2E',markersize=9,zorder=6)
-    ax_gauge.text(0,-0.18,f'{score}/20',ha='center',va='center',fontsize=14,fontproperties=MPL_FONT_PROP_BOLD,color='#1A1A2E')
-    ax_button.axis('off'); ax_button.set_xlim(0,1); ax_button.set_ylim(0,1)
-    rec,rec_color=recommendation(score)
-    circle=mpatches.Circle((0.5,0.5),0.35,facecolor=rec_color,edgecolor='#333333',linewidth=2,transform=ax_button.transAxes)
-    ax_button.add_patch(circle); ax_button.text(0.5,0.5,rtl(rec),ha='center',va='center',fontsize=25,fontproperties=MPL_FONT_PROP_BOLD,color='white',transform=ax_button.transAxes)
-    ax_button.text(0.5,0.12,f'{score}/20',ha='center',va='center',fontsize=10,fontproperties=MPL_FONT_PROP,transform=ax_button.transAxes)
-    plt.tight_layout(); return chart_bytes(fig)
-
-
-def make_ichimoku_chart(d):
-    d=d.tail(180).copy().reset_index(); xs=np.arange(len(d))
-    fig,ax=plt.subplots(figsize=(14,7)); ax.set_facecolor('#FAFAFA'); ax.grid(True,linestyle=':',color='#dddddd',alpha=0.7,zorder=0)
-    W=0.4
-    for i,row in d.iterrows():
-        o,h,l,c=float(row['Open']),float(row['High']),float(row['Low']),float(row['Close'])
-        bullish=c>=o; body_top=max(o,c); body_bottom=min(o,c)
-        if bullish: body_color='none'; edge_color='#26a69a'; wick_color='#26a69a'
-        else: body_color='#ef5350'; edge_color='#ef5350'; wick_color='#ef5350'
-        ax.plot([i,i],[l,body_bottom],color=wick_color,lw=0.8,zorder=2); ax.plot([i,i],[body_top,h],color=wick_color,lw=0.8,zorder=2)
-        rect=plt.Rectangle((i-W,body_bottom),2*W,body_top-body_bottom,facecolor=body_color,edgecolor=edge_color,linewidth=0.8,zorder=3); ax.add_patch(rect)
-    ax.plot(xs,d['Tenkan'].values,color='#E91E63',lw=0.7,label=rtl('التنكن (9)'),zorder=4)
-    ax.plot(xs,d['Kijun'].values,color='#1565C0',lw=0.7,label=rtl('الكيجن (26)'),zorder=4)
-    sa=d['Senkou_A'].values; sb=d['Senkou_B'].values; valid=~(np.isnan(sa)|np.isnan(sb))
-    if valid.sum()>1:
-        xv=xs[valid]; sav,sbv=sa[valid],sb[valid]
-        ax.fill_between(xv,sav,sbv,where=(sav>=sbv),alpha=0.2,color='#4CAF50',label=rtl('سحابة صاعدة'),zorder=1)
-        ax.fill_between(xv,sav,sbv,where=(sav<sbv),alpha=0.2,color='#E53935',label=rtl('سحابة هابطة'),zorder=1)
-        ax.plot(xv,sav,color='#4CAF50',lw=0.5,alpha=0.8,zorder=3); ax.plot(xv,sbv,color='#E53935',lw=0.5,alpha=0.8,zorder=3)
-    if 'Chikou' in d.columns:
-        chikou=d['Chikou'].values; valid_c=~np.isnan(chikou)
-        if valid_c.sum()>1: ax.plot(xs[valid_c],chikou[valid_c],color='#FF6F00',lw=0.7,alpha=0.85,label=rtl('الشيكو (26)'),zorder=4)
-    step=max(1,len(d)//6); tick_pos=xs[::step]
-    tick_lbls=[str(d['Date'].iloc[i])[:7] if 'Date' in d.columns else str(d.index[i])[:7] for i in tick_pos]
-    ax.set_xticks(tick_pos); ax.set_xticklabels(tick_lbls,rotation=30,fontsize=8); ax.set_xlim(-1,len(d))
-    ax.set_ylabel(rtl('السعر'),fontproperties=MPL_FONT_PROP_BOLD); ax.legend(prop=MPL_FONT_PROP,fontsize=8,loc='upper left')
-    plt.tight_layout(); return chart_bytes(fig)
-
-
-def make_candle_pattern_chart(d, patterns):
-    d=d.tail(60).copy(); p=d[['Open','High','Low','Close','Volume']].copy()
-    mc=mpf.make_marketcolors(up='#26a69a',down='#ef5350',edge='inherit',wick='inherit',volume={'up':'#80cbc4','down':'#ef9a9a'})
-    st=mpf.make_mpf_style(marketcolors=mc,gridstyle=':',gridcolor='#dddddd',rc={'axes.facecolor':'#FAFAFA'})
-    fig,axlist=mpf.plot(p,type='candle',style=st,volume=False,figsize=(16,7),returnfig=True,warn_too_much_data=9999); ax=axlist[0]
-    date_to_pos={str(dt.date()):i for i,dt in enumerate(d.index)}
-    resolved=[]
-    for date_lbl,ar_name,en_name,bullish in patterns:
-        pos=date_to_pos.get(date_lbl)
-        if pos is None: continue
-        row_d=d.iloc[pos]; resolved.append({'pos':pos,'high':float(row_d['High']),'low':float(row_d['Low']),'name':ar_name,'bullish':bullish})
-    if not resolved: plt.tight_layout(); return chart_bytes(fig)
-    ylo,yhi=ax.get_ylim(); xlo,xhi=ax.get_xlim(); xspan=xhi-xlo; yspan=yhi-ylo
-    col_right_x=xhi+xspan*0.06; col_left_x=xlo-xspan*0.06
-    right_anns=[ann for i,ann in enumerate(resolved) if i%2==0]; left_anns=[ann for i,ann in enumerate(resolved) if i%2==1]
-    def make_label_ys(count):
-        if count==0: return []
-        step=yspan/(count+1); return sorted([ylo+step*(k+1) for k in range(count)],reverse=True)
-    right_ys=make_label_ys(len(right_anns)); left_ys=make_label_ys(len(left_anns))
-    def draw_ann(ann,label_x,label_y,align,rad):
-        pos=ann['pos']; bullish=ann['bullish']
-        color='#1B5E20' if bullish is True else ('#B71C1C' if bullish is False else '#E65100')
-        label=rtl(ann['name']); anchor_y=ann['high'] if bullish is not False else ann['low']
-        ax.annotate(label,xy=(pos,anchor_y),xytext=(label_x,label_y),fontsize=8.5,color=color,ha=align,va='center',fontproperties=MPL_FONT_PROP,arrowprops=dict(arrowstyle='-|>',color=color,lw=1.1,mutation_scale=9,connectionstyle=f'arc3,rad={rad}'),bbox=dict(boxstyle='round,pad=0.32',facecolor='white',edgecolor=color,alpha=0.95,linewidth=1.0),clip_on=False,zorder=10)
-    arcs_r=[0.25,0.15,0.35,0.10,0.20]; arcs_l=[-0.25,-0.15,-0.35,-0.10,-0.20]
-    for k,ann in enumerate(right_anns): draw_ann(ann,col_right_x,right_ys[k],'left',arcs_r[k%len(arcs_r)])
-    for k,ann in enumerate(left_anns): draw_ann(ann,col_left_x,left_ys[k],'right',arcs_l[k%len(arcs_l)])
-    ax.set_xlim(col_left_x-xspan*0.32,col_right_x+xspan*0.32); fig.subplots_adjust(left=0.12,right=0.88)
+    """Generate main candlestick chart with S/R lines."""
+    sup = sup or []; res = res or []; d = d.tail(180).copy()
+    p = d[['Open','High','Low','Close','Volume']].copy()
+    mc = mpf.make_marketcolors(up='#26a69a', down='#ef5350', edge='inherit',
+                               wick='inherit', volume={'up':'#80cbc4','down':'#ef9a9a'})
+    st = mpf.make_mpf_style(marketcolors=mc, gridstyle=':', gridcolor='#dddddd',
+                             rc={'axes.facecolor':'#FAFAFA'})
+    plot_kwargs = dict(type='candle', style=st, volume=True, figsize=(14,7),
+                       returnfig=True, warn_too_much_data=9999)
+    fig, ax = mpf.plot(p, **plot_kwargs)
+    main_ax = ax[0]
+    xmax = len(d)
+    pivots = _get_pivots(d, order=5)
+    _draw_sr_lines(main_ax, sup, res, xmax, d_ind=d, pivots=pivots)
+    fig.subplots_adjust(right=0.80)
     return chart_bytes(fig)
 
 
+# ───────────────────────────────────────────────────────────────────────────────
+# 7d: SMA OVERLAY CHART (make_price_chart)
+# ───────────────────────────────────────────────────────────────────────────────
+
+def make_price_chart(d, sup=None, res=None):
+    """Generate candlestick chart with SMA 20/50/100/200 overlays."""
+    sup = sup or []; res = res or []; d = d.tail(180).copy()
+    p = d[['Open','High','Low','Close','Volume']].copy()
+    aps, labels = [], []
+    for col, clr, lbl in [('SMA20',BLUE_HEX,'SMA 20'),('SMA50',RED_HEX,'SMA 50'),
+                           ('SMA100',VIOLET_HEX,'SMA 100'),('SMA200',BLACK_HEX,'SMA 200')]:
+        if col in d and d[col].notna().sum() > 10:
+            aps.append(mpf.make_addplot(d[col], color=clr, width=1)); labels.append(lbl)
+    mc = mpf.make_marketcolors(up='#26a69a', down='#ef5350', edge='inherit',
+                               wick='inherit', volume={'up':'#80cbc4','down':'#ef9a9a'})
+    st = mpf.make_mpf_style(marketcolors=mc, gridstyle=':', gridcolor='#dddddd',
+                             rc={'axes.facecolor':'#FAFAFA'})
+    plot_kwargs = dict(type='candle', style=st, volume=True, figsize=(14,7),
+                       returnfig=True, warn_too_much_data=9999)
+    if aps: plot_kwargs['addplot'] = aps
+    fig, ax = mpf.plot(p, **plot_kwargs)
+    if labels: ax[0].legend(labels, loc='upper left', fontsize=8, prop=MPL_FONT_PROP)
+    xmax = len(d); pivots = _get_pivots(d, order=5)
+    fig.subplots_adjust(right=0.95, left=0.05)
+    return chart_bytes(fig)
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# 7e: EMA OVERLAY CHART (make_ema_chart)
+# ───────────────────────────────────────────────────────────────────────────────
+
+def make_ema_chart(d, sup=None, res=None):
+    """Generate candlestick chart with EMA 20/50/100/200 overlays."""
+    sup = sup or []; res = res or []; d = d.tail(180).copy()
+    p = d[['Open','High','Low','Close','Volume']].copy()
+    aps, labels = [], []
+    for col, clr, lbl in [('EMA20',BLUE_HEX,'EMA 20'),('EMA50',RED_HEX,'EMA 50'),
+                           ('EMA100',VIOLET_HEX,'EMA 100'),('EMA200',BLACK_HEX,'EMA 200')]:
+        if col in d and d[col].notna().sum() > 10:
+            aps.append(mpf.make_addplot(d[col], color=clr, width=1)); labels.append(lbl)
+    mc = mpf.make_marketcolors(up='#26a69a', down='#ef5350', edge='inherit',
+                               wick='inherit', volume={'up':'#80cbc4','down':'#ef9a9a'})
+    st = mpf.make_mpf_style(marketcolors=mc, gridstyle=':', gridcolor='#dddddd',
+                             rc={'axes.facecolor':'#FAFAFA'})
+    plot_kwargs = dict(type='candle', style=st, volume=True, figsize=(14,7),
+                       returnfig=True, warn_too_much_data=9999)
+    if aps: plot_kwargs['addplot'] = aps
+    fig, ax = mpf.plot(p, **plot_kwargs)
+    if labels: ax[0].legend(labels, loc='upper left', fontsize=2, prop=MPL_FONT_PROP)
+    fig.subplots_adjust(right=0.95, left=0.05)
+    return chart_bytes(fig)
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# 7f: TECHNICAL INDICATORS CHART — RSI + MACD + ROC 12 (make_tech_chart)
+# ───────────────────────────────────────────────────────────────────────────────
+#
+# PURPOSE : 3-panel chart showing RSI (top), MACD (middle), ROC 12 (bottom).
+#
+# TO MODIFY:
+#   • Change RSI overbought/oversold → modify 70/30 axhlines
+#   • Change MACD histogram colors → modify '#26a69a'/'#ef5350'
+#   • Add another panel → change subplots(3,1,...) to (4,1,...)
+# ───────────────────────────────────────────────────────────────────────────────
+
+def make_tech_chart(d):
+    """Generate 3-panel technical chart: RSI, MACD, ROC 12."""
+    d = d.tail(180).copy()
+    fig, (a1, a2, a3) = plt.subplots(3, 1, figsize=(14, 8.5), sharex=True)
+    x = d.index
+
+    # ── Panel 1: RSI ──
+    r = d['RSI']
+    a1.plot(x, r, color='#7C4DFF', lw=1.5)
+    a1.axhline(70, color=RED_HEX, ls='--', lw=.8, alpha=.7)
+    a1.axhline(50, color='gray', ls='--', lw=.8, alpha=.7)
+    a1.axhline(30, color='#43A047', ls='--', lw=.8, alpha=.7)
+    a1.fill_between(x, r, 70, where=(r>70), alpha=.25, color=RED_HEX)
+    a1.fill_between(x, r, 30, where=(r<30), alpha=.25, color='#43A047')
+    a1.set_ylabel('RSI', fontproperties=MPL_FONT_PROP_BOLD)
+    a1.set_ylim(0, 100); a1.grid(True, alpha=.3)
+
+    # ── Panel 2: MACD ──
+    mh = d['MACD_H']
+    cols = ['#26a69a' if v >= 0 else '#ef5350' for v in mh.fillna(0)]
+    a2.bar(x, mh, color=cols, width=.8, alpha=.6)
+    a2.plot(x, d['MACD'], color=BLUE_HEX, lw=1.3, label='MACD')
+    a2.plot(x, d['MACD_Sig'], color=ORANGE_HEX, lw=1.3, label=rtl('الإشارة'))
+    a2.axhline(0, color='gray', lw=.5)
+    a2.set_ylabel('MACD', fontproperties=MPL_FONT_PROP_BOLD)
+    a2.legend(prop=MPL_FONT_PROP, fontsize=8); a2.grid(True, alpha=.3)
+
+    # ── Panel 3: ROC 12 ──
+    a3.plot(x, d['ROC12'], color='#00897B', lw=1.3, label=rtl('ROC 12'))
+    a3.axhline(0, color='gray', ls='--', lw=0.8, alpha=0.7)
+    a3.fill_between(x, d['ROC12'], 0, where=(d['ROC12']>0), alpha=0.2, color='#43A047')
+    a3.fill_between(x, d['ROC12'], 0, where=(d['ROC12']<0), alpha=0.2, color=RED_HEX)
+    a3.set_ylabel(rtl('ROC 12'), fontproperties=MPL_FONT_PROP_BOLD)
+    a3.legend(prop=MPL_FONT_PROP, fontsize=8); a3.grid(True, alpha=.3)
+    a3.xaxis.set_major_formatter(mdates.DateFormatter('%b %y'))
+
+    plt.tight_layout()
+    return chart_bytes(fig)
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# 7g: BOLLINGER BANDS CHART (make_bb_chart)
+# ───────────────────────────────────────────────────────────────────────────────
+
+def make_bb_chart(d):
+    """Generate candlestick chart with Bollinger Bands overlay."""
+    d = d.tail(180).copy()
+    p = d[['Open','High','Low','Close','Volume']].copy()
+    aps = []
+    for col, clr, lbl in [('BB_U',RED_HEX,rtl('الحد العلوي')),
+                           ('BB_M',ORANGE_HEX,rtl('المتوسط')),
+                           ('BB_L','#43A047',rtl('الحد السفلي'))]:
+        aps.append(mpf.make_addplot(d[col], color=clr, width=1.2, label=lbl))
+    mc = mpf.make_marketcolors(up='#26a69a', down='#ef5350', edge='inherit',
+                               wick='inherit', volume={'up':'#80cbc4','down':'#ef9a9a'})
+    st = mpf.make_mpf_style(marketcolors=mc, gridstyle=':', gridcolor='#dddddd',
+                             rc={'axes.facecolor':'#FAFAFA'})
+    fig, ax = mpf.plot(p, type='candle', style=st, volume=True, figsize=(14,7),
+                       returnfig=True, warn_too_much_data=9999, addplot=aps)
+    ax[0].legend(loc='upper left', fontsize=8, prop=MPL_FONT_PROP)
+    return chart_bytes(fig)
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# 7h: DRAWDOWN CHART (make_dd_chart)
+# ───────────────────────────────────────────────────────────────────────────────
+
+def make_dd_chart(dd):
+    """Generate drawdown curve chart (filled area below zero)."""
+    fig, ax = plt.subplots(figsize=(14, 3.4))
+    ax.fill_between(dd.index, dd.values*100, 0, color=RED_HEX, alpha=.35)
+    ax.plot(dd.index, dd.values*100, color='#B71C1C', lw=1)
+    ax.set_ylabel(rtl('التراجع %'), fontproperties=MPL_FONT_PROP_BOLD)
+    ax.grid(True, alpha=.3)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %y'))
+    plt.tight_layout()
+    return chart_bytes(fig)
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# 7i: VOLUME CHART (make_volume_chart)
+# ───────────────────────────────────────────────────────────────────────────────
+
+def make_volume_chart(d):
+    """Generate volume bar chart with 20-day moving average."""
+    d = d.tail(180).copy()
+    fig, ax = plt.subplots(figsize=(14, 3.6))
+    x = d.index; vol = d['Volume']
+    avg = vol.rolling(20, min_periods=1).mean()
+    cols = ['#26a69a' if d['Close'].iloc[i] >= d['Open'].iloc[i] else '#ef5350'
+            for i in range(len(d))]
+    ax.bar(x, vol, color=cols, alpha=.5, width=.8)
+    ax.plot(x, avg, color='#1565C0', lw=1.5, label=rtl('متوسط 20 يوم'))
+    ax.set_ylabel(rtl('الحجم'), fontproperties=MPL_FONT_PROP_BOLD)
+    ax.legend(prop=MPL_FONT_PROP, fontsize=8); ax.grid(True, alpha=.3)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %y'))
+    plt.tight_layout()
+    return chart_bytes(fig)
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# 7j: GAUGE CHART (make_gauge_chart)
+# ───────────────────────────────────────────────────────────────────────────────
+#
+# PURPOSE : Semi-circular gauge showing score 0–20 with needle.
+#           Right side shows recommendation circle with color.
+#
+# SEGMENTS:
+#   0–4   RED     (سلبي +)
+#   4–8   Lt Red  (سلبي)
+#   8–12  Orange  (حياد)
+#   12–16 Lt Grn  (إيجابي)
+#   16–20 GREEN   (إيجابي +)
+#
+# TO MODIFY:
+#   • Change segment colors → modify segments list
+#   • Change gauge size → modify figsize
+#   • Change needle style → modify annotate arrowprops
+# ───────────────────────────────────────────────────────────────────────────────
+
+def make_gauge_chart(score):
+    """Generate score gauge chart with recommendation circle."""
+    fig, (ax_gauge, ax_button) = plt.subplots(1, 2, figsize=(12, 5),
+                                               gridspec_kw={'width_ratios': [3, 1]})
+
+    # ── Gauge setup ──
+    ax_gauge.set_xlim(-1.6, 1.6); ax_gauge.set_ylim(-0.45, 1.45)
+    ax_gauge.set_aspect('equal'); ax_gauge.axis('off')
+    R_OUTER = 1.00; R_INNER = 0.55; R_MID = (R_OUTER + R_INNER) / 2
+    R_TICK = R_OUTER + 0.13; N_PTS = 80
+
+    # ── Draw colored segments ──
+    segments = [
+        (0, 4, '#C62828', rtl('سلبي +')),
+        (4, 8, '#EF5350', rtl('سلبي')),
+        (8, 12, '#FFA726', rtl('حياد')),
+        (12, 16, '#66BB6A', rtl('إيجابي')),
+        (16, 20, '#2E7D32', rtl('إيجابي +')),
+    ]
+
+    for low, high, color, label in segments:
+        t_start = np.deg2rad(180 - (low / 20) * 180)
+        t_end = np.deg2rad(180 - (high / 20) * 180)
+        theta = np.linspace(t_start, t_end, N_PTS)
+        xo, yo = R_OUTER * np.cos(theta), R_OUTER * np.sin(theta)
+        xi, yi = R_INNER * np.cos(theta), R_INNER * np.sin(theta)
+        vx = np.concatenate([xo, xi[::-1]]); vy = np.concatenate([yo, yi[::-1]])
+        ax_gauge.fill(vx, vy, color=color, alpha=0.90, zorder=2)
+        for t_edge in [t_start, t_end]:
+            ax_gauge.plot([R_INNER*np.cos(t_edge), R_OUTER*np.cos(t_edge)],
+                         [R_INNER*np.sin(t_edge), R_OUTER*np.sin(t_edge)],
+                         color='white', lw=1.5, zorder=3)
+        t_mid = (t_start + t_end) / 2
+        lx = R_MID * np.cos(t_mid); ly = R_MID * np.sin(t_mid)
+        rotation = np.rad2deg(t_mid)
+        if rotation > 90: rotation -= 180
+        ax_gauge.text(lx, ly, label, ha='center', va='center', fontsize=20,
+                     fontproperties=MPL_FONT_PROP, color='white', fontweight='bold',
+                     rotation=rotation, zorder=4)
+
+    # ── Outer rim ──
+    theta_all = np.linspace(0, np.pi, 200)
+    xo_all = (R_OUTER + 0.03) * np.cos(theta_all)
+    yo_all = (R_OUTER + 0.03) * np.sin(theta_all)
+    xi_all = R_OUTER * np.cos(theta_all)
+    yi_all = R_OUTER * np.sin(theta_all)
+    vx_rim = np.concatenate([xo_all, xi_all[::-1]])
+    vy_rim = np.concatenate([yo_all, yi_all[::-1]])
+    ax_gauge.fill(vx_rim, vy_rim, color='#37474F', alpha=0.85, zorder=1)
+
+    # ── Tick marks ──
+    for n in range(1, 21):
+        t = np.deg2rad(180 - (n / 20) * 180)
+        ax_gauge.plot([R_OUTER*np.cos(t), (R_OUTER+0.04)*np.cos(t)],
+                     [R_OUTER*np.sin(t), (R_OUTER+0.04)*np.sin(t)],
+                     color='#37474F', lw=1.0, zorder=5)
+        tx = R_TICK * np.cos(t); ty = R_TICK * np.sin(t)
+        ax_gauge.text(tx, ty, str(n), ha='center', va='center',
+                     fontsize=6.2, color='#37474F', fontweight='bold', zorder=5)
+
+    # ── Inner white circle ──
+    inner_bg = plt.Circle((0, 0), R_INNER, color='white', zorder=2)
+    ax_gauge.add_patch(inner_bg)
+
+    # ── Needle ──
+    norm_score = np.clip(score, 0, 20)
+    needle_angle = np.deg2rad(180 - (norm_score / 20) * 180)
+    nx = 0.88 * np.cos(needle_angle); ny = 0.88 * np.sin(needle_angle)
+    ax_gauge.annotate('', xy=(nx, ny), xytext=(0, 0),
+                     arrowprops=dict(arrowstyle='->', color='#1A1A2E', lw=2.8))
+    ax_gauge.plot(0, 0, 'o', color='#1A1A2E', markersize=9, zorder=6)
+    ax_gauge.text(0, -0.18, f'{score}/20', ha='center', va='center',
+                 fontsize=14, fontproperties=MPL_FONT_PROP_BOLD, color='#1A1A2E')
+
+    # ── Recommendation circle ──
+    ax_button.axis('off'); ax_button.set_xlim(0, 1); ax_button.set_ylim(0, 1)
+    rec, rec_color = recommendation(score)
+    circle = mpatches.Circle((0.5, 0.5), 0.35, facecolor=rec_color,
+                              edgecolor='#333333', linewidth=2,
+                              transform=ax_button.transAxes)
+    ax_button.add_patch(circle)
+    ax_button.text(0.5, 0.5, rtl(rec), ha='center', va='center', fontsize=25,
+                  fontproperties=MPL_FONT_PROP_BOLD, color='white',
+                  transform=ax_button.transAxes)
+    ax_button.text(0.5, 0.12, f'{score}/20', ha='center', va='center',
+                  fontsize=10, fontproperties=MPL_FONT_PROP,
+                  transform=ax_button.transAxes)
+
+    plt.tight_layout()
+    return chart_bytes(fig)
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# 7k: ICHIMOKU CLOUD CHART (make_ichimoku_chart)
+# ───────────────────────────────────────────────────────────────────────────────
+#
+# PURPOSE : Ichimoku Cloud chart with all 5 components:
+#           Tenkan (9), Kijun (26), Senkou A/B (cloud), Chikou (26)
+#
+# TO MODIFY:
+#   • Change cloud colors → modify '#4CAF50'/'#E53935'
+#   • Change line colors → modify color parameters
+# ───────────────────────────────────────────────────────────────────────────────
+
+def make_ichimoku_chart(d):
+    """Generate Ichimoku Cloud chart with all components."""
+    d = d.tail(180).copy().reset_index()
+    xs = np.arange(len(d))
+    fig, ax = plt.subplots(figsize=(14, 7))
+    ax.set_facecolor('#FAFAFA')
+    ax.grid(True, linestyle=':', color='#dddddd', alpha=0.7, zorder=0)
+    W = 0.4
+
+    # ── Draw candlesticks manually ──
+    for i, row in d.iterrows():
+        o, h, l, c = float(row['Open']), float(row['High']), float(row['Low']), float(row['Close'])
+        bullish = c >= o
+        body_top = max(o, c); body_bottom = min(o, c)
+        if bullish:
+            body_color = 'none'; edge_color = '#26a69a'; wick_color = '#26a69a'
+        else:
+            body_color = '#ef5350'; edge_color = '#ef5350'; wick_color = '#ef5350'
+        ax.plot([i, i], [l, body_bottom], color=wick_color, lw=0.8, zorder=2)
+        ax.plot([i, i], [body_top, h], color=wick_color, lw=0.8, zorder=2)
+        rect = plt.Rectangle((i - W, body_bottom), 2 * W, body_top - body_bottom,
+                              facecolor=body_color, edgecolor=edge_color,
+                              linewidth=0.8, zorder=3)
+        ax.add_patch(rect)
+
+    # ── Ichimoku lines ──
+    ax.plot(xs, d['Tenkan'].values, color='#E91E63', lw=0.7, label=rtl('التنكن (9)'), zorder=4)
+    ax.plot(xs, d['Kijun'].values, color='#1565C0', lw=0.7, label=rtl('الكيجن (26)'), zorder=4)
+
+    # ── Cloud (Kumo) ──
+    sa = d['Senkou_A'].values; sb = d['Senkou_B'].values
+    valid = ~(np.isnan(sa) | np.isnan(sb))
+    if valid.sum() > 1:
+        xv = xs[valid]; sav, sbv = sa[valid], sb[valid]
+        ax.fill_between(xv, sav, sbv, where=(sav >= sbv), alpha=0.2, color='#4CAF50',
+                        label=rtl('سحابة صاعدة'), zorder=1)
+        ax.fill_between(xv, sav, sbv, where=(sav < sbv), alpha=0.2, color='#E53935',
+                        label=rtl('سحابة هابطة'), zorder=1)
+        ax.plot(xv, sav, color='#4CAF50', lw=0.5, alpha=0.8, zorder=3)
+        ax.plot(xv, sbv, color='#E53935', lw=0.5, alpha=0.8, zorder=3)
+
+    # ── Chikou Span ──
+    if 'Chikou' in d.columns:
+        chikou = d['Chikou'].values
+        valid_c = ~np.isnan(chikou)
+        if valid_c.sum() > 1:
+            ax.plot(xs[valid_c], chikou[valid_c], color='#FF6F00', lw=0.7,
+                    alpha=0.85, label=rtl('الشيكو (26)'), zorder=4)
+
+    # ── X-axis labels ──
+    step = max(1, len(d) // 6)
+    tick_pos = xs[::step]
+    tick_lbls = [str(d['Date'].iloc[i])[:7] if 'Date' in d.columns
+                 else str(d.index[i])[:7] for i in tick_pos]
+    ax.set_xticks(tick_pos); ax.set_xticklabels(tick_lbls, rotation=30, fontsize=8)
+    ax.set_xlim(-1, len(d))
+    ax.set_ylabel(rtl('السعر'), fontproperties=MPL_FONT_PROP_BOLD)
+    ax.legend(prop=MPL_FONT_PROP, fontsize=8, loc='upper left')
+    plt.tight_layout()
+    return chart_bytes(fig)
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# 7l: CANDLESTICK PATTERN CHART (make_candle_pattern_chart)
+# ───────────────────────────────────────────────────────────────────────────────
+#
+# PURPOSE : Candlestick chart (last 60 days) with annotated pattern names.
+#           Patterns are split left/right to avoid overlap.
+#
+# TO MODIFY:
+#   • Change lookback → modify d.tail(60)
+#   • Change annotation style → modify arrowprops/bbox
+#   • Change arc curvature → modify arcs_r/arcs_l lists
+# ───────────────────────────────────────────────────────────────────────────────
+
+def make_candle_pattern_chart(d, patterns):
+    """Generate candlestick chart with pattern annotations using curved arrows."""
+    d = d.tail(60).copy()
+    p = d[['Open','High','Low','Close','Volume']].copy()
+    mc = mpf.make_marketcolors(up='#26a69a', down='#ef5350', edge='inherit',
+                               wick='inherit', volume={'up':'#80cbc4','down':'#ef9a9a'})
+    st = mpf.make_mpf_style(marketcolors=mc, gridstyle=':', gridcolor='#dddddd',
+                             rc={'axes.facecolor':'#FAFAFA'})
+    fig, axlist = mpf.plot(p, type='candle', style=st, volume=False,
+                            figsize=(16, 7), returnfig=True, warn_too_much_data=9999)
+    ax = axlist[0]
+
+    # Map dates to bar positions
+    date_to_pos = {str(dt.date()): i for i, dt in enumerate(d.index)}
+
+    # ── Resolve pattern positions ──
+    resolved = []
+    for date_lbl, ar_name, en_name, bullish in patterns:
+        pos = date_to_pos.get(date_lbl)
+        if pos is None: continue
+        row_d = d.iloc[pos]
+        resolved.append({
+            'pos': pos, 'high': float(row_d['High']),
+            'low': float(row_d['Low']), 'name': ar_name, 'bullish': bullish
+        })
+
+    if not resolved:
+        plt.tight_layout(); return chart_bytes(fig)
+
+    # ── Split annotations left/right ──
+    ylo, yhi = ax.get_ylim(); xlo, xhi = ax.get_xlim()
+    xspan = xhi - xlo; yspan = yhi - ylo
+    col_right_x = xhi + xspan * 0.06
+    col_left_x = xlo - xspan * 0.06
+    right_anns = [ann for i, ann in enumerate(resolved) if i % 2 == 0]
+    left_anns = [ann for i, ann in enumerate(resolved) if i % 2 == 1]
+
+    def make_label_ys(count):
+        if count == 0: return []
+        step = yspan / (count + 1)
+        return sorted([ylo + step * (k + 1) for k in range(count)], reverse=True)
+
+    right_ys = make_label_ys(len(right_anns))
+    left_ys = make_label_ys(len(left_anns))
+
+    def draw_ann(ann, label_x, label_y, align, rad):
+        pos = ann['pos']; bullish = ann['bullish']
+        color = '#1B5E20' if bullish is True else ('#B71C1C' if bullish is False else '#E65100')
+        label = rtl(ann['name'])
+        anchor_y = ann['high'] if bullish is not False else ann['low']
+        ax.annotate(label, xy=(pos, anchor_y), xytext=(label_x, label_y),
+                   fontsize=8.5, color=color, ha=align, va='center',
+                   fontproperties=MPL_FONT_PROP,
+                   arrowprops=dict(arrowstyle='-|>', color=color, lw=1.1,
+                                  mutation_scale=9,
+                                  connectionstyle=f'arc3,rad={rad}'),
+                   bbox=dict(boxstyle='round,pad=0.32', facecolor='white',
+                            edgecolor=color, alpha=0.95, linewidth=1.0),
+                   clip_on=False, zorder=10)
+
+    # ── Draw with varying arc curvatures ──
+    arcs_r = [0.25, 0.15, 0.35, 0.10, 0.20]
+    arcs_l = [-0.25, -0.15, -0.35, -0.10, -0.20]
+    for k, ann in enumerate(right_anns):
+        draw_ann(ann, col_right_x, right_ys[k], 'left', arcs_r[k % len(arcs_r)])
+    for k, ann in enumerate(left_anns):
+        draw_ann(ann, col_left_x, left_ys[k], 'right', arcs_l[k % len(arcs_l)])
+
+    ax.set_xlim(col_left_x - xspan * 0.32, col_right_x + xspan * 0.32)
+    fig.subplots_adjust(left=0.12, right=0.88)
+    return chart_bytes(fig)
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# 7m: CCI + WILLIAMS %R CHART (make_cci_willr_chart)
+# ───────────────────────────────────────────────────────────────────────────────
+
 def make_cci_willr_chart(d):
-    d=d.tail(180).copy(); fig,(a1,a2)=plt.subplots(2,1,figsize=(14,6),sharex=True); x=d.index
-    cci=d['CCI']; a1.plot(x,cci,color='#7C4DFF',lw=1.3)
-    a1.axhline(100,color=RED_HEX,ls='--',lw=0.8,alpha=0.7); a1.axhline(0,color='gray',ls='--',lw=0.8,alpha=0.5); a1.axhline(-100,color='#43A047',ls='--',lw=0.8,alpha=0.7)
-    a1.fill_between(x,cci,100,where=(cci>100),alpha=0.2,color=RED_HEX); a1.fill_between(x,cci,-100,where=(cci<-100),alpha=0.2,color='#43A047')
-    a1.set_ylabel('CCI (20)',fontproperties=MPL_FONT_PROP_BOLD); a1.grid(True,alpha=0.3)
-    wr=d['WILLR']; a2.plot(x,wr,color='#0097A7',lw=1.3)
-    a2.axhline(-20,color=RED_HEX,ls='--',lw=0.8,alpha=0.7); a2.axhline(-50,color='gray',ls='--',lw=0.8,alpha=0.5); a2.axhline(-80,color='#43A047',ls='--',lw=0.8,alpha=0.7)
-    a2.fill_between(x,wr,-20,where=(wr>-20),alpha=0.2,color=RED_HEX); a2.fill_between(x,wr,-80,where=(wr<-80),alpha=0.2,color='#43A047')
-    a2.set_ylabel('Williams %R',fontproperties=MPL_FONT_PROP_BOLD); a2.set_ylim(-105,5); a2.grid(True,alpha=0.3); a2.xaxis.set_major_formatter(mdates.DateFormatter('%b %y'))
-    plt.tight_layout(); return chart_bytes(fig)
+    """Generate 2-panel chart: CCI (20) and Williams %R (14)."""
+    d = d.tail(180).copy()
+    fig, (a1, a2) = plt.subplots(2, 1, figsize=(14, 6), sharex=True)
+    x = d.index
+
+    # ── CCI panel ──
+    cci = d['CCI']
+    a1.plot(x, cci, color='#7C4DFF', lw=1.3)
+    a1.axhline(100, color=RED_HEX, ls='--', lw=0.8, alpha=0.7)
+    a1.axhline(0, color='gray', ls='--', lw=0.8, alpha=0.5)
+    a1.axhline(-100, color='#43A047', ls='--', lw=0.8, alpha=0.7)
+    a1.fill_between(x, cci, 100, where=(cci > 100), alpha=0.2, color=RED_HEX)
+    a1.fill_between(x, cci, -100, where=(cci < -100), alpha=0.2, color='#43A047')
+    a1.set_ylabel('CCI (20)', fontproperties=MPL_FONT_PROP_BOLD); a1.grid(True, alpha=0.3)
+
+    # ── Williams %R panel ──
+    wr = d['WILLR']
+    a2.plot(x, wr, color='#0097A7', lw=1.3)
+    a2.axhline(-20, color=RED_HEX, ls='--', lw=0.8, alpha=0.7)
+    a2.axhline(-50, color='gray', ls='--', lw=0.8, alpha=0.5)
+    a2.axhline(-80, color='#43A047', ls='--', lw=0.8, alpha=0.7)
+    a2.fill_between(x, wr, -20, where=(wr > -20), alpha=0.2, color=RED_HEX)
+    a2.fill_between(x, wr, -80, where=(wr < -80), alpha=0.2, color='#43A047')
+    a2.set_ylabel('Williams %R', fontproperties=MPL_FONT_PROP_BOLD)
+    a2.set_ylim(-105, 5); a2.grid(True, alpha=0.3)
+    a2.xaxis.set_major_formatter(mdates.DateFormatter('%b %y'))
+
+    plt.tight_layout()
+    return chart_bytes(fig)
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# 7n: WILLIAMS ALLIGATOR CHART (make_alligator_chart)
+# ───────────────────────────────────────────────────────────────────────────────
+#
+# PURPOSE : Williams Alligator indicator overlay on candlestick chart.
+#           Jaw (Blue 13,8), Teeth (Red 8,5), Lips (Green 5,3).
+# ───────────────────────────────────────────────────────────────────────────────
+
 def make_alligator_chart(d):
+    """Generate candlestick chart with Williams Alligator overlay."""
     d = d.tail(180).copy()
     p = d[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
     aps = []; labels = []
@@ -3145,16 +3382,23 @@ def make_alligator_chart(d):
                              rc={'axes.facecolor': '#FAFAFA'})
     kw = dict(type='candle', style=st, volume=False, figsize=(14, 7),
               returnfig=True, warn_too_much_data=9999)
-    if aps:
-        kw['addplot'] = aps
+    if aps: kw['addplot'] = aps
     fig, ax = mpf.plot(p, **kw)
-    if labels:
-        ax[0].legend(labels, loc='upper left', fontsize=8, prop=MPL_FONT_PROP)
+    if labels: ax[0].legend(labels, loc='upper left', fontsize=8, prop=MPL_FONT_PROP)
     fig.subplots_adjust(right=0.95, left=0.05)
     return chart_bytes(fig)
 
 
+# ───────────────────────────────────────────────────────────────────────────────
+# 7o: SUPERTREND CHART (make_supertrend_chart)
+# ───────────────────────────────────────────────────────────────────────────────
+#
+# PURPOSE : Supertrend indicator overlay on candlestick chart.
+#           Green = bullish trend, Red = bearish trend.
+# ───────────────────────────────────────────────────────────────────────────────
+
 def make_supertrend_chart(d):
+    """Generate candlestick chart with Supertrend overlay."""
     d = d.tail(180).copy()
     p = d[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
     st_val, st_dir = _compute_supertrend(d)
@@ -3173,396 +3417,679 @@ def make_supertrend_chart(d):
                               rc={'axes.facecolor': '#FAFAFA'})
     kw = dict(type='candle', style=sty, volume=False, figsize=(14, 7),
               returnfig=True, warn_too_much_data=9999)
-    if aps:
-        kw['addplot'] = aps
+    if aps: kw['addplot'] = aps
     fig, ax = mpf.plot(p, **kw)
-    if labels:
-        ax[0].legend(labels, loc='upper left', fontsize=8, prop=MPL_FONT_PROP)
+    if labels: ax[0].legend(labels, loc='upper left', fontsize=8, prop=MPL_FONT_PROP)
     fig.subplots_adjust(right=0.95, left=0.05)
     return chart_bytes(fig)
-# ─────────────────────────────────────────────────────────────
-# 8. PDF REPORT CLASS
-# ─────────────────────────────────────────────────────────────
-PERIOD_AR = {'1 Day':'يوم','1 Week':'أسبوع','1 Month':'شهر','3 Months':'3 أشهر','6 Months':'6 أشهر','1 Year':'سنة','YTD':'منذ بداية السنة'}
-RISK_AR = {'Daily Volatility':'التذبذب اليومي','Annual Volatility':'التذبذب السنوي','Sharpe Ratio':'نسبة شارب','Sortino Ratio':'نسبة سورتينو','Max Drawdown':'أقصى تراجع','Avg Daily Return':'متوسط العائد اليومي','Best Day':'أفضل يوم','Worst Day':'أسوأ يوم'}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 8: PDF REPORT CLASS
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Build the multi-page PDF report using ReportLab.
+#           Each method creates one or more pages of the report.
+#
+# PAGE STRUCTURE (in order):
+#   1. cover()              — Cover page with price, KPIs, 52-week bar
+#   2. main_charts_page()   — Main chart + SMA/EMA + Alligator/Supertrend
+#   3. tech_page()          — RSI/MACD/ROC + Bollinger Bands
+#   4. ichimoku_page()      — Ichimoku + Candlestick patterns
+#   5. perf_page()          — Performance returns + Risk metrics + Drawdown
+#   6. fund_page()          — Fundamental analysis (valuation, profitability)
+#   7. signal_page()        — Gauge + Signals table + S/R levels + Indicators
+#   8. cci_willr_page()     — CCI/Williams%R + Divergences + Candle patterns
+#   9. review_page()        — Multi-paragraph Arabic technical review
+#
+# HELPER METHODS:
+#   _font()   — Set current font (regular or bold)
+#   _bar()    — Draw page header bar (navy with teal accent)
+#   _foot()   — Draw page footer
+#   _stitle() — Draw section title with underline
+#   _box()    — Draw KPI box (gray background)
+#   _table()  — Draw data table with alternating row colors
+#   _img()    — Insert chart image
+#   _wrap_arabic_text() — Word-wrap Arabic text for review page
+#
+# TO MODIFY:
+#   • Add new page → create new method, call in _build_report_sync()
+#   • Change header color → modify NAVY in _bar()
+#   • Change table style → modify _table() colors
+#   • Change box style → modify _box() corner radius, colors
+#   • Add logo → load image in cover() or _bar()
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── Arabic labels for period names and risk metrics ──
+PERIOD_AR = {
+    '1 Day':'يوم', '1 Week':'أسبوع', '1 Month':'شهر',
+    '3 Months':'3 أشهر', '6 Months':'6 أشهر',
+    '1 Year':'سنة', 'YTD':'منذ بداية السنة',
+}
+
+RISK_AR = {
+    'Daily Volatility':'التذبذب اليومي', 'Annual Volatility':'التذبذب السنوي',
+    'Sharpe Ratio':'نسبة شارب', 'Sortino Ratio':'نسبة سورتينو',
+    'Max Drawdown':'أقصى تراجع', 'Avg Daily Return':'متوسط العائد اليومي',
+    'Best Day':'أفضل يوم', 'Worst Day':'أسوأ يوم',
+}
 
 
 class Report:
+    """PDF Report builder using ReportLab Canvas."""
+
     def __init__(self, path, ticker, info, display_ticker=None):
         self.c = pdfcanvas.Canvas(path, pagesize=A4)
         self.c.setTitle(f'{ticker} Arabic Stock Report')
-        self.tk = ticker; self.display_tk = display_ticker or ticker; self.info = info; self.pn = 0
+        self.tk = ticker
+        self.display_tk = display_ticker or ticker
+        self.info = info
+        self.pn = 0  # Page counter
 
+    # ── Font helper ──
     def _font(self, bold=False, size=10):
+        """Set current font to Amiri Regular or Bold."""
         self.c.setFont(AR_FONT_BOLD if bold else AR_FONT, size)
 
+    # ── Page header bar ──
     def _bar(self, title):
-        self.pn += 1; c = self.c
+        """Draw navy header bar with teal accent line."""
+        self.pn += 1
+        c = self.c
         c.setFillColor(NAVY); c.rect(0, PAGE_H-34*mm, PAGE_W, 34*mm, fill=1, stroke=0)
         c.setFillColor(TEAL); c.rect(0, PAGE_H-36*mm, PAGE_W, 2*mm, fill=1, stroke=0)
-        c.setFillColor(WHITE); self._font(True, 15); c.drawRightString(PAGE_W-MG, PAGE_H-18*mm, rtl(title))
-        self._font(False, 9); c.drawString(MG, PAGE_H-14*mm, self.display_tk); c.drawString(MG, PAGE_H-22*mm, datetime.now().strftime('%Y-%m-%d'))
+        c.setFillColor(WHITE); self._font(True, 15)
+        c.drawRightString(PAGE_W-MG, PAGE_H-18*mm, rtl(title))
+        self._font(False, 9)
+        c.drawString(MG, PAGE_H-14*mm, self.display_tk)
+        c.drawString(MG, PAGE_H-22*mm, datetime.now().strftime('%Y-%m-%d'))
 
+    # ── Page footer ──
     def _foot(self):
-        c = self.c; c.setFillColor(LGRAY); c.rect(0, 0, PAGE_W, 10*mm, fill=1, stroke=0)
-        c.setFillColor(DGRAY); self._font(False, 7); c.drawString(MG, 4*mm, self.display_tk); c.drawRightString(PAGE_W-MG, 4*mm, rtl(f'الصفحة {self.pn}'))
+        """Draw light gray footer with ticker and page number."""
+        c = self.c
+        c.setFillColor(LGRAY); c.rect(0, 0, PAGE_W, 10*mm, fill=1, stroke=0)
+        c.setFillColor(DGRAY); self._font(False, 7)
+        c.drawString(MG, 4*mm, self.display_tk)
+        c.drawRightString(PAGE_W-MG, 4*mm, rtl(f'الصفحة {self.pn}'))
 
+    # ── Section title with underline ──
     def _stitle(self, y, t):
-        c = self.c; c.setFillColor(NAVY); self._font(True, 11); c.drawRightString(PAGE_W-MG, y, rtl(t))
-        c.setStrokeColor(TEAL); c.setLineWidth(1.4); c.line(MG, y-4, PAGE_W-MG, y-4); return y-18
+        """Draw section title with teal underline. Returns new y position."""
+        c = self.c
+        c.setFillColor(NAVY); self._font(True, 11)
+        c.drawRightString(PAGE_W-MG, y, rtl(t))
+        c.setStrokeColor(TEAL); c.setLineWidth(1.4)
+        c.line(MG, y-4, PAGE_W-MG, y-4)
+        return y - 18
 
+    # ── KPI box ──
     def _box(self, x, y, bw, bh, lbl, val, clr=None):
-        c = self.c; c.setFillColor(LGRAY); c.roundRect(x, y, bw, bh, 5, fill=1, stroke=0)
-        c.setFillColor(DGRAY); self._font(False, 8); c.drawCentredString(x+bw/2, y+bh-14, tx(lbl))
-        if isinstance(val, (int, float)): val_str, val_clr = fmt_n(val)
-        else: val_str = str(val) if val is not None else '-'; val_clr = None
-        if val_clr: fill_color = val_clr
+        """Draw a gray box with label (top) and value (bottom)."""
+        c = self.c
+        c.setFillColor(LGRAY); c.roundRect(x, y, bw, bh, 5, fill=1, stroke=0)
+        c.setFillColor(DGRAY); self._font(False, 8)
+        c.drawCentredString(x + bw/2, y + bh - 14, tx(lbl))
+        if isinstance(val, (int, float)):
+            val_str, val_clr = fmt_n(val)
+        else:
+            val_str = str(val) if val is not None else '-'
+            val_clr = None
+        if val_clr:
+            fill_color = val_clr
         elif clr:
             fill_color = HexColor(clr) if isinstance(clr, str) else clr
-        else: fill_color = NAVY
-        c.setFillColor(fill_color); self._font(True, 12.5); c.drawCentredString(x+bw/2, y+8, tx(val_str))
+        else:
+            fill_color = NAVY
+        c.setFillColor(fill_color); self._font(True, 12.5)
+        c.drawCentredString(x + bw/2, y + 8, tx(val_str))
 
+    # ── Data table ──
     def _table(self, y, rows, cw_list, sig_mode=False, score_mode=False):
+        """Draw a table with alternating row colors. Returns new y position."""
         c = self.c; rh = 16; total_w = sum(cw_list)
         for i, row in enumerate(rows):
-            ry = y - i*rh
-            if i==0: bg,fg,is_bold = NAVY,WHITE,True
-            elif i%2==1: bg,fg,is_bold = LGRAY,TXTDARK,False
-            else: bg,fg,is_bold = WHITE,TXTDARK,False
+            ry = y - i * rh
+            if i == 0:      bg, fg, is_bold = NAVY, WHITE, True
+            elif i % 2 == 1: bg, fg, is_bold = LGRAY, TXTDARK, False
+            else:           bg, fg, is_bold = WHITE, TXTDARK, False
             c.setFillColor(bg); c.rect(MG, ry-4, total_w, rh, fill=1, stroke=0)
-            sx=MG; c.setStrokeColor(HexColor('#D8DEE9')); c.setLineWidth(0.5)
+            sx = MG; c.setStrokeColor(HexColor('#D8DEE9')); c.setLineWidth(0.5)
             for col_w in cw_list[:-1]:
-                sx+=col_w; c.line(sx, ry-4, sx, ry-4+rh)
-            cx=MG
+                sx += col_w; c.line(sx, ry-4, sx, ry-4+rh)
+            cx = MG
             for j, cell in enumerate(row):
-                fill=fg; is_cell_bold=is_bold
-                if i>0 and j==0 and str(cell).startswith('-') and not sig_mode and not score_mode: fill=RED
-                if i>0 and sig_mode and j==0:
-                    raw=str(cell)
-                    if 'إيجابي' in raw: fill=GREEN
-                    elif 'سلبي' in raw: fill=RED
-                    else: fill=ORANGE
-                    is_cell_bold=True
-                if i>0 and score_mode and j==0:
-                    if cell=='✓': fill=GREEN
-                    elif cell=='✗': fill=RED
-                    is_cell_bold=True
-                c.setFillColor(fill); self._font(is_cell_bold, 8); c.drawRightString(cx+cw_list[j]-4, ry+2, tx(cell)); cx+=cw_list[j]
-        return y - len(rows)*rh - 6
+                fill = fg; is_cell_bold = is_bold
+                if i > 0 and j == 0 and str(cell).startswith('-') and not sig_mode and not score_mode:
+                    fill = RED
+                if i > 0 and sig_mode and j == 0:
+                    raw = str(cell)
+                    if 'إيجابي' in raw: fill = GREEN
+                    elif 'سلبي' in raw: fill = RED
+                    else: fill = ORANGE
+                    is_cell_bold = True
+                if i > 0 and score_mode and j == 0:
+                    if cell == '✓': fill = GREEN
+                    elif cell == '✗': fill = RED
+                    is_cell_bold = True
+                c.setFillColor(fill); self._font(is_cell_bold, 8)
+                c.drawRightString(cx + cw_list[j] - 4, ry + 2, tx(cell))
+                cx += cw_list[j]
+        return y - len(rows) * rh - 6
 
+    # ── Insert chart image ──
     def _img(self, y, buf, max_h):
-        c = self.c; buf.seek(0); img = ImageReader(buf); iw,ih = img.getSize()
-        ratio=ih/iw; dw=CW; dh=dw*ratio
-        if dh>max_h: dh=max_h; dw=dh/ratio
-        x=MG+(CW-dw)/2; c.drawImage(img, x, y-dh-2, dw, dh); return y-dh-8
+        """Insert a chart image. Returns new y position."""
+        c = self.c; buf.seek(0)
+        img = ImageReader(buf); iw, ih = img.getSize()
+        ratio = ih / iw; dw = CW; dh = dw * ratio
+        if dh > max_h: dh = max_h; dw = dh / ratio
+        x = MG + (CW - dw) / 2
+        c.drawImage(img, x, y - dh - 2, dw, dh)
+        return y - dh - 8
 
+    # ── Arabic text word-wrap ──
     def _wrap_arabic_text(self, text, max_width, font_size):
-        words=str(text).split(); lines=[]; current_line=[]
+        """Wrap Arabic text into lines that fit within max_width."""
+        words = str(text).split(); lines = []; current_line = []
         for word in words:
-            test_shaped=rtl(' '.join(current_line+[word]))
-            line_width=self.c.stringWidth(test_shaped, AR_FONT, font_size)
-            if line_width<=max_width: current_line.append(word)
+            test_shaped = rtl(' '.join(current_line + [word]))
+            line_width = self.c.stringWidth(test_shaped, AR_FONT, font_size)
+            if line_width <= max_width:
+                current_line.append(word)
             else:
                 if current_line: lines.append(rtl(' '.join(current_line)))
-                current_line=[word]
+                current_line = [word]
         if current_line: lines.append(rtl(' '.join(current_line)))
         return lines
 
+    # ══════════════════════════════════════════════════════════════════════════
+    # PAGE 1: COVER PAGE
+    # ══════════════════════════════════════════════════════════════════════════
     def cover(self, price, chg, info, rec_txt, rec_color, score):
-        c=self.c; self.pn+=1
+        """Generate cover page with price, KPIs, 52-week bar, company info."""
+        c = self.c; self.pn += 1
+
+        # ── Header ──
         c.setFillColor(NAVY); c.rect(0, PAGE_H-78*mm, PAGE_W, 78*mm, fill=1, stroke=0)
         c.setFillColor(TEAL); c.rect(0, PAGE_H-80*mm, PAGE_W, 2*mm, fill=1, stroke=0)
         company_name = (COMPANY_NAMES.get(self.tk)
                         or safe(info, 'longName', safe(info, 'shortName', self.display_tk))
                         or self.display_tk)
         company_name = short_text(str(company_name), 42)
-        c.setFillColor(WHITE); self._font(True,23); c.drawRightString(PAGE_W-MG, PAGE_H-22*mm, rtl('تقرير تحليل سهم'))
-        self._font(True,18); c.drawRightString(PAGE_W-MG, PAGE_H-39*mm, tx(company_name))
-        self._font(False,11); c.drawRightString(PAGE_W-MG, PAGE_H-52*mm, tx(f'{self.display_tk} | {safe(info,"exchange","-")}'))
-        self._font(False,9); c.drawString(MG, PAGE_H-18*mm, datetime.now().strftime('%Y-%m-%d'))
-        c.setFillColor(HexColor(rec_color)); c.roundRect(MG, PAGE_H-58*mm, 60*mm, 14*mm, 8, fill=1, stroke=0)
-        # c.setFillColor(WHITE); self._font(True,11); c.drawCentredString(MG+30*mm, PAGE_H-53*mm, rtl(rec_txt))
-        # self._font(False,8); c.drawCentredString(MG+30*mm, PAGE_H-57*mm, rtl(f'النتيجة {score}/20'))
-        #c.setFillColor(WHITE); self._font(True,11); c.drawCentredString(PAGE_W/2, PAGE_H-53*mm, rtl(rec_txt))
-        #self._font(False,8); c.drawCentredString(PAGE_W/2, PAGE_H-57*mm, rtl(f'النتيجة {score}/20'))
-        c.setFillColor(WHITE); self._font(True,11); c.drawCentredString(MG+30*mm, PAGE_H-50*mm, rtl(rec_txt))
-        self._font(False,8); c.drawCentredString(MG+30*mm, PAGE_H-54*mm, rtl(f'النتيجة {score}/20'))
-        
-        ###MAIN PAGE CARD
-        col_bw=CW/3-4*mm; col_bh=18*mm; col_gap=4*mm
-        x1=MG; x2=MG+col_bw+col_gap; x3=MG+2*(col_bw+col_gap)
-        y1=PAGE_H-110*mm; y2=y1-col_bh-col_gap; y3=y2-col_bh-col_gap; y4=y3-col_bh-col_gap
-        self._box(x1,y1,col_bw,col_bh,'السعر الحالي',price)
-        self._box(x2,y1,col_bw,col_bh,'التغير اليومي',f'{chg:+.2f}%',clr=GREEN_HEX if chg>=0 else RED_HEX)
-        self._box(x3,y1,col_bw,col_bh,'القيمة السوقية',fmt_n(safe(info,'marketCap'))[0])
-        pe=safe(info,'trailingPE'); eps=safe(info,'trailingEps'); dy=safe(info,'dividendYield')
-        self._box(x1,y2,col_bw,col_bh,'مكرر الربحية',f'{float(pe):.2f}' if pe else '-')
-        eps_val=float(eps) if eps else None; eps_str=f'{eps_val:.2f}' if eps_val is not None else '-'
-        eps_color=GREEN_HEX if (eps_val is not None and eps_val>=0) else RED_HEX if eps_val is not None else None
-        self._box(x2,y2,col_bw,col_bh,'ربحية السهم',eps_str,clr=eps_color)
-        self._box(x3,y2,col_bw,col_bh,'عائد التوزيعات',fmt_p(dy)[0] if dy else '-')
-        pb=safe(info,'priceToBook'); roe=safe(info,'returnOnEquity'); beta=safe(info,'beta')
-        self._box(x1,y3,col_bw,col_bh,'مضاعف القيمة الدفترية',f'{float(pb):.2f}' if pb else '-')
-        self._box(x2,y3,col_bw,col_bh,'العائد على حقوق المساهمين',fmt_p(roe)[0] if roe else '-')
-        self._box(x3,y3,col_bw,col_bh,'العائد على الأصول', (roa)[0] if roa else '-')        
-        #self._box(x3,y3,col_bw,col_bh,'العائد على الأصول', fmt_p(roa)[0] if roa else '-')        
-        #self._box(x3,y3,col_bw,col_bh,'بيتا',f'{float(beta):.2f}' if beta else '-')
+        c.setFillColor(WHITE); self._font(True, 23)
+        c.drawRightString(PAGE_W-MG, PAGE_H-22*mm, rtl('تقرير تحليل سهم'))
+        self._font(True, 18)
+        c.drawRightString(PAGE_W-MG, PAGE_H-39*mm, tx(company_name))
+        self._font(False, 11)
+        c.drawRightString(PAGE_W-MG, PAGE_H-52*mm, tx(f'{self.display_tk} | {safe(info,"exchange","-")}'))
+        self._font(False, 9)
+        c.drawString(MG, PAGE_H-18*mm, datetime.now().strftime('%Y-%m-%d'))
 
+        # ── Recommendation badge ──
+        c.setFillColor(HexColor(rec_color))
+        c.roundRect(MG, PAGE_H-58*mm, 60*mm, 14*mm, 8, fill=1, stroke=0)
+        c.setFillColor(WHITE); self._font(True, 11)
+        c.drawCentredString(MG+30*mm, PAGE_H-50*mm, rtl(rec_txt))
+        self._font(False, 8)
+        c.drawCentredString(MG+30*mm, PAGE_H-54*mm, rtl(f'النتيجة {score}/20'))
 
-        self._box(x1,y4,col_bw,col_bh,'حجم التداول',fmt_n(safe(info,'volume'),d=0)[0])
-        val_str = fmt_n(safe(info,'tradingValue'),d=0)[0] if safe(info,'tradingValue') else '-'
-        self._box(x2,y4,col_bw,col_bh,'قيمة التداول',val_str)
-        trades_str = fmt_n(safe(info,'tradesCount'),d=0)[0] if safe(info,'tradesCount') else '-'
-        self._box(x3,y4,col_bw,col_bh,'عدد الصفقات',trades_str)
-        w52h=safe(info,'fiftyTwoWeekHigh'); w52l=safe(info,'fiftyTwoWeekLow')
-        if w52h and w52l and float(w52h)!=float(w52l):
-            bar_y=y4-12*mm; c.setFillColor(NAVY); self._font(True,8); c.drawRightString(PAGE_W-MG, bar_y+2, rtl('نطاق 52 أسبوع'))
-            bar_x=MG; bar_w=CW; bar_h=5*mm; bar_y2=bar_y-bar_h-2
-            c.setFillColor(HexColor('#ECEFF1')); c.roundRect(bar_x, bar_y2, bar_w, bar_h, 3, fill=1, stroke=0)
-            pos=(price-float(w52l))/(float(w52h)-float(w52l)); pos=max(0.0,min(1.0,pos)); fill_w=bar_w*pos
-            fill_c=HexColor(RED_HEX) if pos<0.35 else (HexColor(GREEN_HEX) if pos>0.65 else HexColor(ORANGE_HEX))
-            c.setFillColor(fill_c); c.roundRect(bar_x, bar_y2, max(fill_w,4), bar_h, 3, fill=1, stroke=0)
-            c.setFillColor(DGRAY); self._font(False,7); c.drawString(bar_x, bar_y2-9, f'{float(w52l):.2f}'); c.drawRightString(bar_x+bar_w, bar_y2-9, f'{float(w52h):.2f}')
-            c.setFillColor(NAVY); self._font(True,7); c.drawCentredString(bar_x+bar_w/2, bar_y2-9, f'{pos*100:.0f}%'); y_after=bar_y2-12*mm
-        else: y_after=y4-6*mm
-        y=y_after; y=self._stitle(y,'معلومات الشركة')
-        sector=short_text(safe(info,'sector','-') or '-',26); industry=short_text(safe(info,'industry','-') or '-',26)
-        items=[('القطاع',sector),('الصناعة',industry),('العملة',safe(info,'currency','SAR') or '-'),('متوسط الحجم',fmt_n(safe(info,'averageVolume'),d=0)[0]),('أعلى 52 أسبوع',fmt_n(safe(info,'fiftyTwoWeekHigh'))[0]),('أدنى 52 أسبوع',fmt_n(safe(info,'fiftyTwoWeekLow'))[0]),('الأسهم القائمة',fmt_n(safe(info,'sharesOutstanding'),d=0)[0]),('الأسهم الحرة',fmt_n(safe(info,'floatShares'),d=0)[0])]
-        half=CW/2
-        for idx,(lbl,val) in enumerate(items):
-            col=idx%2; row=idx//2; xr=MG+(col+1)*half-5; yy=y-row*18
-            c.setFillColor(NAVY); self._font(True,8.5); c.drawRightString(xr, yy, rtl(f'{lbl}:'))
-            c.setFillColor(TXTDARK); self._font(False,8.5); c.drawRightString(xr-85, yy, tx(val))
-        c.setFillColor(DGRAY); self._font(False,7); c.drawCentredString(PAGE_W/2, 14*mm, rtl('هذا التقرير لأغراض معلوماتية فقط وليس توصية استثمارية.'))
+        # ── KPI boxes (3 rows × 3 columns) ──
+        col_bw = CW/3 - 4*mm; col_bh = 18*mm; col_gap = 4*mm
+        x1 = MG; x2 = MG + col_bw + col_gap; x3 = MG + 2*(col_bw + col_gap)
+        y1 = PAGE_H - 110*mm; y2 = y1 - col_bh - col_gap
+        y3 = y2 - col_bh - col_gap; y4 = y3 - col_bh - col_gap
+
+        # Row 1: Price, Change, Market Cap
+        self._box(x1, y1, col_bw, col_bh, 'السعر الحالي', price)
+        self._box(x2, y1, col_bw, col_bh, 'التغير اليومي', f'{chg:+.2f}%',
+                  clr=GREEN_HEX if chg >= 0 else RED_HEX)
+        self._box(x3, y1, col_bw, col_bh, 'القيمة السوقية', fmt_n(safe(info,'marketCap'))[0])
+
+        # Row 2: P/E, EPS, Dividend Yield
+        pe = safe(info, 'trailingPE'); eps = safe(info, 'trailingEps'); dy = safe(info, 'dividendYield')
+        self._box(x1, y2, col_bw, col_bh, 'مكرر الربحية', f'{float(pe):.2f}' if pe else '-')
+        eps_val = float(eps) if eps else None
+        eps_str = f'{eps_val:.2f}' if eps_val is not None else '-'
+        eps_color = GREEN_HEX if (eps_val is not None and eps_val >= 0) else RED_HEX if eps_val is not None else None
+        self._box(x2, y2, col_bw, col_bh, 'ربحية السهم', eps_str, clr=eps_color)
+        self._box(x3, y2, col_bw, col_bh, 'عائد التوزيعات', fmt_p(dy)[0] if dy else '-')
+
+        # Row 3: P/B, ROE, Beta
+        pb = safe(info, 'priceToBook'); roe = safe(info, 'returnOnEquity'); beta = safe(info, 'beta')
+        self._box(x1, y3, col_bw, col_bh, 'مضاعف القيمة الدفترية', f'{float(pb):.2f}' if pb else '-')
+        self._box(x2, y3, col_bw, col_bh, 'العائد على حقوق المساهمين', fmt_p(roe)[0] if roe else '-')
+        self._box(x3, y3, col_bw, col_bh, 'بيتا', f'{float(beta):.2f}' if beta else '-')
+
+        # Row 4: Volume, Trading Value, Trades Count
+        self._box(x1, y4, col_bw, col_bh, 'حجم التداول', fmt_n(safe(info,'volume'), d=0)[0])
+        val_str = fmt_n(safe(info,'tradingValue'), d=0)[0] if safe(info,'tradingValue') else '-'
+        self._box(x2, y4, col_bw, col_bh, 'قيمة التداول', val_str)
+        trades_str = fmt_n(safe(info,'tradesCount'), d=0)[0] if safe(info,'tradesCount') else '-'
+        self._box(x3, y4, col_bw, col_bh, 'عدد الصفقات', trades_str)
+
+        # ── 52-week range bar ──
+        w52h = safe(info, 'fiftyTwoWeekHigh'); w52l = safe(info, 'fiftyTwoWeekLow')
+        if w52h and w52l and float(w52h) != float(w52l):
+            bar_y = y4 - 12*mm
+            c.setFillColor(NAVY); self._font(True, 8)
+            c.drawRightString(PAGE_W-MG, bar_y+2, rtl('نطاق 52 أسبوع'))
+            bar_x = MG; bar_w = CW; bar_h = 5*mm; bar_y2 = bar_y - bar_h - 2
+            c.setFillColor(HexColor('#ECEFF1'))
+            c.roundRect(bar_x, bar_y2, bar_w, bar_h, 3, fill=1, stroke=0)
+            pos = (price - float(w52l)) / (float(w52h) - float(w52l))
+            pos = max(0.0, min(1.0, pos)); fill_w = bar_w * pos
+            fill_c = HexColor(RED_HEX) if pos < 0.35 else (HexColor(GREEN_HEX) if pos > 0.65 else HexColor(ORANGE_HEX))
+            c.setFillColor(fill_c); c.roundRect(bar_x, bar_y2, max(fill_w, 4), bar_h, 3, fill=1, stroke=0)
+            c.setFillColor(DGRAY); self._font(False, 7)
+            c.drawString(bar_x, bar_y2-9, f'{float(w52l):.2f}')
+            c.drawRightString(bar_x+bar_w, bar_y2-9, f'{float(w52h):.2f}')
+            c.setFillColor(NAVY); self._font(True, 7)
+            c.drawCentredString(bar_x+bar_w/2, bar_y2-9, f'{pos*100:.0f}%')
+            y_after = bar_y2 - 12*mm
+        else:
+            y_after = y4 - 6*mm
+
+        # ── Company info section ──
+        y = y_after; y = self._stitle(y, 'معلومات الشركة')
+        sector = short_text(safe(info, 'sector', '-') or '-', 26)
+        industry = short_text(safe(info, 'industry', '-') or '-', 26)
+        items = [
+            ('القطاع', sector), ('الصناعة', industry),
+            ('العملة', safe(info, 'currency', 'SAR') or '-'),
+            ('متوسط الحجم', fmt_n(safe(info, 'averageVolume'), d=0)[0]),
+            ('أعلى 52 أسبوع', fmt_n(safe(info, 'fiftyTwoWeekHigh'))[0]),
+            ('أدنى 52 أسبوع', fmt_n(safe(info, 'fiftyTwoWeekLow'))[0]),
+            ('الأسهم القائمة', fmt_n(safe(info, 'sharesOutstanding'), d=0)[0]),
+            ('الأسهم الحرة', fmt_n(safe(info, 'floatShares'), d=0)[0]),
+        ]
+        half = CW / 2
+        for idx, (lbl, val) in enumerate(items):
+            col = idx % 2; row = idx // 2
+            xr = MG + (col + 1) * half - 5; yy = y - row * 18
+            c.setFillColor(NAVY); self._font(True, 8.5)
+            c.drawRightString(xr, yy, rtl(f'{lbl}:'))
+            c.setFillColor(TXTDARK); self._font(False, 8.5)
+            c.drawRightString(xr - 85, yy, tx(val))
+
+        # ── Disclaimer ──
+        c.setFillColor(DGRAY); self._font(False, 7)
+        c.drawCentredString(PAGE_W/2, 14*mm, rtl('هذا التقرير لأغراض معلوماتية فقط وليس توصية استثمارية.'))
         self._foot(); c.showPage()
 
-    ########################################################################################
+    # ══════════════════════════════════════════════════════════════════════════
+    # PAGE 2: MAIN CHARTS (S/R + SMA/EMA + Alligator/Supertrend)
+    # ══════════════════════════════════════════════════════════════════════════
     def main_charts_page(self, main_img, sma_img, ema_img, alligator_img, supertrend_img):
-        self._bar('الرسم البياني')
-        self._foot()
-        c = self.c
-        y = PAGE_H - 44 * mm
-    
-        # ── Section 1: الدعوم والمقاومات (full-width) ──
+        """Charts page: S/R (full-width), SMA|EMA side-by-side, Alligator|Supertrend side-by-side."""
+        self._bar('الرسم البياني'); self._foot()
+        c = self.c; y = PAGE_H - 44*mm
+
+        # ── S/R chart (full width) ──
         y = self._stitle(y, 'الدعوم والمقاومات')
-        y = self._img(y, main_img, 78 * mm)
-        
-        # Add 1cm spacing here
-        y -= 10 * mm
-    
-        # ── Section 2: SMA (right) | EMA (left) side-by-side ──
+        y = self._img(y, main_img, 78*mm)
+        y -= 10*mm  # 1cm spacing
+
+        # ── SMA (right) | EMA (left) side-by-side ──
         mid_x = MG + CW / 2
-        right_title_x = PAGE_W - MG
-        left_title_x  = mid_x - 4 * mm
-    
+        right_title_x = PAGE_W - MG; left_title_x = mid_x - 4*mm
         c.setFillColor(NAVY); self._font(True, 9)
-        c.drawRightString(right_title_x, y,
-                          rtl('المتوسطات المتحركة البسيطة (SMA)'))
-        c.drawRightString(left_title_x, y,
-                          rtl('المتوسطات المتحركة الأسية (EMA)'))
+        c.drawRightString(right_title_x, y, rtl('المتوسطات المتحركة البسيطة (SMA)'))
+        c.drawRightString(left_title_x, y, rtl('المتوسطات المتحركة الأسية (EMA)'))
         c.setStrokeColor(TEAL); c.setLineWidth(1.0)
-        c.line(mid_x + 2 * mm, y - 3, PAGE_W - MG, y - 3)
-        c.line(MG,             y - 3, mid_x - 2 * mm, y - 3)
-        y -= 8 * mm
-    
+        c.line(mid_x + 2*mm, y - 3, PAGE_W - MG, y - 3)
+        c.line(MG, y - 3, mid_x - 2*mm, y - 3)
+        y -= 8*mm
+
+        dw = (CW / 2) - 3*mm; maxh = 58*mm
         sma_img.seek(0); img_sma = ImageReader(sma_img)
         ema_img.seek(0); img_ema = ImageReader(ema_img)
-        dw = (CW / 2) - 3 * mm
-        maxh = 58 * mm
-    
+
         ratio_sma = img_sma.getSize()[1] / img_sma.getSize()[0]
-        dh_sma = min(dw * ratio_sma, maxh)
-        dw_sma = dh_sma / ratio_sma
-    
+        dh_sma = min(dw * ratio_sma, maxh); dw_sma = dh_sma / ratio_sma
         ratio_ema = img_ema.getSize()[1] / img_ema.getSize()[0]
-        dh_ema = min(dw * ratio_ema, maxh)
-        dw_ema = dh_ema / ratio_ema
-    
-        x_sma = PAGE_W - MG - dw_sma          # right
-        x_ema = MG                              # left
+        dh_ema = min(dw * ratio_ema, maxh); dw_ema = dh_ema / ratio_ema
+
+        x_sma = PAGE_W - MG - dw_sma; x_ema = MG
         c.drawImage(img_sma, x_sma, y - dh_sma, dw_sma, dh_sma)
         c.drawImage(img_ema, x_ema, y - dh_ema, dw_ema, dh_ema)
-        y -= max(dh_sma, dh_ema) + 5 * mm    
-###################################################################################
-        # ── Section 3: Alligator (right) | Supertrend (left) side-by-side ──
+        y -= max(dh_sma, dh_ema) + 5*mm
+
+        # ── Alligator (right) | Supertrend (left) side-by-side ──
         c.setFillColor(NAVY); self._font(True, 9)
-        c.drawRightString(right_title_x, y,
-                          rtl('مؤشر التمساح (Alligator)'))
-        c.drawRightString(left_title_x, y,
-                          rtl('مؤشر السوبر تريند (Supertrend)'))
+        c.drawRightString(right_title_x, y, rtl('مؤشر التمساح (Alligator)'))
+        c.drawRightString(left_title_x, y, rtl('مؤشر السوبر تريند (Supertrend)'))
         c.setStrokeColor(TEAL); c.setLineWidth(1.0)
-        c.line(mid_x + 2 * mm, y - 3, PAGE_W - MG, y - 3)
-        c.line(MG,             y - 3, mid_x - 2 * mm, y - 3)
-        y -= 8 * mm
+        c.line(mid_x + 2*mm, y - 3, PAGE_W - MG, y - 3)
+        c.line(MG, y - 3, mid_x - 2*mm, y - 3)
+        y -= 8*mm
 
-        alligator_img.seek(0);  img_alg = ImageReader(alligator_img)
-        supertrend_img.seek(0); img_st  = ImageReader(supertrend_img)
-
+        alligator_img.seek(0); img_alg = ImageReader(alligator_img)
+        supertrend_img.seek(0); img_st = ImageReader(supertrend_img)
         ratio_alg = img_alg.getSize()[1] / img_alg.getSize()[0]
-        dh_alg = min(dw * ratio_alg, maxh)
-        dw_alg = dh_alg / ratio_alg
-
+        dh_alg = min(dw * ratio_alg, maxh); dw_alg = dh_alg / ratio_alg
         ratio_st = img_st.getSize()[1] / img_st.getSize()[0]
-        dh_st = min(dw * ratio_st, maxh)
-        dw_st = dh_st / ratio_st
+        dh_st = min(dw * ratio_st, maxh); dw_st = dh_st / ratio_st
 
-        x_alg = PAGE_W - MG - dw_alg           # right
-        x_st  = MG                               # left
-        c.drawImage(img_alg, x_alg, y - dh_alg, dw_alg, dh_alg)
-        c.drawImage(img_st,  x_st,  y - dh_st,  dw_st,  dh_st)
-
+        c.drawImage(img_alg, PAGE_W - MG - dw_alg, y - dh_alg, dw_alg, dh_alg)
+        c.drawImage(img_st, MG, y - dh_st, dw_st, dh_st)
         self.c.showPage()
 
+    # ══════════════════════════════════════════════════════════════════════════
+    # PAGE 3: TECHNICAL INDICATORS (RSI/MACD/ROC + Bollinger)
+    # ══════════════════════════════════════════════════════════════════════════
     def tech_page(self, tech_img, bb_img):
         self._bar('المؤشرات الفنية'); self._foot()
-        y=PAGE_H-44*mm; y=self._stitle(y,'RSI و MACD و ROC 12'); y=self._img(y, tech_img, 113*mm)
-        y=self._stitle(y,'نطاقات بولنجر'); self._img(y, bb_img, 113*mm); self.c.showPage()
+        y = PAGE_H - 44*mm
+        y = self._stitle(y, 'RSI و MACD و ROC 12'); y = self._img(y, tech_img, 113*mm)
+        y = self._stitle(y, 'نطاقات بولنجر'); self._img(y, bb_img, 113*mm)
+        self.c.showPage()
 
+    # ══════════════════════════════════════════════════════════════════════════
+    # PAGE 4: PERFORMANCE & RISK + SCORE TABLE
+    # ══════════════════════════════════════════════════════════════════════════
     def perf_page(self, pers, risk, dd_img, vol_img, score_criteria, total_score):
         self._bar('الأداء والمخاطر'); self._foot()
-        y=PAGE_H-44*mm; y=self._stitle(y,'العوائد حسب الفترة')
-        rows=[['القيمة','الفترة']]
-        for k,v in pers.items(): rows.append([f'{v:+.2f}%',PERIOD_AR.get(k,k)])
-        y=self._table(y,rows,[CW*0.38,CW*0.62]); y=self._stitle(y,'مقاييس المخاطر')
-        rows2=[['القيمة','المقياس']]
-        for k,v in risk.items(): rows2.append([str(v),RISK_AR.get(k,k)])
-        y=self._table(y,rows2,[CW*0.38,CW*0.62]); y=self._stitle(y,'منحنى التراجع'); self._img(y,dd_img,58*mm); self.c.showPage()
+        y = PAGE_H - 44*mm
+        y = self._stitle(y, 'العوائد حسب الفترة')
+        rows = [['القيمة', 'الفترة']]
+        for k, v in pers.items(): rows.append([f'{v:+.2f}%', PERIOD_AR.get(k, k)])
+        y = self._table(y, rows, [CW*0.38, CW*0.62])
+        y = self._stitle(y, 'مقاييس المخاطر')
+        rows2 = [['القيمة', 'المقياس']]
+        for k, v in risk.items(): rows2.append([str(v), RISK_AR.get(k, k)])
+        y = self._table(y, rows2, [CW*0.38, CW*0.62])
+        y = self._stitle(y, 'منحنى التراجع')
+        self._img(y, dd_img, 58*mm); self.c.showPage()
+
+        # ── Volume + Score table page ──
         self._bar('تحليل الحجم'); self._foot()
-        y2=PAGE_H-44*mm; y2=self._stitle(y2,'الحجم اليومي مقابل متوسط 20 يوم'); y2=self._img(y2,vol_img,100*mm)
-        y_table=y2-6*mm
-        if y_table>80*mm:
-            y_table=self._stitle(y_table,f'جدول نقاط النتيجة ({total_score}/20)')
-            rows_score=[['النقاط','الحالة','البند']]
-            for lbl,(symbol,pt) in score_criteria.items():
-                status=rtl('نعم ✓') if pt==1 else rtl('لا ✗')
-                rows_score.append([str(pt),status,rtl(short_text(lbl,35))])
-            rows_score.append([str(total_score),rtl('من 20'),rtl('الإجمالي')])
-            self._table(y_table,rows_score,[CW*0.15,CW*0.30,CW*0.55],score_mode=True)
+        y2 = PAGE_H - 44*mm
+        y2 = self._stitle(y2, 'الحجم اليومي مقابل متوسط 20 يوم')
+        y2 = self._img(y2, vol_img, 100*mm)
+        y_table = y2 - 6*mm
+        if y_table > 80*mm:
+            y_table = self._stitle(y_table, f'جدول نقاط النتيجة ({total_score}/20)')
+            rows_score = [['النقاط', 'الحالة', 'البند']]
+            for lbl, (symbol, pt) in score_criteria.items():
+                status = rtl('نعم ✓') if pt == 1 else rtl('لا ✗')
+                rows_score.append([str(pt), status, rtl(short_text(lbl, 35))])
+            rows_score.append([str(total_score), rtl('من 20'), rtl('الإجمالي')])
+            self._table(y_table, rows_score, [CW*0.15, CW*0.30, CW*0.55], score_mode=True)
         else:
             self.c.showPage(); self._bar('جدول نقاط النتيجة'); self._foot()
-            y_table=PAGE_H-44*mm; y_table=self._stitle(y_table,f'جدول نقاط النتيجة ({total_score}/20)')
-            rows_score=[['النقاط','الحالة','البند']]
-            for lbl,(symbol,pt) in score_criteria.items():
-                status=rtl('نعم ✓') if pt==1 else rtl('لا ✗')
-                rows_score.append([str(pt),status,rtl(short_text(lbl,35))])
-            rows_score.append([str(total_score),rtl('من 20'),rtl('الإجمالي')])
-            self._table(y_table,rows_score,[CW*0.15,CW*0.30,CW*0.55],score_mode=True)
+            y_table = PAGE_H - 44*mm
+            y_table = self._stitle(y_table, f'جدول نقاط النتيجة ({total_score}/20)')
+            rows_score = [['النقاط', 'الحالة', 'البند']]
+            for lbl, (symbol, pt) in score_criteria.items():
+                status = rtl('نعم ✓') if pt == 1 else rtl('لا ✗')
+                rows_score.append([str(pt), status, rtl(short_text(lbl, 35))])
+            rows_score.append([str(total_score), rtl('من 20'), rtl('الإجمالي')])
+            self._table(y_table, rows_score, [CW*0.15, CW*0.30, CW*0.55], score_mode=True)
         self.c.showPage()
 
+    # ══════════════════════════════════════════════════════════════════════════
+    # PAGE 5: FUNDAMENTAL ANALYSIS
+    # ══════════════════════════════════════════════════════════════════════════
     def fund_page(self, info):
         self._bar('التحليل الأساسي'); self._foot()
-        y=PAGE_H-44*mm; y=self._stitle(y,'التقييم')
-        val_items=[(safe(info,'trailingPE','-'),'Trailing P/E'),(safe(info,'forwardPE','-'),'Forward P/E'),(safe(info,'priceToBook','-'),'Price / Book'),(safe(info,'priceToSalesTrailing12Months','-'),'Price / Sales'),(safe(info,'enterpriseToEbitda','-'),'EV / EBITDA'),(safe(info,'enterpriseToRevenue','-'),'EV / Revenue'),(safe(info,'pegRatio','-'),'PEG Ratio')]
-        val_rows=[['القيمة','البند']]
-        for v,lbl in val_items:
-            val_rows.append([f'{v:.2f}' if isinstance(v,(int,float)) else str(v),lbl])
-        y=self._table(y,val_rows,[CW*0.40,CW*0.60]); y=self._stitle(y,'الربحية')
-        prof_rows=[['القيمة','البند'],[fmt_n(safe(info,'totalRevenue'))[0],'الإيرادات'],[fmt_n(safe(info,'netIncomeToCommon'))[0],'صافي الدخل'],[fmt_n(safe(info,'ebitda'))[0],'EBITDA'],[fmt_p(safe(info,'grossMargins'))[0],'هامش إجمالي'],[fmt_p(safe(info,'operatingMargins'))[0],'هامش تشغيلي'],[fmt_p(safe(info,'profitMargins'))[0],'هامش صافي'],[fmt_p(safe(info,'returnOnEquity'))[0],'ROE'],[fmt_p(safe(info,'returnOnAssets'))[0],'ROA']]
-        y=self._table(y,prof_rows,[CW*0.40,CW*0.60]); y=self._stitle(y,'المركز المالي')
-        fin_items=[(fmt_n(safe(info,'totalCash'))[0],'إجمالي النقد'),(fmt_n(safe(info,'totalDebt'))[0],'إجمالي الدين'),(safe(info,'debtToEquity','-'),'Debt / Equity'),(safe(info,'currentRatio','-'),'Current Ratio'),(safe(info,'quickRatio','-'),'Quick Ratio'),(fmt_n(safe(info,'bookValue'))[0],'القيمة الدفترية للسهم')]
-        fin_rows=[['القيمة','البند']]
-        for v,lbl in fin_items:
-            fin_rows.append([f'{v:.2f}' if isinstance(v,(int,float)) else str(v),lbl])
-        y=self._table(y,fin_rows,[CW*0.40,CW*0.60])
-        if y<60*mm: self.c.showPage(); self._bar('التحليل الأساسي (تابع)'); self._foot(); y=PAGE_H-44*mm
-        y=self._stitle(y,'التوزيعات والأسهم')
-        div_rows=[['القيمة','البند'],[fmt_n(safe(info,'dividendRate'))[0],'معدل التوزيع'],[fmt_p(safe(info,'dividendYield'))[0],'عائد التوزيع'],[fmt_p(safe(info,'payoutRatio'))[0],'نسبة التوزيع'],[fmt_n(safe(info,'sharesOutstanding'),d=0)[0],'الأسهم القائمة'],[fmt_n(safe(info,'floatShares'),d=0)[0],'الأسهم الحرة']]
-        self._table(y,div_rows,[CW*0.40,CW*0.60]); self.c.showPage()
+        y = PAGE_H - 44*mm
 
-    def signal_page(self, gauge_img, sig, score, sup, res, d):
-        self._bar('الإشارات والتحليل'); self._foot()
-        c=self.c; y=PAGE_H-44*mm; y=self._stitle(y,'مؤشر التحليل'); y=self._img(y,gauge_img,50*mm)
-        c.setFillColor(TXTDARK); self._font(False,9); c.drawRightString(PAGE_W-MG, y-2, rtl(f'النتيجة الكلية: {score}/20')); y-=14
-        y=self._stitle(y,'ملخص الإشارات الفنية')
-        rows=[['التحليل','الإشارة','المؤشر']]
-        for ind_name,(txt_signal,direction) in sig.items(): rows.append([decision_text(direction),txt_signal,ind_name])
-        y=self._table(y,rows,[CW*0.18,CW*0.38,CW*0.44],sig_mode=True); y=self._stitle(y,'الدعم والمقاومة')
-        sup_txt=' | '.join(f'{s:.2f}' for s in sup) if sup else 'N/A'; res_txt=' | '.join(f'{r:.2f}' for r in res) if res else 'N/A'
-        c.setFillColor(GREEN); self._font(True,9); c.drawRightString(PAGE_W-MG, y, rtl(f'الدعوم: {sup_txt}')); y-=16
-        c.setFillColor(RED); self._font(True,9); c.drawRightString(PAGE_W-MG, y, rtl(f'المقاومات: {res_txt}')); y-=22
-        if y<100*mm: self.c.showPage(); self._bar('القيم الحالية للمؤشرات'); self._foot(); y=PAGE_H-44*mm
-        y=self._stitle(y,'القيم الحالية للمؤشرات'); last=d.iloc[-1]
-        rows2=[['القيمة','المؤشر'],[f"{float(last['Close']):.2f}",'سعر الإغلاق'],[f"{float(last['SMA20']):.2f}" if pd.notna(last['SMA20']) else '-','SMA 20'],[f"{float(last['SMA50']):.2f}" if pd.notna(last['SMA50']) else '-','SMA 50'],[f"{float(last['RSI']):.2f}" if pd.notna(last['RSI']) else '-','RSI'],[f"{float(last['MACD']):.4f}" if pd.notna(last['MACD']) else '-','MACD'],[f"{float(last['ATR']):.2f}" if pd.notna(last['ATR']) else '-','ATR'],[f"{float(last['ADX']):.1f}" if pd.notna(last['ADX']) else '-','ADX'],[f"{float(last['VWAP']):.2f}" if pd.notna(last['VWAP']) else '-','VWAP'],[f"{float(last['CCI']):.1f}" if pd.notna(last['CCI']) else '-','CCI (20)'],[f"{float(last['WILLR']):.1f}" if pd.notna(last['WILLR']) else '-','Williams %R']]
-        self._table(y,rows2,[CW*0.35,CW*0.65])
-        c.setFillColor(DGRAY); self._font(False,6.7); c.drawCentredString(PAGE_W/2, 16*mm, rtl('هذا التقرير آلي لأغراض معلوماتية فقط وليس نصيحة استثمارية.')); self.c.showPage()
+        # Valuation
+        y = self._stitle(y, 'التقييم')
+        val_items = [(safe(info,'trailingPE','-'),'Trailing P/E'), (safe(info,'forwardPE','-'),'Forward P/E'),
+                     (safe(info,'priceToBook','-'),'Price / Book'), (safe(info,'priceToSalesTrailing12Months','-'),'Price / Sales'),
+                     (safe(info,'enterpriseToEbitda','-'),'EV / EBITDA'), (safe(info,'enterpriseToRevenue','-'),'EV / Revenue'),
+                     (safe(info,'pegRatio','-'),'PEG Ratio')]
+        val_rows = [['القيمة', 'البند']]
+        for v, lbl in val_items: val_rows.append([f'{v:.2f}' if isinstance(v, (int, float)) else str(v), lbl])
+        y = self._table(y, val_rows, [CW*0.40, CW*0.60])
 
-    def ichimoku_page(self, ichimoku_img, pattern_img):
-        self._bar('الإيشيموكو ونماذج الشموع'); self._foot()
-        y=PAGE_H-44*mm; y=self._stitle(y,'مخطط الإيشيموكو (Ichimoku Cloud)'); y=self._img(y,ichimoku_img,100*mm)
-        y=self._stitle(y,'الشموع اليابانية (آخر 60 يوماً) مع النماذج المرصودة'); self._img(y,pattern_img,100*mm); self.c.showPage()
+        # Profitability
+        y = self._stitle(y, 'الربحية')
+        prof_rows = [['القيمة', 'البند'],
+                     [fmt_n(safe(info,'totalRevenue'))[0], 'الإيرادات'],
+                     [fmt_n(safe(info,'netIncomeToCommon'))[0], 'صافي الدخل'],
+                     [fmt_n(safe(info,'ebitda'))[0], 'EBITDA'],
+                     [fmt_p(safe(info,'grossMargins'))[0], 'هامش إجمالي'],
+                     [fmt_p(safe(info,'operatingMargins'))[0], 'هامش تشغيلي'],
+                     [fmt_p(safe(info,'profitMargins'))[0], 'هامش صافي'],
+                     [fmt_p(safe(info,'returnOnEquity'))[0], 'ROE'],
+                     [fmt_p(safe(info,'returnOnAssets'))[0], 'ROA']]
+        y = self._table(y, prof_rows, [CW*0.40, CW*0.60])
 
-    def cci_willr_page(self, cci_img, patterns, divergences, d):
-        self._bar('مؤشرات إضافية: CCI وWilliams %R'); self._foot()
-        c=self.c; y=PAGE_H-44*mm; y=self._stitle(y,'CCI (20) وWilliams %R (14)'); y=self._img(y,cci_img,90*mm); y-=6*mm
-        last=d.iloc[-1]
-        cci_v=float(last['CCI']) if pd.notna(last['CCI']) else None; willr_v=float(last['WILLR']) if pd.notna(last['WILLR']) else None
-        osc_rows=[['القيمة','المؤشر'],[f'{cci_v:.1f}' if cci_v is not None else '-','CCI (20)'],[f'{willr_v:.1f}' if willr_v is not None else '-','Williams %R (14)']]
-        y=self._table(y,osc_rows,[CW*0.35,CW*0.65]); y=self._stitle(y,'التباعد بين السعر والمؤشرات (Divergences)')
-        if divergences:
-            div_rows=[['النوع','المؤشر']]
-            for ind,ar_type,en_type in divergences: div_rows.append([ar_type,ind])
-            y=self._table(y,div_rows,[CW*0.60,CW*0.40])
-        else:
-            c.setFillColor(DGRAY); self._font(False,8.5); c.drawRightString(PAGE_W-MG, y, rtl('لا يوجد تباعد مرصود.')); y-=16
-        y=self._stitle(y,'نماذج الشموع اليابانية المرصودة')
-        if patterns:
-            pat_rows=[['التوجه','النموذج','التاريخ']]
-            for date_lbl,ar_name,en_name,bullish in patterns:
-                direction='صعودي' if bullish is True else ('هبوطي' if bullish is False else 'محايد'); pat_rows.append([direction,ar_name,date_lbl])
-            y=self._table(y,pat_rows,[CW*0.20,CW*0.45,CW*0.35],sig_mode=True)
-        else:
-            c.setFillColor(DGRAY); self._font(False,8.5); c.drawRightString(PAGE_W-MG, y, rtl('لم يُرصد نموذج شموع بارز.'))
+        # Financial Position
+        y = self._stitle(y, 'المركز المالي')
+        fin_items = [(fmt_n(safe(info,'totalCash'))[0], 'إجمالي النقد'),
+                     (fmt_n(safe(info,'totalDebt'))[0], 'إجمالي الدين'),
+                     (safe(info,'debtToEquity','-'), 'Debt / Equity'),
+                     (safe(info,'currentRatio','-'), 'Current Ratio'),
+                     (safe(info,'quickRatio','-'), 'Quick Ratio'),
+                     (fmt_n(safe(info,'bookValue'))[0], 'القيمة الدفترية للسهم')]
+        fin_rows = [['القيمة', 'البند']]
+        for v, lbl in fin_items: fin_rows.append([f'{v:.2f}' if isinstance(v, (int, float)) else str(v), lbl])
+        y = self._table(y, fin_rows, [CW*0.40, CW*0.60])
+
+        if y < 60*mm: self.c.showPage(); self._bar('التحليل الأساسي (تابع)'); self._foot(); y = PAGE_H - 44*mm
+
+        # Dividends
+        y = self._stitle(y, 'التوزيعات والأسهم')
+        div_rows = [['القيمة', 'البند'],
+                    [fmt_n(safe(info,'dividendRate'))[0], 'معدل التوزيع'],
+                    [fmt_p(safe(info,'dividendYield'))[0], 'عائد التوزيع'],
+                    [fmt_p(safe(info,'payoutRatio'))[0], 'نسبة التوزيع'],
+                    [fmt_n(safe(info,'sharesOutstanding'), d=0)[0], 'الأسهم القائمة'],
+                    [fmt_n(safe(info,'floatShares'), d=0)[0], 'الأسهم الحرة']]
+        self._table(y, div_rows, [CW*0.40, CW*0.60])
         self.c.showPage()
 
+    # ══════════════════════════════════════════════════════════════════════════
+    # PAGE 6: SIGNALS & ANALYSIS (Gauge + Signals + S/R + Indicator Values)
+    # ══════════════════════════════════════════════════════════════════════════
+    def signal_page(self, gauge_img, sig, score, sup, res, d):
+        self._bar('الإشارات والتحليل'); self._foot()
+        c = self.c; y = PAGE_H - 44*mm
+        y = self._stitle(y, 'مؤشر التحليل'); y = self._img(y, gauge_img, 50*mm)
+        c.setFillColor(TXTDARK); self._font(False, 9)
+        c.drawRightString(PAGE_W-MG, y-2, rtl(f'النتيجة الكلية: {score}/20')); y -= 14
+
+        # Signals table
+        y = self._stitle(y, 'ملخص الإشارات الفنية')
+        rows = [['التحليل', 'الإشارة', 'المؤشر']]
+        for ind_name, (txt_signal, direction) in sig.items():
+            rows.append([decision_text(direction), txt_signal, ind_name])
+        y = self._table(y, rows, [CW*0.18, CW*0.38, CW*0.44], sig_mode=True)
+
+        # S/R levels
+        y = self._stitle(y, 'الدعم والمقاومة')
+        sup_txt = ' | '.join(f'{s:.2f}' for s in sup) if sup else 'N/A'
+        res_txt = ' | '.join(f'{r:.2f}' for r in res) if res else 'N/A'
+        c.setFillColor(GREEN); self._font(True, 9)
+        c.drawRightString(PAGE_W-MG, y, rtl(f'الدعوم: {sup_txt}')); y -= 16
+        c.setFillColor(RED); self._font(True, 9)
+        c.drawRightString(PAGE_W-MG, y, rtl(f'المقاومات: {res_txt}')); y -= 22
+
+        if y < 100*mm: self.c.showPage(); self._bar('القيم الحالية للمؤشرات'); self._foot(); y = PAGE_H - 44*mm
+
+        # Current indicator values
+        y = self._stitle(y, 'القيم الحالية للمؤشرات')
+        last = d.iloc[-1]
+        rows2 = [['القيمة', 'المؤشر'],
+                 [f"{float(last['Close']):.2f}", 'سعر الإغلاق'],
+                 [f"{float(last['SMA20']):.2f}" if pd.notna(last['SMA20']) else '-', 'SMA 20'],
+                 [f"{float(last['SMA50']):.2f}" if pd.notna(last['SMA50']) else '-', 'SMA 50'],
+                 [f"{float(last['RSI']):.2f}" if pd.notna(last['RSI']) else '-', 'RSI'],
+                 [f"{float(last['MACD']):.4f}" if pd.notna(last['MACD']) else '-', 'MACD'],
+                 [f"{float(last['ATR']):.2f}" if pd.notna(last['ATR']) else '-', 'ATR'],
+                 [f"{float(last['ADX']):.1f}" if pd.notna(last['ADX']) else '-', 'ADX'],
+                 [f"{float(last['VWAP']):.2f}" if pd.notna(last['VWAP']) else '-', 'VWAP'],
+                 [f"{float(last['CCI']):.1f}" if pd.notna(last['CCI']) else '-', 'CCI (20)'],
+                 [f"{float(last['WILLR']):.1f}" if pd.notna(last['WILLR']) else '-', 'Williams %R']]
+        self._table(y, rows2, [CW*0.35, CW*0.65])
+        c.setFillColor(DGRAY); self._font(False, 6.7)
+        c.drawCentredString(PAGE_W/2, 16*mm, rtl('هذا التقرير آلي لأغراض معلوماتية فقط وليس نصيحة استثمارية.'))
+        self.c.showPage()
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # PAGE 7: ICHIMOKU + CANDLESTICK PATTERNS
+    # ══════════════════════════════════════════════════════════════════════════
+    def ichimoku_page(self, ichimoku_img, pattern_img):
+        self._bar('الإيشيموكو ونماذج الشموع'); self._foot()
+        y = PAGE_H - 44*mm
+        y = self._stitle(y, 'مخطط الإيشيموكو (Ichimoku Cloud)')
+        y = self._img(y, ichimoku_img, 100*mm)
+        y = self._stitle(y, 'الشموع اليابانية (آخر 60 يوماً) مع النماذج المرصودة')
+        self._img(y, pattern_img, 100*mm)
+        self.c.showPage()
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # PAGE 8: CCI / WILLIAMS %R + DIVERGENCES + CANDLE PATTERNS TABLE
+    # ══════════════════════════════════════════════════════════════════════════
+    def cci_willr_page(self, cci_img, patterns, divergences, d):
+        self._bar('مؤشرات إضافية: CCI وWilliams %R'); self._foot()
+        c = self.c; y = PAGE_H - 44*mm
+        y = self._stitle(y, 'CCI (20) وWilliams %R (14)')
+        y = self._img(y, cci_img, 90*mm); y -= 6*mm
+
+        # Oscillator values
+        last = d.iloc[-1]
+        cci_v = float(last['CCI']) if pd.notna(last['CCI']) else None
+        willr_v = float(last['WILLR']) if pd.notna(last['WILLR']) else None
+        osc_rows = [['القيمة', 'المؤشر'],
+                    [f'{cci_v:.1f}' if cci_v is not None else '-', 'CCI (20)'],
+                    [f'{willr_v:.1f}' if willr_v is not None else '-', 'Williams %R (14)']]
+        y = self._table(y, osc_rows, [CW*0.35, CW*0.65])
+
+        # Divergences
+        y = self._stitle(y, 'التباعد بين السعر والمؤشرات (Divergences)')
+        if divergences:
+            div_rows = [['النوع', 'المؤشر']]
+            for ind, ar_type, en_type in divergences: div_rows.append([ar_type, ind])
+            y = self._table(y, div_rows, [CW*0.60, CW*0.40])
+        else:
+            c.setFillColor(DGRAY); self._font(False, 8.5)
+            c.drawRightString(PAGE_W-MG, y, rtl('لا يوجد تباعد مرصود.')); y -= 16
+
+        # Candle patterns table
+        y = self._stitle(y, 'نماذج الشموع اليابانية المرصودة')
+        if patterns:
+            pat_rows = [['التوجه', 'النموذج', 'التاريخ']]
+            for date_lbl, ar_name, en_name, bullish in patterns:
+                direction = 'صعودي' if bullish is True else ('هبوطي' if bullish is False else 'محايد')
+                pat_rows.append([direction, ar_name, date_lbl])
+            y = self._table(y, pat_rows, [CW*0.20, CW*0.45, CW*0.35], sig_mode=True)
+        else:
+            c.setFillColor(DGRAY); self._font(False, 8.5)
+            c.drawRightString(PAGE_W-MG, y, rtl('لم يُرصد نموذج شموع بارز.'))
+        self.c.showPage()
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # PAGE 9: COMPREHENSIVE TECHNICAL REVIEW (Arabic paragraphs)
+    # ══════════════════════════════════════════════════════════════════════════
     def review_page(self, review_sections, score):
         self._bar('المراجعة الفنية الشاملة'); self._foot()
-        c=self.c; y=PAGE_H-44*mm; line_h=13; para_gap=8; section_gap=6; font_size_body=9; max_text_width=CW-4*mm
-        strip_h=10*mm; strip_y=y-strip_h
-        if score>=14:   strip_fill=HexColor('#1B5E20')
-        elif score>=10: strip_fill=HexColor('#1B2A4A')
-        elif score>=7:  strip_fill=HexColor('#E65100')
-        else:           strip_fill=HexColor('#B71C1C')
-        c.setFillColor(strip_fill); c.roundRect(MG, strip_y, CW, strip_h, 5, fill=1, stroke=0)
-        #yasir c.setFillColor(WHITE); self._font(True,9); c.drawCentredString(PAGE_W/2, strip_y+3, rtl(f'نتيجة التحليل الفني: {score} من أصل 20 نقطة')); y=strip_y-10*mm
-        c.setFillColor(WHITE); self._font(True,12); c.drawCentredString(PAGE_W/2, strip_y + (strip_h - font_size_body) / 2, rtl(f'نتيجة التحليل الفني: {score} من أصل 20 نقطة')); y=strip_y-10*mm
-        for section_title,paragraph in review_sections:
-            if y<40*mm: c.showPage(); self._bar('المراجعة الفنية الشاملة (تابع)'); self._foot(); y=PAGE_H-44*mm
-            y=self._stitle(y,section_title); y+=4
-            lines=self._wrap_arabic_text(paragraph,max_text_width,font_size_body)
-            c.setFillColor(TXTDARK); self._font(False,font_size_body)
-            for line in lines:
-                if y<25*mm: c.showPage(); self._bar('المراجعة الفنية الشاملة (تابع)'); self._foot(); y=PAGE_H-44*mm
-                c.drawRightString(PAGE_W-MG, y, line); y-=line_h
-            y-=para_gap+section_gap
-        c.setFillColor(DGRAY); self._font(False,6.5)
-        c.drawCentredString(PAGE_W/2, 16*mm, rtl('هذا التقرير آلي لأغراض معلوماتية فقط وليس نصيحة استثمارية.'))
-        c.drawCentredString(PAGE_W/2, 12*mm, rtl('الأداء السابق لا يضمن النتائج المستقبلية. قم دائماً ببحثك الخاص.')); c.showPage()
+        c = self.c; y = PAGE_H - 44*mm
+        line_h = 13; para_gap = 8; section_gap = 6
+        font_size_body = 9; max_text_width = CW - 4*mm
 
+        # ── Score strip ──
+        strip_h = 10*mm; strip_y = y - strip_h
+        if score >= 14:   strip_fill = HexColor('#1B5E20')
+        elif score >= 10: strip_fill = HexColor('#1B2A4A')
+        elif score >= 7:  strip_fill = HexColor('#E65100')
+        else:             strip_fill = HexColor('#B71C1C')
+        c.setFillColor(strip_fill)
+        c.roundRect(MG, strip_y, CW, strip_h, 5, fill=1, stroke=0)
+        c.setFillColor(WHITE); self._font(True, 12)
+        c.drawCentredString(PAGE_W/2, strip_y + (strip_h - font_size_body) / 2,
+                           rtl(f'نتيجة التحليل الفني: {score} من أصل 20 نقطة'))
+        y = strip_y - 10*mm
+
+        # ── Render each review section ──
+        for section_title, paragraph in review_sections:
+            if y < 40*mm:
+                c.showPage(); self._bar('المراجعة الفنية الشاملة (تابع)')
+                self._foot(); y = PAGE_H - 44*mm
+            y = self._stitle(y, section_title); y += 4
+            lines = self._wrap_arabic_text(paragraph, max_text_width, font_size_body)
+            c.setFillColor(TXTDARK); self._font(False, font_size_body)
+            for line in lines:
+                if y < 25*mm:
+                    c.showPage(); self._bar('المراجعة الفنية الشاملة (تابع)')
+                    self._foot(); y = PAGE_H - 44*mm
+                c.drawRightString(PAGE_W - MG, y, line); y -= line_h
+            y -= para_gap + section_gap
+
+        # ── Final disclaimer ──
+        c.setFillColor(DGRAY); self._font(False, 6.5)
+        c.drawCentredString(PAGE_W/2, 16*mm, rtl('هذا التقرير آلي لأغراض معلوماتية فقط وليس نصيحة استثمارية.'))
+        c.drawCentredString(PAGE_W/2, 12*mm, rtl('الأداء السابق لا يضمن النتائج المستقبلية. قم دائماً ببحثك الخاص.'))
+        c.showPage()
+
+    # ── Save PDF ──
     def save(self):
+        """Finalize and save the PDF."""
         self.c.save()
 
-# ─────────────────────────────────────────────────────────────
-# 9. ANALYZER BOT — generate PDF in thread executor
-# ─────────────────────────────────────────────────────────────
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 9: REPORT BUILDER (Thread Executor)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Orchestrate the entire PDF report generation.
+#           Runs in a ThreadPoolExecutor to avoid blocking the Telegram bot.
+#
+# STEPS:
+#   1. Resolve ticker (add .SR if needed)
+#   2. Fetch data (yfinance + STOCKS enrichment)
+#   3. Compute all indicators
+#   4. Calculate performance, signals, score, S/R, patterns, divergences
+#   5. Generate technical review text
+#   6. Generate all chart images (15 charts)
+#   7. Build PDF report (9 pages)
+#   8. Return (pdf_bytes, summary_text, display_ticker)
+#
+# TO MODIFY:
+#   • Add new chart → add make_xxx_chart() call + pass to report page
+#   • Remove page   → delete the rpt.xxx_page() call
+#   • Change page order → reorder rpt.xxx_page() calls
+#   • Change thread pool → modify max_workers=4
+# ═══════════════════════════════════════════════════════════════════════════════
+
 _executor = ThreadPoolExecutor(max_workers=4)
 
 
 def _build_report_sync(ticker_input: str):
-    """Run in thread pool. Returns (pdf_bytes, summary_text) or raises."""
+    """
+    Build complete PDF report synchronously (runs in thread pool).
+    
+    Args:
+        ticker_input: User input (e.g., "2222", "الراجحي", "TASI")
+    
+    Returns:
+        tuple: (pdf_bytesio, summary_markdown, display_ticker)
+    
+    Raises:
+        ValueError: If ticker not found or insufficient data
+    """
     ti = ticker_input.strip()
     if not ti:
         raise ValueError('رمز فارغ')
+
+    # ── Resolve ticker ──
     if ti.replace('.', '').isdigit() and '.' not in ti:
         ticker = ti + '.SR'; display_ticker = ti
     else:
         ticker = ti.upper(); display_ticker = ticker
 
+    # ── Fetch data ──
     df, df2, info = fetch_data(ticker)
     if df is None or len(df) < 30:
         raise ValueError(
             f'❌ البيانات غير كافية للرمز: {display_ticker}\n'
             'تأكد من صحة رقم الشركة.')
 
+    # ── Compute everything ──
     d = compute_indicators(df)
     pers, risk, dd = compute_performance(df, df2)
     sig, _ = gen_signals(d)
@@ -3579,8 +4106,8 @@ def _build_report_sync(ticker_input: str):
     main_img       = make_main_chart(d, sup=sup, res=res)
     p_img          = make_price_chart(d, sup=sup, res=res)
     ema_img        = make_ema_chart(d, sup=sup, res=res)
-    alligator_img  = make_alligator_chart(d)          # ← NEW
-    supertrend_img = make_supertrend_chart(d)          # ← NEW
+    alligator_img  = make_alligator_chart(d)
+    supertrend_img = make_supertrend_chart(d)
     t_img          = make_tech_chart(d)
     bb_img         = make_bb_chart(d)
     dd_img         = make_dd_chart(dd)
@@ -3590,25 +4117,31 @@ def _build_report_sync(ticker_input: str):
     cpat_img       = make_candle_pattern_chart(d, patterns)
     cci_img        = make_cci_willr_chart(d)
 
+    # ── Build PDF ──
     price = float(df['Close'].iloc[-1])
     prev  = float(df['Close'].iloc[-2]) if len(df) > 1 else price
     chg   = (price / prev - 1) * 100
 
     pdf_buf = BytesIO()
     rpt = Report(pdf_buf, ticker, info, display_ticker)
-    rpt.cover(price, chg, info, rec_txt, rec_color, score)
-    rpt.main_charts_page(main_img, p_img, ema_img,
-                         alligator_img, supertrend_img)       # ← CHANGED
-    rpt.tech_page(t_img, bb_img)
-    rpt.ichimoku_page(ichi_img, cpat_img)
-    rpt.perf_page(pers, risk, dd_img, v_img, score_criteria, score)
-    rpt.fund_page(info)
-    rpt.signal_page(g_img, sig, score, sup, res, d)
-    rpt.cci_willr_page(cci_img, patterns, divergences, d)
-    rpt.review_page(review_sections, score)
+
+    # Page order:
+    rpt.cover(price, chg, info, rec_txt, rec_color, score)       # Page 1: Cover
+    rpt.main_charts_page(main_img, p_img, ema_img,                # Page 2: Charts
+                         alligator_img, supertrend_img)
+    rpt.tech_page(t_img, bb_img)                                  # Page 3: Tech indicators
+    rpt.ichimoku_page(ichi_img, cpat_img)                          # Page 4: Ichimoku + patterns
+    rpt.perf_page(pers, risk, dd_img, v_img,                      # Page 5-6: Performance
+                  score_criteria, score)
+    rpt.fund_page(info)                                            # Page 7: Fundamentals
+    rpt.signal_page(g_img, sig, score, sup, res, d)                # Page 8: Signals
+    rpt.cci_willr_page(cci_img, patterns, divergences, d)          # Page 9: CCI/WR
+    rpt.review_page(review_sections, score)                        # Page 10: Review
+
     rpt.save()
     pdf_buf.seek(0)
 
+    # ── Summary message for Telegram ──
     summary = (
         f"📊 *{display_ticker}*\n"
         f"السعر الحالي   : `{price:.2f}`\n"
@@ -3619,188 +4152,494 @@ def _build_report_sync(ticker_input: str):
     )
     return pdf_buf, summary, display_ticker
 
-# ─────────────────────────────────────────────────────────────
-# 10. WOLFE WAVE FUNCTIONS
-# ─────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 10: WOLFE WAVE DETECTION & CHARTING
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Detect Wolfe Wave patterns in price data and generate annotated charts.
+#           Used by the Wolfe Wave Scanner bot feature.
+#
+# WOLFE WAVE THEORY:
+#   A Wolfe Wave is a natural repetitive pattern found in all markets.
+#   It consists of 5 waves:
+#     - Waves 1 & 2: Initial move
+#     - Wave 3: Shortest wave
+#     - Wave 4: Retracement
+#     - Wave 5: Final move (equilibrium line projected from 1→4)
+#
+# VALIDATION RULES (Bullish):
+#   - Wave 1 must be a high
+#   - Waves alternate: H-L-H-L-H
+#   - Wave 3 is shorter than Wave 1
+#   - Wave 4 is shallower than Wave 2
+#   - Equilibrium line (1→4) predicts Wave 5 target
+#
+# PATTERN TYPES:
+#   - Bullish Wolfe Wave: Point 1 is HIGH, targets upward
+#   - Bearish Wolfe Wave: Point 1 is LOW, targets downward
+#
+# TO MODIFY:
+#   • Change sensitivity  → modify tolerance (0.03 default)
+#   • Add more patterns   → add new validation functions
+#   • Change target calc → modify target_price in find_active_wolfe()
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# 10a: PIVOT FINDER FOR WOLFE WAVES
+# ───────────────────────────────────────────────────────────────────────────────
+
 def find_pivots(df, order=5):
-    high=df['High'].values; low=df['Low'].values
-    sh=argrelextrema(high,np.greater_equal,order=order)[0]; sl=argrelextrema(low,np.less_equal,order=order)[0]
-    pivots=[]
-    for i in sh: pivots.append({'bar':int(i),'price':high[i],'type':'H','date':df.index[i]})
-    for i in sl: pivots.append({'bar':int(i),'price':low[i],'type':'L','date':df.index[i]})
-    pivots.sort(key=lambda x: x['bar']); return pivots
+    """Find local pivot highs and lows in price data."""
+    high = df['High'].values
+    low = df['Low'].values
+    sh = argrelextrema(high, np.greater_equal, order=order)[0]
+    sl = argrelextrema(low, np.less_equal, order=order)[0]
+    pivots = []
+    for i in sh:
+        pivots.append({'bar': int(i), 'price': high[i], 'type': 'H', 'date': df.index[i]})
+    for i in sl:
+        pivots.append({'bar': int(i), 'price': low[i], 'type': 'L', 'date': df.index[i]})
+    pivots.sort(key=lambda x: x['bar'])
+    return pivots
 
 
 def get_alternating_pivots(pivots):
-    if not pivots: return []
-    alt=[pivots[0]]
+    """Filter pivots to ensure strict alternating H-L-H-L pattern."""
+    if not pivots:
+        return []
+    alt = [pivots[0]]
     for p in pivots[1:]:
-        if p['type']==alt[-1]['type']:
-            if p['type']=='H' and p['price']>alt[-1]['price']: alt[-1]=p
-            elif p['type']=='L' and p['price']<alt[-1]['price']: alt[-1]=p
-        else: alt.append(p)
+        if p['type'] == alt[-1]['type']:
+            # Keep the more extreme one
+            if p['type'] == 'H' and p['price'] > alt[-1]['price']:
+                alt[-1] = p
+            elif p['type'] == 'L' and p['price'] < alt[-1]['price']:
+                alt[-1] = p
+        else:
+            alt.append(p)
     return alt
 
 
-def line_at(x,x1,y1,x2,y2):
-    if x2==x1: return y1
-    return y1+(y2-y1)*(x-x1)/(x2-x1)
+def line_at(x, x1, y1, x2, y2):
+    """Linear interpolation: y at position x given two points (x1,y1) and (x2,y2)."""
+    if x2 == x1:
+        return y1
+    return y1 + (y2 - y1) * (x - x1) / (x2 - x1)
 
 
 def resample_ohlc(df, rule):
-    return df.resample(rule).agg({'Open':'first','High':'max','Low':'min','Close':'last','Volume':'sum'}).dropna()
+    """Resample OHLC data to different timeframe (e.g., '1h', '2h', '4h')."""
+    return df.resample(rule).agg({
+        'Open': 'first', 'High': 'max', 'Low': 'min',
+        'Close': 'last', 'Volume': 'sum'
+    }).dropna()
 
 
-def validate_bullish(p0,p1,p2,p3,p4,p5,tol=0.03):
-    v=[p['price'] for p in [p1,p2,p3,p4,p5]]; b=[p['bar'] for p in [p1,p2,p3,p4,p5]]
-    if p0['type']!='H': return None
-    if not (p1['type']=='L' and p2['type']=='H' and p3['type']=='L' and p4['type']=='H' and p5['type']=='L'): return None
-    if p0['price']<=p2['price']: return None
-    if v[2]>=v[0] or v[3]>=v[1] or v[3]<=v[0] or v[4]>=v[2]: return None
-    s13=(v[2]-v[0])/(b[2]-b[0]) if b[2]!=b[0] else 0; s24=(v[3]-v[1])/(b[3]-b[1]) if b[3]!=b[1] else 0
-    if s13>=0 or s24>=0 or s13>=s24: return None
-    proj=line_at(b[4],b[0],v[0],b[2],v[2])
-    if proj!=0 and (proj-v[4])/abs(proj)<-tol: return None
-    return {'direction':'Bullish','points':[p0,p1,p2,p3,p4,p5],'entry_price':v[4],'p5_date':p5['date']}
+# ───────────────────────────────────────────────────────────────────────────────
+# 10b: WOLFE WAVE VALIDATION
+# ───────────────────────────────────────────────────────────────────────────────
+
+def validate_bullish(p0, p1, p2, p3, p4, p5, tol=0.03):
+    """
+    Validate a Bullish Wolfe Wave pattern.
+    
+    Rules:
+      - p0 must be HIGH
+      - Pattern must alternate: H-L-H-L-H
+      - Wave 3 shorter than Wave 1
+      - Wave 4 shallower than Wave 2
+      - Wave 5 projects from equilibrium line (1→4)
+    
+    Returns: dict with direction, points, entry_price, p5_date, target_price
+    """
+    v = [p['price'] for p in [p1, p2, p3, p4, p5]]
+    b = [p['bar'] for p in [p1, p2, p3, p4, p5]]
+    
+    if p0['type'] != 'H':
+        return None
+    if not (p1['type'] == 'L' and p2['type'] == 'H' and 
+            p3['type'] == 'L' and p4['type'] == 'H' and p5['type'] == 'L'):
+        return None
+    if p0['price'] <= p2['price']:  # Wave 1 must be highest
+        return None
+    if v[2] >= v[0] or v[3] >= v[1] or v[3] <= v[0] or v[4] >= v[2]:
+        return None  # Wave geometry violations
+    
+    # Slope check
+    s13 = (v[2] - v[0]) / (b[2] - b[0]) if b[2] != b[0] else 0
+    s24 = (v[3] - v[1]) / (b[3] - b[1]) if b[3] != b[1] else 0
+    if s13 >= 0 or s24 >= 0 or s13 >= s24:
+        return None
+    
+    # Equilibrium line check (1→4 projected to p5)
+    proj = line_at(b[4], b[0], v[0], b[2], v[2])
+    if proj != 0 and (proj - v[4]) / abs(proj) < -tol:
+        return None
+    
+    return {
+        'direction': 'Bullish',
+        'points': [p0, p1, p2, p3, p4, p5],
+        'entry_price': v[4],
+        'p5_date': p5['date']
+    }
 
 
-def validate_bearish(p0,p1,p2,p3,p4,p5,tol=0.03):
-    v=[p['price'] for p in [p1,p2,p3,p4,p5]]; b=[p['bar'] for p in [p1,p2,p3,p4,p5]]
-    if p0['type']!='L': return None
-    if not (p1['type']=='H' and p2['type']=='L' and p3['type']=='H' and p4['type']=='L' and p5['type']=='H'): return None
-    if p0['price']>=p2['price']: return None
-    if v[2]<=v[0] or v[3]<=v[1] or v[3]>=v[0] or v[4]<=v[2]: return None
-    s13=(v[2]-v[0])/(b[2]-b[0]) if b[2]!=b[0] else 0; s24=(v[3]-v[1])/(b[3]-b[1]) if b[3]!=b[1] else 0
-    if s13<=0 or s24<=0 or s13>=s24: return None
-    proj=line_at(b[4],b[0],v[0],b[2],v[2])
-    if proj!=0 and (v[4]-proj)/abs(proj)<-tol: return None
-    return {'direction':'Bearish','points':[p0,p1,p2,p3,p4,p5],'entry_price':v[4],'p5_date':p5['date']}
+def validate_bearish(p0, p1, p2, p3, p4, p5, tol=0.03):
+    """Validate a Bearish Wolfe Wave pattern. Mirror of bullish rules."""
+    v = [p['price'] for p in [p1, p2, p3, p4, p5]]
+    b = [p['bar'] for p in [p1, p2, p3, p4, p5]]
+    
+    if p0['type'] != 'L':
+        return None
+    if not (p1['type'] == 'H' and p2['type'] == 'L' and
+            p3['type'] == 'H' and p4['type'] == 'L' and p5['type'] == 'H'):
+        return None
+    if p0['price'] >= p2['price']:
+        return None
+    if v[2] <= v[0] or v[3] <= v[1] or v[3] >= v[0] or v[4] <= v[2]:
+        return None
+    
+    s13 = (v[2] - v[0]) / (b[2] - b[0]) if b[2] != b[0] else 0
+    s24 = (v[3] - v[1]) / (b[3] - b[1]) if b[3] != b[1] else 0
+    if s13 <= 0 or s24 <= 0 or s13 >= s24:
+        return None
+    
+    proj = line_at(b[4], b[0], v[0], b[2], v[2])
+    if proj != 0 and (v[4] - proj) / abs(proj) < -tol:
+        return None
+    
+    return {
+        'direction': 'Bearish',
+        'points': [p0, p1, p2, p3, p4, p5],
+        'entry_price': v[4],
+        'p5_date': p5['date']
+    }
 
+
+# ───────────────────────────────────────────────────────────────────────────────
+# 10c: WOLFE WAVE PATTERN FINDER
+# ───────────────────────────────────────────────────────────────────────────────
 
 def find_active_wolfe(df, max_bars_since_p5=8):
-    n=len(df); best_bull=None; best_bear=None
-    for order in [4,5,6,7]:
-        piv=get_alternating_pivots(find_pivots(df,order=order))
-        if len(piv)<6: continue
-        for offset in range(min(4,len(piv)-5)):
-            idx=len(piv)-6-offset
-            if idx<0: break
-            combo=piv[idx:idx+6]
-            if n-1-combo[5]['bar']>max_bars_since_p5: continue
-            r=validate_bullish(*combo)
-            if r and (best_bull is None or combo[5]['bar']>best_bull['points'][5]['bar']): best_bull=r
-            r=validate_bearish(*combo)
-            if r and (best_bear is None or combo[5]['bar']>best_bear['points'][5]['bar']): best_bear=r
-    return [x for x in [best_bull,best_bear] if x]
+    """
+    Scan for active Wolfe Wave patterns.
+    
+    Tests multiple pivot orders and returns the most recent valid patterns.
+    """
+    n = len(df)
+    best_bull = None
+    best_bear = None
+    
+    for order in [4, 5, 6, 7]:
+        piv = get_alternating_pivots(find_pivots(df, order=order))
+        if len(piv) < 6:
+            continue
+        
+        for offset in range(min(4, len(piv) - 5)):
+            idx = len(piv) - 6 - offset
+            if idx < 0:
+                break
+            combo = piv[idx:idx + 6]
+            
+            # Skip if p5 is too old
+            if n - 1 - combo[5]['bar'] > max_bars_since_p5:
+                continue
+            
+            r = validate_bullish(*combo)
+            if r and (best_bull is None or combo[5]['bar'] > best_bull['points'][5]['bar']):
+                best_bull = r
+            
+            r = validate_bearish(*combo)
+            if r and (best_bear is None or combo[5]['bar'] > best_bear['points'][5]['bar']):
+                best_bear = r
+    
+    return [x for x in [best_bull, best_bear] if x]
 
+
+# ───────────────────────────────────────────────────────────────────────────────
+# 10d: WOLFE WAVE CHART PLOTTING
+# ───────────────────────────────────────────────────────────────────────────────
 
 def plot_wolfe_chart(ticker, df, result, tf_label):
-    pts=result['points']; direction=result['direction']; entry=result['entry_price']
-    target=result['target_price']; is_bull=direction=='Bullish'
-    company=get_name(ticker); ticker_code=ticker.split('.')[0]
-    b=[p['bar'] for p in pts]; v=[p['price'] for p in pts]
-    last_bar=len(df)-1; last_close=float(df['Close'].iloc[-1])
-    pct=((target-entry)/entry)*100
-    pad_l=max(0,b[0]-10); pad_r=min(last_bar,b[5]+30)
-    df_z=df.iloc[pad_l:pad_r+1].copy(); off=pad_l; zb=[x-off for x in b]; n_z=len(df_z)
-    C_W='#0D47A1' if is_bull else '#B71C1C'; C_T='#2E7D32' if is_bull else '#C62828'
-    C_24='#E65100'; C_E='#6A1B9A'; C_A='#00695C' if is_bull else '#880E4F'; C_P0='#FF6F00'
-    mc=mpf.make_marketcolors(up='#26A69A',down='#EF5350',edge='inherit',wick='inherit')
-    sty=mpf.make_mpf_style(marketcolors=mc,gridcolor='#EEEEEE',gridstyle='-',facecolor='#FAFBFC',y_on_right=False,rc={'font.size':10,'grid.alpha':0.2})
-    fig,axes=mpf.plot(df_z,type='candle',style=sty,figsize=(16,8),returnfig=True,volume=False)
-    ax=axes[0]; fig.subplots_adjust(left=0.04,right=0.96,top=0.92,bottom=0.06)
-    ax.plot(zb,v,color=C_W,lw=2.5,zorder=6,alpha=0.8); ax.scatter(zb,v,s=120,c='white',edgecolors=C_W,linewidths=2.5,zorder=7)
-    ax.scatter([zb[0]],[v[0]],s=160,c='white',edgecolors=C_P0,linewidths=3,zorder=8)
-    ext=zb[5]+8
-    ax.plot([zb[1],ext],[v[1],line_at(ext+off,b[1],v[1],b[3],v[3])],color=C_W,lw=1.0,ls='--',alpha=0.3)
-    ax.plot([zb[2],ext],[v[2],line_at(ext+off,b[2],v[2],b[4],v[4])],color=C_24,lw=1.0,ls='--',alpha=0.3)
-    fx=np.arange(zb[1],zb[5]+1); f1=[line_at(x+off,b[1],v[1],b[3],v[3]) for x in fx]; f2=[line_at(x+off,b[2],v[2],b[4],v[4]) for x in fx]
-    ax.fill_between(fx,f1,f2,alpha=0.04,color=C_W)
-    tgt_end_zb=n_z+5
-    ax.plot([zb[1],tgt_end_zb],[v[1],line_at(tgt_end_zb+off,b[1],v[1],b[4],v[4])],color=C_T,lw=3.0,ls='-.',alpha=0.85,zorder=5)
-    z_last=min(last_bar-off,n_z-1)
-    ax.plot(z_last,target,marker='D',ms=14,color=C_T,markeredgecolor='white',markeredgewidth=2,zorder=9)
-    ax.axhline(y=target,color=C_T,lw=0.6,ls=':',alpha=0.25); ax.axhline(y=entry,color=C_E,lw=0.6,ls=':',alpha=0.25)
-    arrow_land_zb=min(zb[5]+max(4,(z_last-zb[5])//2),n_z+3); arrow_land_price=line_at(arrow_land_zb+off,b[1],v[1],b[4],v[4])
-    ax.annotate('',xy=(arrow_land_zb,arrow_land_price),xytext=(zb[5],entry),arrowprops=dict(arrowstyle='-|>',color=C_A,lw=3.0,mutation_scale=22,connectionstyle='arc3,rad=0.15' if is_bull else 'arc3,rad=-0.15'),zorder=8)
-    price_range=max(v)-min(v); label_offset=price_range*0.08
-    pct_y=arrow_land_price+label_offset if is_bull else arrow_land_price-label_offset
-    ax.text(arrow_land_zb,pct_y,f'{pct:+.1f}%',fontsize=13,fontweight='bold',color=C_A,ha='center',va='bottom' if is_bull else 'top',fontfamily=ARABIC_FONT,bbox=dict(boxstyle='round,pad=0.3',fc='white',ec=C_A,alpha=0.9,lw=0.8),zorder=10)
+    """
+    Generate annotated Wolfe Wave chart with:
+      - Price candles
+      - Wave points (P0-P5) marked
+      - Equilibrium line (1→4) projected
+      - Target price marked
+      - Entry price marked
+      - Arabic labels
+    
+    Returns: BytesIO PNG buffer
+    """
+    pts = result['points']
+    direction = result['direction']
+    entry = result['entry_price']
+    is_bull = direction == 'Bullish'
+    
+    # Get company name and ticker
+    company = get_name(ticker)
+    ticker_code = ticker.split('.')[0]
+    
+    # Extract price values and bar indices
+    b = [p['bar'] for p in pts]
+    v = [p['price'] for p in pts]
+    
+    # Last bar and target price
+    last_bar = len(df) - 1
+    last_close = float(df['Close'].iloc[-1])
+    pct = ((result['target_price'] - entry) / entry) * 100
+    
+    # Chart padding
+    pad_l = max(0, b[0] - 10)
+    pad_r = min(last_bar, b[5] + 30)
+    df_z = df.iloc[pad_l:pad_r + 1].copy()
+    off = pad_l
+    zb = [x - off for x in b]
+    n_z = len(df_z)
+    
+    # Colors
+    C_W = '#0D47A1' if is_bull else '#B71C1C'
+    C_T = '#2E7D32' if is_bull else '#C62828'
+    C_24 = '#E65100'
+    C_E = '#6A1B9A'
+    C_A = '#00695C' if is_bull else '#880E4F'
+    C_P0 = '#FF6F00'
+    
+    # Create chart
+    mc = mpf.make_marketcolors(up='#26A69A', down='#EF5350', edge='inherit',
+                               wick='inherit')
+    sty = mpf.make_mpf_style(marketcolors=mc, gridcolor='#EEEEEE',
+                             gridstyle='-', facecolor='#FAFBFC',
+                             y_on_right=False, rc={'font.size': 10,
+                                                   'grid.alpha': 0.2})
+    fig, axes = mpf.plot(df_z, type='candle', style=sty, figsize=(16, 8),
+                         returnfig=True, volume=False)
+    ax = axes[0]
+    fig.subplots_adjust(left=0.04, right=0.96, top=0.92, bottom=0.06)
+    
+    # Draw Wolfe Wave lines
+    ax.plot(zb, v, color=C_W, lw=2.5, zorder=6, alpha=0.8)
+    ax.scatter(zb, v, s=120, c='white', edgecolors=C_W,
+               linewidths=2.5, zorder=7)
+    
+    # P0 marker (different color)
+    ax.scatter([zb[0]], [v[0]], s=160, c='white', edgecolors=C_P0,
+               linewidths=3, zorder=8)
+    
+    # Extended equilibrium line (1→4)
+    ext = zb[5] + 8
+    ax.plot([zb[1], ext], [v[1], line_at(ext + off, b[1], v[1], b[3], v[3])],
+            color=C_W, lw=1.0, ls='--', alpha=0.3)
+    ax.plot([zb[2], ext], [v[2], line_at(ext + off, b[2], v[2], b[4], v[4])],
+            color=C_24, lw=1.0, ls='--', alpha=0.3)
+    
+    # Fill between lines 1-3 and 2-4 (wave channel)
+    fx = np.arange(zb[1], zb[5] + 1)
+    f1 = [line_at(x + off, b[1], v[1], b[3], v[3]) for x in fx]
+    f2 = [line_at(x + off, b[2], v[2], b[4], v[4]) for x in fx]
+    ax.fill_between(fx, f1, f2, alpha=0.04, color=C_W)
+    
+    # Target line (4→1 projection)
+    tgt_end_zb = n_z + 5
+    ax.plot([zb[1], tgt_end_zb], [v[1], line_at(tgt_end_zb + off, b[1], v[1], b[4], v[4])],
+            color=C_T, lw=3.0, ls='-.', alpha=0.85, zorder=5)
+    
+    # Target marker
+    z_last = min(last_bar - off, n_z - 1)
+    ax.plot(z_last, result['target_price'], marker='D', ms=14, color=C_T,
+            markeredgecolor='white', markeredgewidth=2, zorder=9)
+    
+    # Horizontal lines for entry and target
+    ax.axhline(y=result['target_price'], color=C_T, lw=0.6, ls=':', alpha=0.25)
+    ax.axhline(y=entry, color=C_E, lw=0.6, ls=':', alpha=0.25)
+    
+    # Arrow annotation for percentage
+    arrow_land_zb = min(zb[5] + max(4, (z_last - zb[5]) // 2), n_z + 3)
+    arrow_land_price = line_at(arrow_land_zb + off, b[1], v[1], b[4], v[4])
+    ax.annotate('',
+                xy=(arrow_land_zb, arrow_land_price),
+                xytext=(zb[5], entry),
+                arrowprops=dict(arrowstyle='-|>', color=C_A, lw=3.0,
+                              mutation_scale=22,
+                              connectionstyle='arc3,rad=0.15' if is_bull else 'arc3,rad=-0.15'),
+                zorder=8)
+    
+    # Percentage label
+    price_range = max(v) - min(v)
+    label_offset = price_range * 0.08
+    pct_y = arrow_land_price + label_offset if is_bull else arrow_land_price - label_offset
+    ax.text(arrow_land_zb, pct_y, f'{pct:+.1f}%', fontsize=13,
+            fontweight='bold', color=C_A, ha='center',
+            va='bottom' if is_bull else 'top',
+            fontfamily=ARABIC_FONT,
+            bbox=dict(boxstyle='round,pad=0.3', fc='white', ec=C_A,
+                     alpha=0.9, lw=0.8),
+            zorder=10)
+    
+    # P0-P5 labels
     for i in range(6):
-        is_low=pts[i]['type']=='L'; dt_str=pts[i]['date'].strftime('%b %d'); label_color=C_P0 if i==0 else C_W
-        ax.annotate(f'P{i}  {v[i]:.2f}\n{dt_str}',xy=(zb[i],v[i]),xytext=(0,-28 if is_low else 28),textcoords='offset points',ha='center',va='top' if is_low else 'bottom',fontsize=8.5,fontweight='bold',color=label_color,bbox=dict(boxstyle='round,pad=0.3',fc='white',ec=label_color,alpha=0.9,lw=0.6),arrowprops=dict(arrowstyle='-',color=label_color,lw=0.6))
-    emoji='📈' if is_bull else '📉'; direction_ar=ar('ولفي صاعد') if is_bull else ar('ولفي هابط')
-    ax.set_title(f'{emoji}  {ticker_code}  |  {ar(company)}  |  {direction_ar}  |  {ar(tf_label)}',fontsize=15,fontweight='bold',pad=16,color='#212121',fontfamily=ARABIC_FONT)
+        is_low = pts[i]['type'] == 'L'
+        dt_str = pts[i]['date'].strftime('%b %d')
+        label_color = C_P0 if i == 0 else C_W
+        ax.annotate(f'P{i}  {v[i]:.2f}\n{dt_str}',
+                    xy=(zb[i], v[i]),
+                    xytext=(0, -28 if is_low else 28),
+                    textcoords='offset points',
+                    ha='center', va='top' if is_low else 'bottom',
+                    fontsize=8.5, fontweight='bold', color=label_color,
+                    bbox=dict(boxstyle='round,pad=0.3', fc='white',
+                            edgecolor=label_color, alpha=0.9, lw=0.6),
+                    arrowprops=dict(arrowstyle='-', color=label_color, lw=0.6))
+    
+    # Title with Arabic
+    emoji = '📈' if is_bull else '📉'
+    direction_ar = ar('ولفي صاعد') if is_bull else ar('ولفي هابط')
+    ax.set_title(f'{emoji}  {ticker_code}  |  {ar(company)}  |  {direction_ar}  |  {ar(tf_label)}',
+                 fontsize=15, fontweight='bold', pad=16,
+                 color='#212121', fontfamily=ARABIC_FONT)
     ax.set_ylabel('')
-    bc='#E8F5E9' if is_bull else '#FFEBEE'; bt='#2E7D32' if is_bull else '#C62828'
-    info_lines=[f"  {ar(company)}",f"  {'─'*24}",f"  {last_close:.2f}        :  {ar('الإغلاق')}",f"  {entry:.2f}        :  {ar('الموجة 5')}",f"  {target:.2f}       :  {ar('4 ← 1')}",f"  {pct:+.1f}%        :  {ar('النسبة')}",f"  {ar(tf_label)}     :  {ar('الفاصل')}"]
-    ax.text(0.01,0.03,'\n'.join(info_lines),transform=ax.transAxes,fontsize=10,fontweight='bold',color=bt,fontfamily=ARABIC_FONT,verticalalignment='bottom',horizontalalignment='left',bbox=dict(boxstyle='round,pad=0.6',facecolor=bc,edgecolor=bt,alpha=0.92,lw=1.2),zorder=10)
-    plt.tight_layout(); buf=io.BytesIO(); fig.savefig(buf,format='png',dpi=150,bbox_inches='tight'); plt.close(fig); buf.seek(0); return buf
+    
+    # Info box (bottom-left)
+    bc = '#E8F5E9' if is_bull else '#FFEBEE'
+    bt = '#2E7D32' if is_bull else '#C62828'
+    info_lines = [
+        f"  {ar(company)}",
+        f"  {'─'*24}",
+        f"  {last_close:.2f}        :  {ar('الإغلاق')}",
+        f"  {entry:.2f}        :  {ar('الموجة 5')}",
+        f"  {result['target_price']:.2f}       :  {ar('4 ← 1')}",
+        f"  {pct:+.1f}%        :  {ar('النسبة')}",
+        f"  {ar(tf_label)}     :  {ar('الفاصل')}"
+    ]
+    ax.text(0.01, 0.03, '\n'.join(info_lines),
+            transform=ax.transAxes, fontsize=10, fontweight='bold',
+            color=bt, fontfamily=ARABIC_FONT,
+            verticalalignment='bottom', horizontalalignment='left',
+            bbox=dict(boxstyle='round,pad=0.6', facecolor=bc,
+                     edgecolor=bt, alpha=0.92, lw=1.2),
+            zorder=10)
+    
+    plt.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    buf.seek(0)
+    return buf
 
+
+# ───────────────────────────────────────────────────────────────────────────────
+# 10e: TICKER PROCESSOR FOR SCANNER
+# ───────────────────────────────────────────────────────────────────────────────
 
 def process_ticker(ticker, period, interval, resample_rule=None):
+    """Process a single ticker: fetch data and find Wolfe patterns."""
     try:
-        df=yf.Ticker(ticker).history(period=period,interval=interval)
-        if df is None or len(df)<30: return ticker,[],None
-        if resample_rule: df=resample_ohlc(df,resample_rule)
-        if len(df)<30: return ticker,[],None
-        found=find_active_wolfe(df,max_bars_since_p5=8); last_bar=len(df)-1
+        df = yf.Ticker(ticker).history(period=period, interval=interval)
+        if df is None or len(df) < 30:
+            return ticker, [], None
+        if resample_rule:
+            df = resample_ohlc(df, resample_rule)
+        if len(df) < 30:
+            return ticker, [], None
+        
+        found = find_active_wolfe(df, max_bars_since_p5=8)
+        last_bar = len(df) - 1
+        
         for r in found:
-            b1=r['points'][1]['bar']; v1=r['points'][1]['price']; b4=r['points'][4]['bar']; v4=r['points'][4]['price']
-            r['target_price']=round(line_at(last_bar,b1,v1,b4,v4),2); r['last_close']=round(float(df['Close'].iloc[-1]),2)
-        return ticker,found,df
-    except Exception: return ticker,[],None
+            # Calculate target price: project equilibrium line (1→4) to last bar
+            b1 = r['points'][1]['bar']
+            v1 = r['points'][1]['price']
+            b4 = r['points'][4]['bar']
+            v4 = r['points'][4]['price']
+            r['target_price'] = round(line_at(last_bar, b1, v1, b4, v4), 2)
+            r['last_close'] = round(float(df['Close'].iloc[-1]), 2)
+        
+        return ticker, found, df
+    except Exception:
+        return ticker, [], None
 
+
+# ───────────────────────────────────────────────────────────────────────────────
+# 10f: SCAN ALL TICKERS
+# ───────────────────────────────────────────────────────────────────────────────
 
 def scan_tickers(tickers, period, interval, resample_rule=None, max_workers=15):
-    all_res={}; ohlc={}
+    """Scan multiple tickers in parallel using ThreadPoolExecutor."""
+    all_res = {}
+    ohlc = {}
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futs={pool.submit(process_ticker,t,period,interval,resample_rule):t for t in tickers}
+        futs = {pool.submit(process_ticker, t, period, interval, resample_rule): t
+                for t in tickers}
         for f in as_completed(futs):
-            tk,found,df=f.result()
-            if found: all_res[tk]=found; ohlc[tk]=df
-    return all_res,ohlc
+            tk, found, df = f.result()
+            if found:
+                all_res[tk] = found
+                ohlc[tk] = df
+    return all_res, ohlc
 
-# ─────────────────────────────────────────────────────────────
-# 11. TICKERS & TIMEFRAME MAP
-# ─────────────────────────────────────────────────────────────
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 11: TICKER LISTS & TIMEFRAME MAP
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Define all Tadawul tickers and timeframe options for Wolfe scanner.
+#
+# TICKER FORMAT: XXXX.SR (Tadawul format with Saudi Arabia suffix)
+#
+# TIMEFRAMES:
+#   '30m' → 30 minutes, 60d history
+#   '1h'  → 1 hour, 60d history
+#   '2h'  → 2 hours, 60d history (resampled from 1h)
+#   '4h'  → 4 hours, 60d history (resampled from 1h)
+#   '1d'  → Daily, 1 year history
+#   '1w'  → Weekly, 5 year history
+#
+# TO MODIFY:
+#   • Add new ticker → append to TADAWUL_TICKERS list
+#   • Add new timeframe → add entry to TF_MAP
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Full list of Tadawul stocks (all .SR tickers)
 TADAWUL_TICKERS = [
-    '^TASI.SR','1010.SR','1020.SR','1030.SR','1050.SR','1060.SR','1080.SR','1111.SR','1120.SR',
-    '1140.SR','1150.SR','1180.SR','1182.SR','1183.SR','1201.SR','1202.SR','1210.SR',
-    '1211.SR','1212.SR','1213.SR','1214.SR','1301.SR','1302.SR','1303.SR','1304.SR',
-    '1320.SR','1321.SR','1322.SR','1323.SR','1810.SR','1820.SR','1830.SR','1831.SR',
-    '1832.SR','1833.SR','1834.SR','1835.SR','2001.SR','2010.SR','2020.SR','2030.SR',
-    '2040.SR','2050.SR','2060.SR','2070.SR','2080.SR','2081.SR','2082.SR','2083.SR',
-    '2084.SR','2090.SR','2100.SR','2110.SR','2120.SR','2130.SR','2140.SR','2150.SR',
-    '2160.SR','2170.SR','2180.SR','2190.SR','2200.SR','2210.SR','2220.SR','2222.SR',
-    '2223.SR','2230.SR','2240.SR','2250.SR','2270.SR','2280.SR','2281.SR','2282.SR',
-    '2283.SR','2284.SR','2285.SR','2286.SR','2287.SR','2288.SR','2290.SR','2300.SR',
-    '2310.SR','2320.SR','2330.SR','2340.SR','2350.SR','2360.SR','2370.SR','2380.SR',
-    '2381.SR','2382.SR','3002.SR','3003.SR','3004.SR','3005.SR','3007.SR','3008.SR',
-    '3010.SR','3020.SR','3030.SR','3040.SR','3050.SR','3060.SR','3080.SR','3090.SR',
-    '3091.SR','3092.SR','4001.SR','4002.SR','4003.SR','4004.SR','4005.SR','4006.SR',
-    '4007.SR','4008.SR','4009.SR','4011.SR','4012.SR','4013.SR','4014.SR','4015.SR',
-    '4016.SR','4017.SR','4018.SR','4019.SR','4020.SR','4021.SR','4030.SR','4031.SR',
-    '4040.SR','4050.SR','4051.SR','4061.SR','4070.SR','4071.SR','4072.SR','4080.SR',
-    '4081.SR','4082.SR','4083.SR','4084.SR','4090.SR','4100.SR','4110.SR','4130.SR',
-    '4140.SR','4141.SR','4142.SR','4143.SR','4144.SR','4145.SR','4146.SR','4147.SR',
-    '4148.SR','4150.SR','4160.SR','4161.SR','4162.SR','4163.SR','4164.SR','4165.SR',
-    '4170.SR','4180.SR','4190.SR','4191.SR','4192.SR','4193.SR','4194.SR','4200.SR',
-    '4210.SR','4220.SR','4230.SR','4240.SR','4250.SR','4260.SR','4261.SR','4262.SR',
-    '4263.SR','4264.SR','4265.SR','4270.SR','4280.SR','4290.SR','4291.SR','4292.SR',
-    '4300.SR','4310.SR','4320.SR','4321.SR','4322.SR','4323.SR','4324.SR','4325.SR',
-    '4326.SR','4327.SR','4330.SR','4331.SR','4332.SR','4333.SR','4334.SR','4335.SR',
-    '4336.SR','4337.SR','4338.SR','4339.SR','4340.SR','4342.SR','4344.SR','4345.SR',
-    '4346.SR','4347.SR','4348.SR','4349.SR','4350.SR','5110.SR','6001.SR','6002.SR',
-    '6004.SR','6010.SR','6012.SR','6013.SR','6014.SR','6015.SR','6016.SR','6017.SR',
-    '6018.SR','6019.SR','6020.SR','6040.SR','6050.SR','6060.SR','6070.SR','6090.SR',
-    '7010.SR','7020.SR','7030.SR','7040.SR','7200.SR','7201.SR','7202.SR','7203.SR',
-    '7204.SR','7211.SR','8010.SR','8012.SR','8020.SR','8030.SR','8040.SR','8050.SR',
-    '8060.SR','8070.SR','8100.SR','8120.SR','8150.SR','8160.SR','8170.SR','8180.SR',
-    '8190.SR','8200.SR','8210.SR','8230.SR','8240.SR','8250.SR','8260.SR','8270.SR',
-    '8280.SR','8300.SR','8310.SR','8311.SR','8313.SR',
+    '^TASI.SR', '1010.SR', '1020.SR', '1030.SR', '1050.SR', '1060.SR', '1080.SR', '1111.SR',
+    '1120.SR', '1140.SR', '1150.SR', '1180.SR', '1182.SR', '1183.SR', '1201.SR', '1202.SR',
+    '1210.SR', '1211.SR', '1212.SR', '1213.SR', '1214.SR', '1301.SR', '1302.SR', '1303.SR',
+    '1304.SR', '1320.SR', '1321.SR', '1322.SR', '1323.SR', '1810.SR', '1820.SR', '1830.SR',
+    '1831.SR', '1832.SR', '1833.SR', '1834.SR', '1835.SR', '2001.SR', '2010.SR', '2020.SR',
+    '2030.SR', '2040.SR', '2050.SR', '2060.SR', '2070.SR', '2080.SR', '2081.SR', '2082.SR',
+    '2083.SR', '2084.SR', '2090.SR', '2100.SR', '2110.SR', '2120.SR', '2130.SR', '2140.SR',
+    '2150.SR', '2160.SR', '2170.SR', '2180.SR', '2190.SR', '2200.SR', '2210.SR', '2220.SR',
+    '2222.SR', '2223.SR', '2230.SR', '2240.SR', '2250.SR', '2270.SR', '2280.SR', '2281.SR',
+    '2282.SR', '2283.SR', '2284.SR', '2285.SR', '2286.SR', '2287.SR', '2288.SR', '2290.SR',
+    '2300.SR', '2310.SR', '2320.SR', '2330.SR', '2340.SR', '2350.SR', '2360.SR', '2370.SR',
+    '2380.SR', '2381.SR', '2382.SR', '3002.SR', '3003.SR', '3004.SR', '3005.SR', '3007.SR',
+    '3008.SR', '3010.SR', '3020.SR', '3030.SR', '3040.SR', '3050.SR', '3060.SR', '3080.SR',
+    '3090.SR', '3091.SR', '3092.SR', '4001.SR', '4002.SR', '4003.SR', '4004.SR', '4005.SR',
+    '4006.SR', '4007.SR', '4008.SR', '4009.SR', '4011.SR', '4012.SR', '4013.SR', '4014.SR',
+    '4015.SR', '4016.SR', '4017.SR', '4018.SR', '4019.SR', '4020.SR', '4021.SR', '4030.SR',
+    '4031.SR', '4040.SR', '4050.SR', '4051.SR', '4061.SR', '4070.SR', '4071.SR', '4072.SR',
+    '4080.SR', '4081.SR', '4082.SR', '4083.SR', '4084.SR', '4090.SR', '4100.SR', '4110.SR',
+    '4130.SR', '4140.SR', '4141.SR', '4142.SR', '4143.SR', '4144.SR', '4145.SR', '4146.SR',
+    '4147.SR', '4148.SR', '4150.SR', '4160.SR', '4161.SR', '4162.SR', '4163.SR', '4164.SR',
+    '4165.SR', '4170.SR', '4180.SR', '4190.SR', '4191.SR', '4192.SR', '4193.SR', '4194.SR',
+    '4200.SR', '4210.SR', '4220.SR', '4230.SR', '4240.SR', '4250.SR', '4260.SR', '4261.SR',
+    '4262.SR', '4263.SR', '4264.SR', '4265.SR', '4270.SR', '4280.SR', '4290.SR', '4291.SR',
+    '4292.SR', '4300.SR', '4310.SR', '4320.SR', '4321.SR', '4322.SR', '4323.SR', '4324.SR',
+    '4325.SR', '4326.SR', '4327.SR', '4330.SR', '4331.SR', '4332.SR', '4333.SR', '4334.SR',
+    '4335.SR', '4336.SR', '4337.SR', '4338.SR', '4339.SR', '4340.SR', '4342.SR', '4344.SR',
+    '4345.SR', '4346.SR', '4347.SR', '4348.SR', '4349.SR', '4350.SR', '5110.SR', '6001.SR',
+    '6002.SR', '6004.SR', '6010.SR', '6012.SR', '6013.SR', '6014.SR', '6015.SR', '6016.SR',
+    '6017.SR', '6018.SR', '6019.SR', '6020.SR', '6040.SR', '6050.SR', '6060.SR', '6070.SR',
+    '6090.SR', '7010.SR', '7020.SR', '7030.SR', '7040.SR', '7200.SR', '7201.SR', '7202.SR',
+    '7203.SR', '7204.SR', '7211.SR', '8010.SR', '8012.SR', '8020.SR', '8030.SR', '8040.SR',
+    '8050.SR', '8060.SR', '8070.SR', '8100.SR', '8120.SR', '8150.SR', '8160.SR', '8170.SR',
+    '8180.SR', '8190.SR', '8200.SR', '8210.SR', '8230.SR', '8240.SR', '8250.SR', '8260.SR',
+    '8270.SR', '8280.SR', '8300.SR', '8310.SR', '8311.SR', '8313.SR',
 ]
 
+# Timeframe configuration: (Arabic label, yfinance interval, yfinance period, resample rule)
 TF_MAP = {
     '30m': ('30 دقيقة', '30m',  '60d', None),
     '1h':  ('1 ساعة',   '60m',  '60d', None),
@@ -3810,9 +4649,26 @@ TF_MAP = {
     '1w':  ('أسبوعي',   '1wk',  '5y',  None),
 }
 
-# ─────────────────────────────────────────────────────────────
-# 12. KEYBOARD BUILDERS
-# ─────────────────────────────────────────────────────────────
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 12: TELEGRAM KEYBOARD BUILDERS
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Create inline keyboards for bot navigation.
+#
+# KEYBOARDS:
+#   build_main_keyboard()        → Main menu (Wolfe / Analyzer)
+#   build_tf_keyboard()         → Timeframe selection (30m, 1h, 2h, 4h, 1d, 1w)
+#   build_filter_keyboard()      → Bullish / Bearish / All filter
+#   build_after_wolfe_keyboard() → Scan again / Main menu
+#   build_back_main_keyboard()   → Back to main menu
+#
+# TO MODIFY:
+#   • Add button    → add InlineKeyboardButton
+#   • Change label  → modify button text
+#   • Change action → modify callback_data
+# ═══════════════════════════════════════════════════════════════════════════════
+
 def build_main_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📈 بوت موجات الولفي", callback_data="bot_wolfe")],
@@ -3822,16 +4678,20 @@ def build_main_keyboard():
 
 def build_tf_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("30 دقيقة", callback_data="scan_30m"), InlineKeyboardButton("1 ساعة", callback_data="scan_1h")],
-        [InlineKeyboardButton("2 ساعة",  callback_data="scan_2h"),  InlineKeyboardButton("4 ساعات",callback_data="scan_4h")],
-        [InlineKeyboardButton("يومي",    callback_data="scan_1d"),  InlineKeyboardButton("أسبوعي", callback_data="scan_1w")],
+        [InlineKeyboardButton("30 دقيقة", callback_data="scan_30m"),
+         InlineKeyboardButton("1 ساعة", callback_data="scan_1h")],
+        [InlineKeyboardButton("2 ساعة",  callback_data="scan_2h"),
+         InlineKeyboardButton("4 ساعات",callback_data="scan_4h")],
+        [InlineKeyboardButton("يومي",    callback_data="scan_1d"),
+         InlineKeyboardButton("أسبوعي", callback_data="scan_1w")],
         [InlineKeyboardButton("🔙 رجوع للقائمة الرئيسية", callback_data="back_to_main")],
     ])
 
 
 def build_filter_keyboard(tf_key):
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📈 صاعد فقط", callback_data=f"filter_{tf_key}_bullish"), InlineKeyboardButton("📉 هابط فقط", callback_data=f"filter_{tf_key}_bearish")],
+        [InlineKeyboardButton("📈 صاعد فقط", callback_data=f"filter_{tf_key}_bullish"),
+         InlineKeyboardButton("📉 هابط فقط", callback_data=f"filter_{tf_key}_bearish")],
         [InlineKeyboardButton("📊 الكل",      callback_data=f"filter_{tf_key}_both")],
         [InlineKeyboardButton("🔙 رجوع", callback_data="back_to_wolfe")],
     ])
@@ -3849,9 +4709,25 @@ def build_back_main_keyboard():
         [InlineKeyboardButton("🔙 رجوع للقائمة الرئيسية", callback_data="back_to_main")],
     ])
 
-# ─────────────────────────────────────────────────────────────
-# 13. MESSAGES
-# ─────────────────────────────────────────────────────────────
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 13: BOT MESSAGES (Arabic)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Static text messages displayed by the bot.
+#
+# MESSAGES:
+#   MAIN_MENU_MSG       → Welcome + feature selection
+#   WOLFE_WELCOME_MSG  → Timeframe selection prompt
+#   ANALYZER_MSG       → How to use analyzer bot
+#   LANDING_HTML       → Web page for Render.com
+#
+# TO MODIFY:
+#   • Change language      → edit Arabic text
+#   • Add message        → define new constant
+#   • Change formatting   → modify markdown
+# ═══════════════════════════════════════════════════════════════════════════════
+
 MAIN_MENU_MSG = (
     "🤖 *مرحباً بك في البوت المتكامل*\n\n"
     "اختر الخدمة التي تريدها:\n\n"
@@ -3877,23 +4753,47 @@ ANALYZER_MSG = (
     "_مثال: أرسل_ `2222` _للحصول على تقرير أرامكو_"
 )
 
-# ─────────────────────────────────────────────────────────────
-# 14. LANDING HTML
-# ─────────────────────────────────────────────────────────────
 LANDING_HTML = """<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head><meta charset="UTF-8"><title>بوت السوق السعودي</title>
-<style>body{font-family:Arial,sans-serif;background:#080c1a;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;}
-.card{background:rgba(255,255,255,0.07);padding:40px;border-radius:16px;text-align:center;max-width:480px;}
-h1{color:#7c6df5;font-size:2rem;}p{color:#aaa;}</style></head>
-<body><div class="card"><h1>🤖 بوت السوق السعودي</h1>
+<style>
+body{font-family:Arial,sans-serif;background:#080c1a;color:#fff;
+     display:flex;align-items:center;justify-content:center;
+     min-height:100vh;margin:0;}
+.card{background:rgba(255,255,255,0.07);padding:40px;border-radius:16px;
+      text-align:center;max-width:480px;}
+h1{color:#7c6df5;font-size:2rem;}
+p{color:#aaa;}
+</style></head>
+<body>
+<div class="card">
+<h1>🤖 بوت السوق السعودي</h1>
 <p>بوت موجات الولفي ويف + المحلل الرقمي</p>
-<p style="color:#7c6df5;">ابدأ المحادثة على تيليغرام</p></div></body></html>"""
+<p style="color:#7c6df5;">ابدأ المحادثة على تيليغرام</p>
+</div>
+</body>
+</html>"""
 
-# ─────────────────────────────────────────────────────────────
-# 15. HANDLERS
-# ─────────────────────────────────────────────────────────────
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 14: TELEGRAM BOT HANDLERS
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Handle all Telegram bot events (commands, callbacks, messages).
+#
+# HANDLERS:
+#   start_command()      → /start command → show main menu
+#   button_handler()     → All inline button callbacks
+#   text_handler()      → Text messages for analyzer ticker input
+#
+# TO MODIFY:
+#   • Add new command     → add CommandHandler
+#   • Add new callback  → add elif in button_handler()
+#   • Change behavior   → modify handler functions
+# ═══════════════════════════════════════════════════════════════════════════════
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /start command."""
     context.user_data.pop('waiting_ticker', None)
     await update.message.reply_text(
         MAIN_MENU_MSG, parse_mode="Markdown",
@@ -3902,10 +4802,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle all inline keyboard button presses."""
     query = update.callback_query
     await query.answer()
     data = query.data
 
+    # ── Back to main menu ──
     if data == "back_to_main":
         context.user_data.pop('waiting_ticker', None)
         await query.edit_message_text(
@@ -3914,6 +4816,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # ── Start Wolfe scanner ──
     if data == "bot_wolfe":
         context.user_data.pop('waiting_ticker', None)
         await query.edit_message_text(
@@ -3922,6 +4825,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # ── Start Analyzer bot ──
     if data == "bot_analyzer":
         context.user_data['waiting_ticker'] = True
         await query.edit_message_text(
@@ -3930,6 +4834,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # ── Back to Wolfe timeframe selection ──
     if data == "back_to_wolfe":
         await query.edit_message_text(
             WOLFE_WELCOME_MSG, parse_mode="Markdown",
@@ -3937,10 +4842,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # ── Timeframe selected ──
     if data.startswith("scan_"):
         tf_key = data[5:]
         if tf_key not in TF_MAP:
-            await query.edit_message_text("فاصل زمني غير معروف.", reply_markup=build_back_main_keyboard())
+            await query.edit_message_text("فاصل زمني غير معروف.",
+                                         reply_markup=build_back_main_keyboard())
             return
         await query.edit_message_text(
             f"⏱ الفاصل: *{TF_MAP[tf_key][0]}*\n\nاختر الفلتر:",
@@ -3949,96 +4856,136 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # ── Filter selected ──
     if data.startswith("filter_"):
         parts = data.split("_", 2)
         if len(parts) != 3:
-            await query.edit_message_text("بيانات غير صالحة.", reply_markup=build_back_main_keyboard())
+            await query.edit_message_text("بيانات غير صالحة.",
+                                         reply_markup=build_back_main_keyboard())
             return
         _, tf_key, direction = parts
         if tf_key not in TF_MAP:
-            await query.edit_message_text("فاصل زمني غير معروف.", reply_markup=build_back_main_keyboard())
+            await query.edit_message_text("فاصل زمني غير معروف.",
+                                         reply_markup=build_back_main_keyboard())
             return
 
         tf_label, interval, period, resample_rule = TF_MAP[tf_key]
         chat_id = query.message.chat_id
 
+        # Show loading message
         await query.edit_message_text(
             f"⏳ جاري فحص *{len(TADAWUL_TICKERS)}* سهم...\n"
             f"الفاصل: *{tf_label}*\n\nيرجى الانتظار ⏳",
             parse_mode="Markdown",
         )
 
+        # Run scanner in thread pool
         loop = asyncio.get_event_loop()
         results, ohlc_data = await loop.run_in_executor(
             _executor, scan_tickers, TADAWUL_TICKERS, period, interval, resample_rule
         )
 
-        bullish_list = []; bearish_list = []
+        # Separate bullish/bearish
+        bullish_list = []
+        bearish_list = []
         is_intraday = interval not in ('1d', '1wk')
 
         for tk, patterns in results.items():
             for r in patterns:
                 pct = ((r['target_price'] - r['entry_price']) / r['entry_price']) * 100
                 item = {
-                    'ticker': tk, 'name': get_name(tk),
-                    'last_close': r['last_close'], 'entry': round(r['entry_price'], 2),
-                    'target': r['target_price'], 'pct': round(pct, 1),
-                    'p5_date': (r['points'][5]['date'].strftime('%Y-%m-%d %H:%M') if is_intraday else r['points'][5]['date'].strftime('%Y-%m-%d')),
-                    '_r': r, '_df': ohlc_data[tk],
+                    'ticker': tk,
+                    'name': get_name(tk),
+                    'last_close': r['last_close'],
+                    'entry': round(r['entry_price'], 2),
+                    'target': r['target_price'],
+                    'pct': round(pct, 1),
+                    'p5_date': (r['points'][5]['date'].strftime('%Y-%m-%d %H:%M')
+                               if is_intraday else r['points'][5]['date'].strftime('%Y-%m-%d')),
+                    '_r': r,
+                    '_df': ohlc_data[tk],
                 }
-                if r['direction'] == 'Bullish': bullish_list.append(item)
-                else: bearish_list.append(item)
+                if r['direction'] == 'Bullish':
+                    bullish_list.append(item)
+                else:
+                    bearish_list.append(item)
 
+        # Sort by percentage
         bullish_list.sort(key=lambda x: x['pct'], reverse=True)
         bearish_list.sort(key=lambda x: x['pct'])
 
         show_bull = direction in ('bullish', 'both')
         show_bear = direction in ('bearish', 'both')
 
+        # Summary message
         summary = f"✅ *اكتمل الفحص — {tf_label}*\n\n"
-        if show_bull: summary += f"📈 ولفي صاعد: *{len(bullish_list)}*\n"
-        if show_bear: summary += f"📉 ولفي هابط: *{len(bearish_list)}*\n"
-        if not bullish_list and not bearish_list: summary += "\nلا توجد نتائج لهذا الفلتر."
+        if show_bull:
+            summary += f"📈 ولفي صاعد: *{len(bullish_list)}*\n"
+        if show_bear:
+            summary += f"📉 ولفي هابط: *{len(bearish_list)}*\n"
+        if not bullish_list and not bearish_list:
+            summary += "\nلا توجد نتائج لهذا الفلتر."
 
-        await context.bot.send_message(chat_id=chat_id, text=summary, parse_mode="Markdown")
+        await context.bot.send_message(chat_id=chat_id, text=summary,
+                                      parse_mode="Markdown")
 
+        # Send bullish results
         if show_bull and bullish_list:
-            await context.bot.send_message(chat_id=chat_id, text="📈 *— نتائج الولفي الصاعد —*", parse_mode="Markdown")
+            await context.bot.send_message(chat_id=chat_id,
+                                          text="📈 *— نتائج الولفي الصاعد —*",
+                                          parse_mode="Markdown")
             for item in bullish_list:
                 try:
-                    buf = plot_wolfe_chart(item['ticker'], item['_df'], item['_r'], tf_label)
+                    buf = plot_wolfe_chart(item['ticker'], item['_df'],
+                                         item['_r'], tf_label)
                     await context.bot.send_photo(chat_id=chat_id, photo=buf)
                 except Exception as e:
                     logger.error(f"Chart error {item['ticker']}: {e}")
-                msg = (f"رمز السهم: *{item['ticker'].split('.')[0]}*\nالاسم       : `{item['name']}`\n"
-                       f"الفاصل       : `{tf_label}`\nآخر إغلاق : `{item['last_close']}`\n"
-                       f"قاع (5)    : `{item['entry']}`\nخط (1←4)  : `{item['target']}`\n"
-                       f"النسبة      : `{item['pct']:+.1f}%`\nتاريخ (5)  : `{item['p5_date']}`")
-                await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode="Markdown")
+                msg = (f"رمز السهم: *{item['ticker'].split('.')[0]}*\n"
+                       f"الاسم       : `{item['name']}`\n"
+                       f"الفاصل       : `{tf_label}`\n"
+                       f"آخر إغلاق : `{item['last_close']}`\n"
+                       f"قاع (5)    : `{item['entry']}`\n"
+                       f"خط (1←4)  : `{item['target']}`\n"
+                       f"النسبة      : `{item['pct']:+.1f}%`\n"
+                       f"تاريخ (5)  : `{item['p5_date']}`")
+                await context.bot.send_message(chat_id=chat_id, text=msg,
+                                              parse_mode="Markdown")
 
+        # Send bearish results
         if show_bear and bearish_list:
-            await context.bot.send_message(chat_id=chat_id, text="📉 *— نتائج الولفي الهابط —*", parse_mode="Markdown")
+            await context.bot.send_message(chat_id=chat_id,
+                                          text="📉 *— نتائج الولفي الهابط —*",
+                                          parse_mode="Markdown")
             for item in bearish_list:
                 try:
-                    buf = plot_wolfe_chart(item['ticker'], item['_df'], item['_r'], tf_label)
+                    buf = plot_wolfe_chart(item['ticker'], item['_df'],
+                                         item['_r'], tf_label)
                     await context.bot.send_photo(chat_id=chat_id, photo=buf)
                 except Exception as e:
                     logger.error(f"Chart error {item['ticker']}: {e}")
-                msg = (f"رمز السهم: *{item['ticker'].split('.')[0]}*\nالاسم       : `{item['name']}`\n"
-                       f"الفاصل       : `{tf_label}`\nآخر إغلاق : `{item['last_close']}`\n"
-                       f"قمة (5)    : `{item['entry']}`\nخط (1←4)  : `{item['target']}`\n"
-                       f"النسبة      : `{item['pct']:+.1f}%`\nتاريخ (5)  : `{item['p5_date']}`")
-                await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode="Markdown")
+                msg = (f"رمز السهم: *{item['ticker'].split('.')[0]}*\n"
+                       f"الاسم       : `{item['name']}`\n"
+                       f"الفاصل       : `{tf_label}`\n"
+                       f"آخر إغلاق : `{item['last_close']}`\n"
+                       f"قمة (5)    : `{item['entry']}`\n"
+                       f"خط (1←4)  : `{item['target']}`\n"
+                       f"النسبة      : `{item['pct']:+.1f}%`\n"
+                       f"تاريخ (5)  : `{item['p5_date']}`")
+                await context.bot.send_message(chat_id=chat_id, text=msg,
+                                              parse_mode="Markdown")
 
+        # Done message with keyboard
         await context.bot.send_message(
-            chat_id=chat_id, text="🔄 *انتهى الفحص*", parse_mode="Markdown",
+            chat_id=chat_id, text="🔄 *انتهى الفحص*",
+            parse_mode="Markdown",
             reply_markup=build_after_wolfe_keyboard(),
         )
         return
 
 
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle text messages — used for analyzer bot ticker input."""
+    """Handle text messages for analyzer bot ticker input."""
     if not context.user_data.get('waiting_ticker'):
         return
 
@@ -4058,6 +5005,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         context.user_data.pop('waiting_ticker', None)
 
+        # Success: send PDF
         await context.bot.edit_message_text(
             chat_id=chat_id, message_id=proc_msg.message_id,
             text=f"✅ *اكتمل التحليل — {display_ticker}*",
@@ -4070,6 +5018,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             caption=summary,
             parse_mode="Markdown",
         )
+        # Offer next action
         await context.bot.send_message(
             chat_id=chat_id,
             text="📊 هل تريد تحليل سهم آخر أو العودة للقائمة الرئيسية؟",
@@ -4104,26 +5053,46 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=build_back_main_keyboard(),
         )
 
-# ─────────────────────────────────────────────────────────────
-# 16. MAIN
-# ─────────────────────────────────────────────────────────────
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 15: MAIN ENTRY POINT
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# PURPOSE : Start the Telegram bot application.
+#
+# MODES:
+#   1. Webhook mode (Render.com): Uses RENDER_EXTERNAL_URL env var
+#   2. Polling mode (local dev): Standard polling
+#
+# TO MODIFY:
+#   • Change port      → modify PORT variable
+#   • Add middleware   → app.middleware() before run
+#   • Change logging   → modify logging.basicConfig()
+# ═══════════════════════════════════════════════════════════════════════════════
+
 def main():
+    """Start the bot application."""
+    # Build application
     app = Application.builder().token(BOT_TOKEN).build()
+
+    # Add handlers
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
+    # Check environment
     RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL")
     PORT = int(os.environ.get("PORT", 10000))
 
     if RENDER_EXTERNAL_URL:
+        # Webhook mode (for Render.com)
         webhook_url = f"{RENDER_EXTERNAL_URL}/webhook"
 
         async def home(_request):
             return aio_web.Response(text=LANDING_HTML, content_type='text/html')
 
         async def webhook_route(request):
-            data   = await request.json()
+            data = await request.json()
             update = Update.de_json(data, app.bot)
             await app.update_queue.put(update)
             return aio_web.Response(text='OK')
@@ -4132,7 +5101,7 @@ def main():
             await app.bot.set_webhook(webhook_url)
             logger.info(f"Webhook set → {webhook_url}")
             web_app = aio_web.Application()
-            web_app.router.add_get('/',         home)
+            web_app.router.add_get('/', home)
             web_app.router.add_post('/webhook', webhook_route)
             runner = aio_web.AppRunner(web_app)
             await runner.setup()
@@ -4145,6 +5114,7 @@ def main():
 
         asyncio.run(run_all())
     else:
+        # Polling mode (local development)
         logger.info("Starting polling (local dev)")
         app.run_polling(drop_pending_updates=True)
 
