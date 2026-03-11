@@ -1185,41 +1185,41 @@ def _enrich_with_STOCKS(ticker: str, info: dict) -> None:
 
 ####################################
     logger.info(f"STOCKS enrichment complete for {ticker}")
-        # Row 2: P/E, EPS, Dividend Yield
-        pe = safe(info, 'trailingPE')
-        pe_display = safe(info, 'trailingPE_display')
-        eps = safe(info, 'trailingEps')
-        dy = safe(info, 'dividendYield')
+    # Row 2: P/E, EPS, Dividend Yield
+    pe = safe(info, 'trailingPE')
+    pe_display = safe(info, 'trailingPE_display')
+    eps = safe(info, 'trailingEps')
+    dy = safe(info, 'dividendYield')
 
-        # P/E: show display text (سالب / أكبر من 100) if available, else numeric
-        if pe_display:
-            pe_str = str(pe_display)
-        elif pe:
-            pe_str = f'{float(pe):.2f}'
-        else:
-            pe_str = '-'
-        self._box(x1, y2, col_bw, col_bh, 'مكرر الربحية', pe_str)
+    # P/E: show display text (سالب / أكبر من 100) if available, else numeric
+    if pe_display:
+        pe_str = str(pe_display)
+    elif pe:
+        pe_str = f'{float(pe):.2f}'
+    else:
+        pe_str = '-'
+    self._box(x1, y2, col_bw, col_bh, 'مكرر الربحية', pe_str)
 
-        eps_val = float(eps) if eps else None
-        eps_str = f'{eps_val:.2f}' if eps_val is not None else '-'
-        eps_color = GREEN_HEX if (eps_val is not None and eps_val >= 0) else RED_HEX if eps_val is not None else None
-        self._box(x2, y2, col_bw, col_bh, 'ربحية السهم', eps_str, clr=eps_color)
-        self._box(x3, y2, col_bw, col_bh, 'عائد التوزيعات', fmt_p(dy)[0] if dy else '-')
+    eps_val = float(eps) if eps else None
+    eps_str = f'{eps_val:.2f}' if eps_val is not None else '-'
+    eps_color = GREEN_HEX if (eps_val is not None and eps_val >= 0) else RED_HEX if eps_val is not None else None
+    self._box(x2, y2, col_bw, col_bh, 'ربحية السهم', eps_str, clr=eps_color)
+    self._box(x3, y2, col_bw, col_bh, 'عائد التوزيعات', fmt_p(dy)[0] if dy else '-')
 
-        # Row 3: P/B, ROE, ROA
-        pb = safe(info, 'priceToBook')
-        roe = safe(info, 'returnOnEquity')
-        roa = safe(info, 'returnOnAssets')
-        self._box(x1, y3, col_bw, col_bh, 'مضاعف القيمة الدفترية', f'{float(pb):.2f}' if pb else '-')
-        self._box(x2, y3, col_bw, col_bh, 'العائد على حقوق المساهمين', fmt_p(roe)[0] if roe else '-')
-        self._box(x3, y3, col_bw, col_bh, 'العائد على الأصول', fmt_p(roa)[0] if roa else '-')
+    # Row 3: P/B, ROE, ROA
+    pb = safe(info, 'priceToBook')
+    roe = safe(info, 'returnOnEquity')
+    roa = safe(info, 'returnOnAssets')
+    self._box(x1, y3, col_bw, col_bh, 'مضاعف القيمة الدفترية', f'{float(pb):.2f}' if pb else '-')
+    self._box(x2, y3, col_bw, col_bh, 'العائد على حقوق المساهمين', fmt_p(roe)[0] if roe else '-')
+    self._box(x3, y3, col_bw, col_bh, 'العائد على الأصول', fmt_p(roa)[0] if roa else '-')
 
-        # Row 4: Volume, Trading Value, Trades Count
-        self._box(x1, y4, col_bw, col_bh, 'حجم التداول', fmt_n(safe(info, 'volume'), d=0)[0])
-        val_str = fmt_n(safe(info, 'tradingValue'), d=0)[0] if safe(info, 'tradingValue') else '-'
-        self._box(x2, y4, col_bw, col_bh, 'قيمة التداول', val_str)
-        trades_str = fmt_n(safe(info, 'tradesCount'), d=0)[0] if safe(info, 'tradesCount') else '-'
-        self._box(x3, y4, col_bw, col_bh, 'عدد الصفقات', trades_str)
+    # Row 4: Volume, Trading Value, Trades Count
+    self._box(x1, y4, col_bw, col_bh, 'حجم التداول', fmt_n(safe(info, 'volume'), d=0)[0])
+    val_str = fmt_n(safe(info, 'tradingValue'), d=0)[0] if safe(info, 'tradingValue') else '-'
+    self._box(x2, y4, col_bw, col_bh, 'قيمة التداول', val_str)
+    trades_str = fmt_n(safe(info, 'tradesCount'), d=0)[0] if safe(info, 'tradesCount') else '-'
+    self._box(x3, y4, col_bw, col_bh, 'عدد الصفقات', trades_str)
 
 def _ensure_eps_formatted(info: dict) -> None:
     """
