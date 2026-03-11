@@ -1074,9 +1074,9 @@ def _enrich_with_STOCKS(ticker: str, info: dict) -> None:
 
     logger.info(f"STOCKS static: found data for ticker {code}")
 
-    # ────────────────────────────────────────────────────────
+    # ────────────────────────────────────────────────────────#
     # 1. ربح السهم (EPS) — Earnings Per Share
-    # ────────────────────────────────────────────────────────
+    # ────────────────────────────────────────────────────────#
     eps = _safe_float(STOCKS.get("Eps"))
     if eps is not None:
         info["trailingEps"] = eps
