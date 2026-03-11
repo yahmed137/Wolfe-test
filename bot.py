@@ -2157,17 +2157,19 @@ from io import BytesIO
 # ---------------------------------------------------------------------
 # CHART WITH STEP-LINE CONNECTORS ROUTED THROUGH EMPTY SPACE
 # ---------------------------------------------------------------------
+##############الشموع####################################################
+# ---------------------------------------------------------------------
+# CHART WITH DYNAMIC SPACE-FILLING SMOOTH CONNECTORS
+# ---------------------------------------------------------------------
 def make_candle_pattern_chart(df, patterns):
     """
     Generates a candlestick chart with pattern annotations using
-    ORTHOGONAL STEP-LINES routed through empty space — guaranteed
-    non-crossing, non-overlapping labels, avoiding all candles and lines.
-
-    Labels can be placed above, below, left, or right — wherever
-    there is free space.
+    SMOOTH BÉZIER CURVES routed through dynamically found empty spaces —
+    guaranteed non-crossing, non-overlapping labels, and minimal candle overlap.
     """
-    import matplotlib.patches as mpatches
     from matplotlib.path import Path
+    import matplotlib.patches as mpatches
+    from matplotlib.patches import Rectangle
 
     # ── Data prep ────────────────────────────────────────────────────
     df = df.tail(60).copy()
@@ -2219,256 +2221,212 @@ def make_candle_pattern_chart(df, patterns):
     xlo, xhi = ax.get_xlim()
     xspan = xhi - xlo
     yspan = yhi - ylo
-    n_candles = len(df_plot)
 
-    # ── Build occupancy map of candle regions ────────────────────────
-    # Each candle occupies a vertical band [low, high] at integer x pos.
-    # We track this so step-lines can route around them.
-    candle_bounds = []   # list of (x_pos, low, high)
-    for i in range(len(df_plot)):
-        row = df_plot.iloc[i]
-        c_lo = min(float(row['Open']), float(row['Close']), float(row['Low']))
-        c_hi = max(float(row['Open']), float(row['Close']), float(row['High']))
-        candle_bounds.append((float(i), c_lo, c_hi))
+    # ── Calculate candle bounding boxes for collision detection ──────
+    candle_rects = []
+    for i, (idx, row) in enumerate(df.iterrows()):
+        candle_width = xspan / len(df) * 0.6
+        candle_rects.append(Rectangle(
+            (i - candle_width/2, row['Low']),
+            candle_width,
+            row['High'] - row['Low'],
+            fill=False
+        ))
 
-    global_high = max(cb[2] for cb in candle_bounds)
-    global_low  = min(cb[1] for cb in candle_bounds)
+    def check_collision(x, y, width, height, side='left'):
+        """Check if a rectangle at (x,y) with given dimensions collides with candles"""
+        test_rect = Rectangle((x, y), width, height, fill=False)
+        for candle in candle_rects:
+            if test_rect.overlaps(candle):
+                return True
+        
+        # Check if overlaps with chart area too much
+        if side == 'left':
+            if x > xlo + xspan * 0.15:  # Too far right
+                return True
+        else:
+            if x < xhi - xspan * 0.15:  # Too far left
+                return True
+        
+        return False
 
-    # ── Helper: find the highest/lowest candle in an x-range ─────────
-    def _max_high_in_range(x_start, x_end):
-        """Max candle high for candles whose x is in [x_start, x_end]."""
-        hi = global_low
-        for cx, clo, chi in candle_bounds:
-            if min(x_start, x_end) - 0.6 <= cx <= max(x_start, x_end) + 0.6:
-                hi = max(hi, chi)
-        return hi
-
-    def _min_low_in_range(x_start, x_end):
-        """Min candle low for candles whose x is in [x_start, x_end]."""
-        lo = global_high
-        for cx, clo, chi in candle_bounds:
-            if min(x_start, x_end) - 0.6 <= cx <= max(x_start, x_end) + 0.6:
-                lo = min(lo, clo)
-        return lo
-
-    # ── Decide label placement zone for each annotation ──────────────
-    #
-    # Strategy: pick the BEST placement among 4 zones:
-    #   'above'  — label above all candles, line goes up vertically
-    #   'below'  — label below all candles, line goes down vertically
-    #   'left'   — label in left margin
-    #   'right'  — label in right margin
-    #
-    # Preference:
-    #   1. If candle is near left edge  → 'left'
-    #   2. If candle is near right edge → 'right'
-    #   3. If bullish or neutral        → 'above'
-    #   4. If bearish                   → 'below'
-    #   (with fallback balancing)
-
-    MARGIN_ZONE = n_candles * 0.15   # first/last 15% of candles → side labels
-
-    # Pre-assign preferred zones
+    # ── Dynamic placement: find best side and position for each annotation ─
+    placed = []
+    used_positions = []  # Track used label positions to avoid overlap
+    
+    # Sort by position to process left to right
+    resolved.sort(key=lambda a: a['pos'])
+    
     for ann in resolved:
-        px = ann['pos']
-        bull = ann['bullish']
-        if px < xlo + MARGIN_ZONE:
-            ann['zone'] = 'left'
-        elif px > xhi - MARGIN_ZONE:
-            ann['zone'] = 'right'
-        elif bull is True or bull is None:
-            ann['zone'] = 'above'
+        px, cy = ann['pos'], ann['conn_y']
+        
+        # Try left side first
+        left_clear = True
+        left_lane_x = xlo - xspan * 0.06
+        left_label_x = xlo - xspan * 0.22
+        
+        # Check if path to left is clear
+        for candle in candle_rects:
+            if candle.contains_point((left_lane_x, cy)) or \
+               candle.contains_point((left_lane_x, cy + (yhi-cy)*0.1)) or \
+               candle.contains_point((left_lane_x, cy - (cy-ylo)*0.1)):
+                left_clear = False
+                break
+        
+        # Try right side
+        right_clear = True
+        right_lane_x = xhi + xspan * 0.06
+        right_label_x = xhi + xspan * 0.22
+        
+        for candle in candle_rects:
+            if candle.contains_point((right_lane_x, cy)) or \
+               candle.contains_point((right_lane_x, cy + (yhi-cy)*0.1)) or \
+               candle.contains_point((right_lane_x, cy - (cy-ylo)*0.1)):
+                right_clear = False
+                break
+        
+        # Choose side with more space
+        if left_clear and not right_clear:
+            side = 'left'
+            lane_x = left_lane_x
+            label_x = left_label_x
+            ha = 'right'
+        elif right_clear and not left_clear:
+            side = 'right'
+            lane_x = right_lane_x
+            label_x = right_label_x
+            ha = 'left'
+        elif left_clear and right_clear:
+            # Both clear, choose based on distance to edge
+            if px < xmid:
+                side = 'left'
+                lane_x = left_lane_x
+                label_x = left_label_x
+                ha = 'right'
+            else:
+                side = 'right'
+                lane_x = right_lane_x
+                label_x = right_label_x
+                ha = 'left'
         else:
-            ann['zone'] = 'below'
+            # Both blocked, find nearest clear vertical path
+            # Search for vertical slot away from candles
+            test_y = cy
+            found = False
+            for offset in np.linspace(-yspan*0.3, yspan*0.3, 20):
+                test_y = cy + offset
+                if test_y < ylo or test_y > yhi:
+                    continue
+                
+                # Check if this Y level is clear on either side
+                left_clear = not any(candle.contains_point((left_lane_x, test_y)) for candle in candle_rects)
+                right_clear = not any(candle.contains_point((right_lane_x, test_y)) for candle in candle_rects)
+                
+                if left_clear:
+                    side = 'left'
+                    lane_x = left_lane_x
+                    label_x = left_label_x
+                    ha = 'right'
+                    cy = test_y
+                    found = True
+                    break
+                elif right_clear:
+                    side = 'right'
+                    lane_x = right_lane_x
+                    label_x = right_label_x
+                    ha = 'left'
+                    cy = test_y
+                    found = True
+                    break
+            
+            if not found:
+                # Last resort: place on least crowded side
+                side = 'left' if len([c for c in candle_rects if c.contains_point((left_lane_x, cy))]) < \
+                                 len([c for c in candle_rects if c.contains_point((right_lane_x, cy))]) else 'right'
+                lane_x = left_lane_x if side == 'left' else right_lane_x
+                label_x = left_label_x if side == 'left' else right_label_x
+                ha = 'right' if side == 'left' else 'left'
+        
+        # Find vertical label slot that doesn't overlap
+        v_pad = yspan * 0.05
+        y_top = yhi + v_pad
+        y_bot = ylo - v_pad
+        
+        # Check existing labels for overlap
+        label_y = (y_top + y_bot) / 2
+        placed_on_side = [p for p in placed if p['side'] == side]
+        
+        if placed_on_side:
+            # Sort by Y position
+            placed_on_side.sort(key=lambda p: p['label_y'])
+            
+            # Find gap between existing labels
+            for i in range(len(placed_on_side) - 1):
+                gap_top = placed_on_side[i]['label_y'] + v_pad
+                gap_bottom = placed_on_side[i+1]['label_y'] - v_pad
+                
+                if gap_bottom - gap_top > v_pad * 2:
+                    # Place in this gap
+                    label_y = (gap_top + gap_bottom) / 2
+                    break
+            else:
+                # Place at top or bottom
+                if placed_on_side[0]['label_y'] > y_top:
+                    label_y = y_top
+                elif placed_on_side[-1]['label_y'] < y_bot:
+                    label_y = y_bot
+                else:
+                    # No space, push to top with more padding
+                    label_y = y_top + v_pad * len(placed_on_side)
+        
+        placed.append({
+            'ann': ann,
+            'side': side,
+            'lane_x': lane_x,
+            'label_x': label_x,
+            'label_y': label_y,
+            'ha': ha,
+            'cy': cy
+        })
 
-    # ── Group by zone ────────────────────────────────────────────────
-    zones = {'above': [], 'below': [], 'left': [], 'right': []}
-    for ann in resolved:
-        zones[ann['zone']].append(ann)
-
-    # ── Sort within each zone to prevent crossing ────────────────────
-    # Above/below: sort by x position (left to right)
-    zones['above'].sort(key=lambda a: a['pos'])
-    zones['below'].sort(key=lambda a: a['pos'])
-    # Left/right: sort by conn_y descending (top to bottom)
-    zones['left'].sort(key=lambda a: a['conn_y'], reverse=True)
-    zones['right'].sort(key=lambda a: a['conn_y'], reverse=True)
-
-    # ── Allocate label positions per zone ────────────────────────────
-    v_pad   = yspan * 0.06
-    h_pad   = xspan * 0.04
-    label_h = yspan * 0.055   # approximate label height in data coords
-
-    # ABOVE zone: labels stacked above the chart
-    above_base = yhi + v_pad
-    above_positions = []
-    for i, ann in enumerate(zones['above']):
-        lx = ann['pos']
-        ly = above_base + i * label_h * 1.6
-        above_positions.append((lx, ly))
-
-    # BELOW zone: labels stacked below the chart
-    below_base = ylo - v_pad
-    below_positions = []
-    for i, ann in enumerate(zones['below']):
-        lx = ann['pos']
-        ly = below_base - i * label_h * 1.6
-        below_positions.append((lx, ly))
-
-    # LEFT zone: labels in left margin, evenly spaced vertically
-    left_label_x = xlo - xspan * 0.18
-    left_positions = []
-    if zones['left']:
-        n = len(zones['left'])
-        if n == 1:
-            l_ys = [(ylo + yhi) / 2.0]
-        else:
-            l_ys = np.linspace(yhi + v_pad, ylo - v_pad, n).tolist()
-        for i, ann in enumerate(zones['left']):
-            left_positions.append((left_label_x, l_ys[i]))
-
-    # RIGHT zone: labels in right margin, evenly spaced vertically
-    right_label_x = xhi + xspan * 0.18
-    right_positions = []
-    if zones['right']:
-        n = len(zones['right'])
-        if n == 1:
-            r_ys = [(ylo + yhi) / 2.0]
-        else:
-            r_ys = np.linspace(yhi + v_pad, ylo - v_pad, n).tolist()
-        for i, ann in enumerate(zones['right']):
-            right_positions.append((right_label_x, r_ys[i]))
-
-    # ── Occupied horizontal lanes tracker (for step-line routing) ────
-    # Each horizontal segment at a certain Y is recorded so subsequent
-    # lines pick a different Y to avoid overlap.
-    used_h_lanes_above = []   # list of y-values used for horizontal runs above
-    used_h_lanes_below = []   # list of y-values used for horizontal runs below
-
-    def _pick_clear_y_above(x_start, x_end, base_y, clearance):
-        """Find a Y above base_y that doesn't collide with candles or used lanes."""
-        # Start above the tallest candle in the x-range
-        max_hi = _max_high_in_range(x_start, x_end)
-        y = max(base_y, max_hi + clearance)
-        # Avoid previously used horizontal lanes
-        for uy in used_h_lanes_above:
-            if abs(y - uy) < clearance * 0.8:
-                y = uy + clearance
-        used_h_lanes_above.append(y)
-        return y
-
-    def _pick_clear_y_below(x_start, x_end, base_y, clearance):
-        """Find a Y below base_y that doesn't collide with candles or used lanes."""
-        min_lo = _min_low_in_range(x_start, x_end)
-        y = min(base_y, min_lo - clearance)
-        for uy in used_h_lanes_below:
-            if abs(y - uy) < clearance * 0.8:
-                y = uy - clearance
-        used_h_lanes_below.append(y)
-        return y
-
-    # ── Step-line drawing function ───────────────────────────────────
-    def _draw_step(ann, label_x, label_y, zone):
-        """
-        Draw ONE step-line connector + label.
-
-        Step-line paths (orthogonal segments only):
-        ─────────────────────────────────────────
-        ABOVE:  candle_tip → UP to routing_y → HORIZONTAL to label_x → UP/DOWN to label_y
-        BELOW:  candle_tip → DOWN to routing_y → HORIZONTAL to label_x → UP/DOWN to label_y
-        LEFT:   candle_tip → UP/DOWN to routing_y → HORIZONTAL LEFT to margin → UP/DOWN to label_y
-        RIGHT:  candle_tip → UP/DOWN to routing_y → HORIZONTAL RIGHT to margin → UP/DOWN to label_y
-
-        All segments are axis-aligned — no diagonals, no curves.
-        """
-        px   = ann['pos']
-        cy   = ann['conn_y']
+    # ── Drawing helper ───────────────────────────────────────────────
+    def _draw(placement):
+        """Draw ONE connector + label using Bézier curve"""
+        ann = placement['ann']
+        px, cy = placement['cy'], ann['conn_y']
         name = ann['name']
         bull = ann['bullish']
-
-        # Colour
+        
         color = ('#1B5E20' if bull is True
                  else '#B71C1C' if bull is False
                  else '#E65100')
-
-        clearance = yspan * 0.025
-
-        if zone == 'above':
-            # Route: go UP from candle, then HORIZONTAL to label x, then to label
-            route_y = _pick_clear_y_above(px, label_x, cy + clearance * 2, clearance)
-            waypoints = [
-                (px, cy),              # start at candle tip
-                (px, route_y),         # go straight up
-                (label_x, route_y),    # horizontal run to label column
-                (label_x, label_y),    # vertical to label
-            ]
-            ha = 'center'
-            va = 'bottom'
-
-        elif zone == 'below':
-            route_y = _pick_clear_y_below(px, label_x, cy - clearance * 2, clearance)
-            waypoints = [
-                (px, cy),
-                (px, route_y),
-                (label_x, route_y),
-                (label_x, label_y),
-            ]
-            ha = 'center'
-            va = 'top'
-
-        elif zone == 'left':
-            # Route: go UP above candles, then horizontal LEFT past all candles, then down to label
-            route_y = _pick_clear_y_above(min(px, label_x), max(px, label_x),
-                                          cy + clearance * 2, clearance)
-            edge_x = xlo - xspan * 0.03   # just outside candle area
-            waypoints = [
-                (px, cy),              # candle tip
-                (px, route_y),         # up above candles
-                (edge_x, route_y),     # horizontal to left edge
-                (edge_x, label_y),     # down to label height
-                (label_x + xspan * 0.02, label_y),  # to label
-            ]
-            ha = 'right'
-            va = 'center'
-
-        elif zone == 'right':
-            route_y = _pick_clear_y_above(min(px, label_x), max(px, label_x),
-                                          cy + clearance * 2, clearance)
-            edge_x = xhi + xspan * 0.03
-            waypoints = [
-                (px, cy),
-                (px, route_y),
-                (edge_x, route_y),
-                (edge_x, label_y),
-                (label_x - xspan * 0.02, label_y),
-            ]
-            ha = 'left'
-            va = 'center'
-        else:
-            return
-
-        # ── Remove redundant waypoints (same coord) ──
-        cleaned = [waypoints[0]]
-        for wp in waypoints[1:]:
-            if wp != cleaned[-1]:
-                cleaned.append(wp)
-        waypoints = cleaned
-
-        # ── Draw step-line segments ──
-        xs = [w[0] for w in waypoints]
-        ys = [w[1] for w in waypoints]
-        ax.plot(
-            xs, ys,
-            color=color,
-            linewidth=1.3,
-            solid_capstyle='round',
-            solid_joinstyle='round',
+        
+        lane_x = placement['lane_x']
+        label_x = placement['label_x']
+        label_y = placement['label_y']
+        ha = placement['ha']
+        
+        # Bézier path
+        verts = [
+            (px,     cy),
+            (lane_x, cy),
+            (lane_x, label_y),
+            (label_x + (xspan * 0.02 if ha == 'right' else -xspan * 0.02), label_y),
+        ]
+        codes = [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4]
+        
+        patch = mpatches.PathPatch(
+            Path(verts, codes),
+            facecolor='none',
+            edgecolor=color,
+            linewidth=1.4,
             clip_on=False,
             zorder=5,
-            alpha=0.80,
+            alpha=0.82,
         )
-
-        # ── Small dot on the candle ──
+        ax.add_patch(patch)
+        
+        # Small dot
         ax.plot(
             px, cy, 'o',
             color=color,
@@ -2478,24 +2436,14 @@ def make_candle_pattern_chart(df, patterns):
             markeredgecolor='white',
             markeredgewidth=0.5,
         )
-
-        # ── Small arrow-head or endpoint marker at label end ──
-        ax.plot(
-            waypoints[-1][0], waypoints[-1][1], 's',
-            color=color,
-            markersize=3,
-            clip_on=False,
-            zorder=6,
-        )
-
-        # ── Label text box ──
+        
+        # Label
         ax.text(
             label_x, label_y, name,
             fontsize=9,
-            fontweight='bold',
             color=color,
             ha=ha,
-            va=va if zone in ('above', 'below') else 'center',
+            va='center',
             bbox=dict(
                 boxstyle='round,pad=0.4',
                 facecolor='white',
@@ -2507,46 +2455,13 @@ def make_candle_pattern_chart(df, patterns):
             zorder=10,
         )
 
-    # ── Render all connectors by zone ────────────────────────────────
-    for ann, (lx, ly) in zip(zones['above'], above_positions):
-        _draw_step(ann, lx, ly, 'above')
+    # ── Render all connectors ────────────────────────────────────────
+    for placement in placed:
+        _draw(placement)
 
-    for ann, (lx, ly) in zip(zones['below'], below_positions):
-        _draw_step(ann, lx, ly, 'below')
-
-    for ann, (lx, ly) in zip(zones['left'], left_positions):
-        _draw_step(ann, lx, ly, 'left')
-
-    for ann, (lx, ly) in zip(zones['right'], right_positions):
-        _draw_step(ann, lx, ly, 'right')
-
-    # ── Compute final axis limits to show everything ─────────────────
-    all_label_xs = ([p[0] for p in above_positions] +
-                    [p[0] for p in below_positions] +
-                    [p[0] for p in left_positions] +
-                    [p[0] for p in right_positions])
-    all_label_ys = ([p[1] for p in above_positions] +
-                    [p[1] for p in below_positions] +
-                    [p[1] for p in left_positions] +
-                    [p[1] for p in right_positions])
-
-    all_route_ys = used_h_lanes_above + used_h_lanes_below
-
-    if all_label_xs:
-        final_xlo = min(xlo, min(all_label_xs)) - xspan * 0.10
-        final_xhi = max(xhi, max(all_label_xs)) + xspan * 0.10
-    else:
-        final_xlo, final_xhi = xlo, xhi
-
-    all_ys = all_label_ys + all_route_ys
-    if all_ys:
-        final_ylo = min(ylo, min(all_ys)) - yspan * 0.10
-        final_yhi = max(yhi, max(all_ys)) + yspan * 0.10
-    else:
-        final_ylo, final_yhi = ylo - yspan * 0.10, yhi + yspan * 0.10
-
-    ax.set_xlim(final_xlo, final_xhi)
-    ax.set_ylim(final_ylo, final_yhi)
+    # ── Expand axis limits ───────────────────────────────────────────
+    ax.set_xlim(xlo - xspan * 0.15, xhi + xspan * 0.15)
+    ax.set_ylim(ylo - yspan * 0.15, yhi + yspan * 0.15)
 
     fig.tight_layout(rect=[0.04, 0.04, 0.96, 0.96])
 
