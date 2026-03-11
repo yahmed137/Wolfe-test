@@ -2140,18 +2140,20 @@ def detect_candle_patterns(df):
         if len(unique) == 8:
             break
     return list(reversed(unique))
+##############الشموع####################################################
+import numpy as np
+import pandas as pd
+import mplfinance as mpf
+import matplotlib.pyplot as plt
+from io import BytesIO
 
-
 # ---------------------------------------------------------------------
-# CHART WITH GUARANTEED NON‑CROSSING CONNECTORS (Final Corrected Version)
-# ---------------------------------------------------------------------
-# ---------------------------------------------------------------------
-# CHART WITH GUARANTEED NON‑CROSSING SMOOTH CONNECTORS
+# CHART WITH GUARANTEED NON‑CROSSING ORTHOGONAL STEP CONNECTORS
 # ---------------------------------------------------------------------
 def make_candle_pattern_chart(df, patterns):
     """
     Generates a candlestick chart with pattern annotations using
-    SMOOTH BÉZIER CURVES routed through side lanes — guaranteed
+    STEP LINES (orthogonal routing) through side lanes — guaranteed
     non-crossing, non-overlapping labels, and minimal candle overlap.
     """
     from matplotlib.path import Path
@@ -2227,7 +2229,7 @@ def make_candle_pattern_chart(df, patterns):
     # CRITICAL — sort each side by conn_y DESCENDING.
     # The label slots are also allocated top-to-bottom.
     # Because both sequences share the same vertical order,
-    # smooth outward-curving paths are GUARANTEED never to cross.
+    # the step paths are GUARANTEED never to cross vertically.
     # ══════════════════════════════════════════════════════════════════
     left_anns.sort(key=lambda  a: a['conn_y'], reverse=True)
     right_anns.sort(key=lambda a: a['conn_y'], reverse=True)
@@ -2236,8 +2238,8 @@ def make_candle_pattern_chart(df, patterns):
     L_LABEL_X = xlo - xspan * 0.22          # left  label column
     R_LABEL_X = xhi + xspan * 0.22          # right label column
 
-    # ── Bézier routing lanes — just outside the candle area ──────────
-    #    Curves are "attracted" here so they bypass the candles.
+    # ── Routing lanes — just outside the candle area ─────────────────
+    #    Lines travel vertically here so they bypass the candles.
     L_LANE_X = xlo - xspan * 0.06
     R_LANE_X = xhi + xspan * 0.06
 
@@ -2260,18 +2262,13 @@ def make_candle_pattern_chart(df, patterns):
     # ── Drawing helper ───────────────────────────────────────────────
     def _draw(ann, label_x, label_y, side):
         """
-        Draw ONE connector + label.
+        Draw ONE connector + label using an Orthogonal Step Line.
 
-        Path (cubic Bézier with 4 vertices):
-            P0  = candle tip   (pos, conn_y)
-            P1  = routing lane (lane_x, conn_y)   ← same height as candle
-            P2  = routing lane (lane_x, label_y)   ← same height as label
-            P3  = label edge   (end_x,  label_y)
-
-        Because P1 and P2 share the lane's X-coordinate, the curve
-        swings outward to the margin, keeps clear of the candle zone,
-        and arrives at the label horizontally — exactly like the
-        reference image.
+        Path (Step lines with 4 vertices forming right angles):
+            P0  = candle tip    (pos, conn_y)
+            P1  = routing lane  (lane_x, conn_y)    ← Horizontal away from candle
+            P2  = routing lane  (lane_x, label_y)   ← Vertical transit in clear lane
+            P3  = label edge    (end_x,  label_y)   ← Horizontal arrival to label
         """
         px    = ann['pos']
         cy    = ann['conn_y']
@@ -2293,14 +2290,15 @@ def make_candle_pattern_chart(df, patterns):
             lane_x = R_LANE_X
             end_x  = label_x - xspan * 0.02
 
-        # ── Cubic Bézier ──
+        # ── Orthogonal Step Line ──
         verts = [
             (px,     cy),          # P0 — candle tip
-            (lane_x, cy),          # P1 — pull toward lane at candle height
-            (lane_x, label_y),     # P2 — pull toward lane at label height
-            (end_x,  label_y),     # P3 — arrive at label horizontally
+            (lane_x, cy),          # P1 — horizontal route out of candle area
+            (lane_x, label_y),     # P2 — vertical route in side lane
+            (end_x,  label_y),     # P3 — horizontal arrival to label
         ]
-        codes = [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4]
+        # Replacing CURVE4 with LINETO to create rigid right-angles
+        codes = [Path.MOVETO, Path.LINETO, Path.LINETO, Path.LINETO]
 
         patch = mpatches.PathPatch(
             Path(verts, codes),
@@ -2310,6 +2308,7 @@ def make_candle_pattern_chart(df, patterns):
             clip_on=False,
             zorder=5,
             alpha=0.82,
+            joinstyle='miter'      # Ensures sharp 90-degree corners
         )
         ax.add_patch(patch)
 
@@ -3244,10 +3243,6 @@ class Report:
         self._font(False,11); c.drawRightString(PAGE_W-MG, PAGE_H-52*mm, tx(f'{self.display_tk} | {safe(info,"exchange","-")}'))
         self._font(False,9); c.drawString(MG, PAGE_H-18*mm, datetime.now().strftime('%Y-%m-%d'))
         c.setFillColor(HexColor(rec_color)); c.roundRect(MG, PAGE_H-58*mm, 60*mm, 14*mm, 8, fill=1, stroke=0)
-        # c.setFillColor(WHITE); self._font(True,11); c.drawCentredString(MG+30*mm, PAGE_H-53*mm, rtl(rec_txt))
-        # self._font(False,8); c.drawCentredString(MG+30*mm, PAGE_H-57*mm, rtl(f'النتيجة {score}/20'))
-        #c.setFillColor(WHITE); self._font(True,11); c.drawCentredString(PAGE_W/2, PAGE_H-53*mm, rtl(rec_txt))
-        #self._font(False,8); c.drawCentredString(PAGE_W/2, PAGE_H-57*mm, rtl(f'النتيجة {score}/20'))
         c.setFillColor(WHITE); self._font(True,11); c.drawCentredString(MG+30*mm, PAGE_H-50*mm, rtl(rec_txt))
         self._font(False,8); c.drawCentredString(MG+30*mm, PAGE_H-54*mm, rtl(f'النتيجة {score}/20'))
         
@@ -3267,7 +3262,8 @@ class Report:
         pb=safe(info,'priceToBook'); roe=safe(info,'returnOnEquity'); beta=safe(info,'beta')
         self._box(x1,y3,col_bw,col_bh,'مضاعف القيمة الدفترية',f'{float(pb):.2f}' if pb else '-')
         self._box(x2,y3,col_bw,col_bh,'العائد على حقوق المساهمين',fmt_p(roe)[0] if roe else '-')
-        self._box(x3,y3,col_bw,col_bh,'بيتا',f'{float(beta):.2f}' if beta else '-')
+        #self._box(x3,y3,col_bw,col_bh,'بيتا',f'{float(beta):.2f}' if beta else '-')
+        self._box(x3,y3,col_bw,col_bh,'العائد على الاصول',f'{float(beta):.2f}' if beta else '-')
 
         self._box(x1,y4,col_bw,col_bh,'حجم التداول',fmt_n(safe(info,'volume'),d=0)[0])
         val_str = fmt_n(safe(info,'tradingValue'),d=0)[0] if safe(info,'tradingValue') else '-'
