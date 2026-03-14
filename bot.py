@@ -4285,6 +4285,13 @@ def build_island_tf_keyboard():
         [InlineKeyboardButton("🔙 رجوع للقائمة الرئيسية", callback_data="back_to_main")],
     ])
 
+
+def build_after_island_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔄 فحص جديد للجزر", callback_data="bot_island")],
+        [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="back_to_main")],
+    ])
+
 # ─────────────────────────────────────────────────────────────
 # 13. MESSAGES
 # ─────────────────────────────────────────────────────────────
@@ -4376,6 +4383,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(
             WOLFE_WELCOME_MSG, parse_mode="Markdown",
             reply_markup=build_tf_keyboard(),
+        )
+        return
+
+    if data == "back_to_island":
+        await query.edit_message_text(
+            "🏝️ *فاحص الجزر السعرية (Bullish Island Reversal)*\n\n"
+            "اختر الفاصل الزمني للفحص:",
+            parse_mode="Markdown",
+            reply_markup=build_island_tf_keyboard(),
         )
         return
 
@@ -4510,7 +4526,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 chat_id=chat_id,
                 text="✅ *اكتمل الفحص*\n\nلم يتم العثور على أنماط جزر سعرية مفتوحة.",
                 parse_mode="Markdown",
-                reply_markup=build_after_wolfe_keyboard(),
+                reply_markup=build_after_island_keyboard(),
             )
             return
 
@@ -4566,7 +4582,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=chat_id,
             text="🔄 *انتهى فحص الجزر السعرية*",
             parse_mode="Markdown",
-            reply_markup=build_after_wolfe_keyboard(),
+            reply_markup=build_after_island_keyboard(),
         )
         return
 
