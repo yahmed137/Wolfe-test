@@ -66,6 +66,20 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 
+# ── Access control ──────────────────────────────────────────
+ALLOWED_USERNAME = os.environ.get("ALLOWED_USERNAME", "yaa")
+
+def _is_allowed(update) -> bool:
+    """Return True if the sender's username matches ALLOWED_USERNAME."""
+    user = update.effective_user
+    if user is None:
+        return False
+    username = (user.username or "").lower().strip()
+    return username == ALLOWED_USERNAME.lower().strip()
+
+BLOCKED_MSG = "❌ خطأ في البوت لايعمل"
+
+
 # ─────────────────────────────────────────────────────────────
 # 1. FONT SETUP  (Cairo for Wolfe charts, Amiri for PDF reports)
 # ─────────────────────────────────────────────────────────────
@@ -3526,9 +3540,20 @@ class Report:
 # ═══════════════════════════════════════════════════════════════
 # BULLISH ISLAND REVERSAL SCANNER — integrated into Telegram bot
 # Uses same TADAWUL_TICKERS list as Wolfe scanner
+# Full Plotly charts exported as PNG bytes and sent via Telegram
 # ═══════════════════════════════════════════════════════════════
 
+try:
+    import plotly.graph_objects as go
+    import plotly.io as pio
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    PLOTLY_AVAILABLE = False
+    logger.warning("plotly not installed — island charts disabled")
+
 MAX_ISLAND_BARS = 20
+ISLAND_SHOW_ZOOM = True
+
 
 def _island_download(tk, interval, period):
     try:
@@ -3562,6 +3587,7 @@ def _island_find(df):
                 gap_up_low = float(lows[j])
                 zone_bottom = min(pre_gap_low, gap_up_low)
                 out.append(dict(
+                    type=f'Bullish Island {"1-Bar" if il==1 else f"Multi ({il}-Bars)"}',
                     single=(il == 1), gd_idx=i, gu_idx=j,
                     gd_date=df.index[i], gu_date=df.index[j],
                     bars=il, current=(j == n - 1),
@@ -3587,34 +3613,320 @@ def _island_gap_closed(df, p):
 
 
 def _island_double_gap(df, p):
-    gu_idx = p['gu_idx']
-    nxt = gu_idx + 1
+    nxt = p['gu_idx'] + 1
     if nxt >= len(df):
         return False
-    return float(df['Low'].iloc[nxt]) > float(df['High'].iloc[gu_idx])
+    return float(df['Low'].iloc[nxt]) > float(df['High'].iloc[p['gu_idx']])
 
 
-def _island_check_perfect(df, p):
-    if not p['single']:
-        return False
-    island_high = p['island_top']
+def _island_get_line_ext(df, p, price_level):
+    extend_count = 0
     for k in range(1, 11):
         ci = p['gd_idx'] - 1 - k
         if ci < 0:
             break
         bh = float(df['High'].iloc[ci])
         bl = float(df['Low'].iloc[ci])
-        if bl <= island_high <= bh:
-            return False
-    return True
+        if bl <= price_level <= bh:
+            break
+        extend_count = k
+    return extend_count
+
+
+def _island_check_perfect(df, p):
+    if not p['single']:
+        return False
+    return _island_get_line_ext(df, p, p['island_top']) >= 10
+
+
+def _island_find_inset_pos(df, p, inset_w=0.50, inset_h=0.46):
+    n = len(df)
+    highs = df['High'].values.astype(float)
+    lows  = df['Low'].values.astype(float)
+    y_min, y_max = lows.min(), highs.max()
+    y_pad = (y_max - y_min) * 0.05
+    ya_lo, ya_hi = y_min - y_pad, y_max + y_pad
+    ya_rng = ya_hi - ya_lo
+    margin, step = 0.05, 0.05
+    px0 = max(0, p['gd_idx'] - 4) / n
+    px1 = min(n, p['gu_idx'] + 4) / n
+    py_lo = float(df['Low'].iloc[max(0, p['gd_idx']-1):p['gu_idx']+2].min())
+    py_hi = float(df['High'].iloc[max(0, p['gd_idx']-1):p['gu_idx']+2].max())
+    py0 = (py_lo - ya_lo) / ya_rng
+    py1 = (py_hi - ya_lo) / ya_rng
+    best, min_score = None, float('inf')
+    for xs in np.arange(margin, 1.0 - inset_w - margin + 0.001, step):
+        xe = xs + inset_w
+        if xe > 1.0 - margin:
+            continue
+        bar_s = max(0, int(xs * n) - 1)
+        bar_e = min(n, int(xe * n) + 1)
+        for ys in np.arange(margin + 0.02, 1.0 - inset_h - margin + 0.001, step):
+            ye = ys + inset_h
+            if ye > 1.0 - margin:
+                continue
+            d_y_lo = ya_lo + ys * ya_rng
+            d_y_hi = ya_lo + ye * ya_rng
+            score = 0.0
+            for k in range(bar_s, bar_e):
+                if highs[k] >= d_y_lo and lows[k] <= d_y_hi:
+                    score += min(highs[k], d_y_hi) - max(lows[k], d_y_lo)
+            if (max(0, min(xe, px1) - max(xs, px0)) > 0 and
+                    max(0, min(ye, py1) - max(ys, py0)) > 0):
+                score += 1e9
+            if score < min_score:
+                min_score = score
+                best = [xs, xe, ys, ye]
+    return best or [1.0-inset_w-margin, 1.0-margin, 1.0-inset_h-margin, 1.0-margin]
+
+
+def _island_build_chart(df, p, ticker, tf_label, interval) -> BytesIO:
+    """Build full Plotly island chart and return PNG bytes in a BytesIO buffer."""
+    if not PLOTLY_AVAILABLE:
+        return None
+    n = len(df)
+    x_all = list(range(n))
+    intra = interval in ('15m', '30m', '1h')
+    dfmt  = '%m/%d %H:%M' if intra else '%Y-%m-%d'
+    step  = max(1, n // 14)
+    mtv   = list(range(0, n, step))
+    mtl   = [df.index[i].strftime(dfmt) for i in mtv]
+
+    island_high  = p['island_top']
+    zone_bottom  = p['zone_bottom']
+    left_ext_high = _island_get_line_ext(df, p, island_high)
+    left_ext_low  = _island_get_line_ext(df, p, zone_bottom)
+    left_ext      = min(left_ext_high, left_ext_low)
+    is_perfect    = _island_check_perfect(df, p)
+    is_double_gap = _island_double_gap(df, p)
+    is_tall       = is_double_gap
+    line_right    = min(p['gu_idx'] + 3, n - 1)
+    line_left     = p['gd_idx'] - 10 - left_ext if left_ext > 0 else p['gd_idx']
+
+    if is_tall:
+        fill_color, border_color = 'rgba(0,180,255,0.15)', '#00ccff'
+    elif is_perfect:
+        fill_color, border_color = 'rgba(0,255,136,0.12)', '#00ff88'
+    else:
+        fill_color, border_color = 'rgba(255,215,0,0.12)', '#FFD700'
+
+    fig = go.Figure()
+    fig.add_trace(go.Candlestick(
+        x=x_all,
+        open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
+        name=ticker,
+        increasing=dict(line_color='#26a69a', fillcolor='#26a69a'),
+        decreasing=dict(line_color='#ef5350', fillcolor='#ef5350'),
+    ))
+    fig.add_vrect(x0=p['gd_idx']-1.5, x1=p['gu_idx']+0.5,
+                  fillcolor='rgba(255,255,0,0.07)',
+                  line=dict(color='rgba(255,200,0,0.55)', width=1, dash='dash'))
+    fig.add_shape(type='rect', x0=line_left, x1=line_right,
+                  y0=zone_bottom, y1=island_high,
+                  fillcolor=fill_color, line=dict(color='rgba(0,0,0,0)', width=0),
+                  xref='x', yref='y', layer='below')
+    fig.add_shape(type='line', x0=line_left, x1=line_right,
+                  y0=island_high, y1=island_high,
+                  line=dict(color=border_color, width=1, dash='solid'),
+                  xref='x', yref='y', layer='above')
+    fig.add_shape(type='line', x0=line_left, x1=line_right,
+                  y0=zone_bottom, y1=zone_bottom,
+                  line=dict(color=border_color, width=1, dash='solid'),
+                  xref='x', yref='y', layer='above')
+
+    if is_double_gap:
+        nxt = p['gu_idx'] + 1
+        if nxt < n:
+            fig.add_shape(type='rect',
+                x0=p['gu_idx']+0.3, x1=nxt+0.5,
+                y0=float(df['High'].iloc[p['gu_idx']]),
+                y1=float(df['Low'].iloc[nxt]),
+                fillcolor='rgba(0,200,255,0.25)',
+                line=dict(color='#00ccff', width=1, dash='dot'),
+                xref='x', yref='y', layer='below')
+
+    mid_x = (p['gd_idx'] + p['gu_idx']) / 2
+    pk    = float(df['High'].iloc[max(0, p['gd_idx']-1):p['gu_idx']+1].max())
+    if is_tall:
+        island_label, label_color, arrow_ay = '🏝️ 🔥 Tall Island 🔥', '#00ccff', -76
+    elif is_perfect:
+        island_label, label_color, arrow_ay = '🏝️ ✨ Perfect Island ✨', '#00ff88', -38
+    else:
+        island_label, label_color, arrow_ay = '🏝️ Island', 'yellow', -38
+    fig.add_annotation(x=mid_x, y=pk, text=island_label,
+        showarrow=True, arrowhead=2, arrowcolor=label_color,
+        arrowsize=1.5 if is_tall else 1,
+        font=dict(color=label_color, size=13, family='Arial Black'), ay=arrow_ay)
+
+    if is_perfect and not is_tall:
+        fig.add_annotation(x=0.5, y=1.0, text='<b>✨ PERFECT ISLAND ✨</b>',
+            xref='paper', yref='paper', xanchor='center', yanchor='bottom',
+            showarrow=False, font=dict(color='#00ff88', size=18, family='Arial Black'),
+            bgcolor='rgba(0,60,30,0.90)', bordercolor='#00ff88', borderwidth=1)
+    if is_tall:
+        banner = '<b>🔥 TALL ISLAND — DOUBLE GAP-UP 🔥</b>'
+        if is_perfect:
+            banner = '<b>🔥 TALL ISLAND — DOUBLE GAP-UP ✨ PERFECT ✨ 🔥</b>'
+        fig.add_annotation(x=0.5, y=1.0, text=banner,
+            xref='paper', yref='paper', xanchor='center', yanchor='bottom',
+            showarrow=False, font=dict(color='#00ccff', size=18, family='Arial Black'),
+            bgcolor='rgba(0,30,60,0.90)', bordercolor='#00ccff', borderwidth=1)
+
+    # ── Zoomed inset ──
+    if ISLAND_SHOW_ZOOM:
+        pad_right = 5 if is_double_gap else 4
+        i0  = max(0, p['gd_idx'] - 4)
+        i1  = min(n, p['gu_idx'] + pad_right + 1)
+        sdf = df.iloc[i0:i1]
+        ns  = len(sdf)
+        x_z = list(range(ns))
+        zs  = max(1, ns // 5)
+        ztv = list(range(0, ns, zs))
+        ztl = [sdf.index[i].strftime(dfmt) for i in ztv]
+        gd  = p['gd_idx'] - i0
+        gu  = p['gu_idx'] - i0
+        ylo = float(sdf['Low'].min())
+        yhi = float(sdf['High'].max())
+        yp  = (yhi - ylo) * 0.06
+        inset_yr = [ylo - yp, yhi + yp]
+        ix0, ix1, iy0, iy1 = _island_find_inset_pos(df, p)
+
+        fig.add_shape(type='rect', x0=-1, x1=ns, y0=inset_yr[0], y1=inset_yr[1],
+            line=dict(color='#0066ff', width=5), fillcolor='rgba(0,0,0,0)',
+            xref='x2', yref='y2', layer='below')
+        fig.add_shape(type='rect', x0=gd-1.5, x1=gu+0.5,
+            y0=p['isl_mh'], y1=p['ceil_dn'],
+            fillcolor='rgba(255,80,80,0.35)',
+            line=dict(color='#ff0000', width=2, dash='dot'),
+            xref='x2', yref='y2', layer='below')
+        fig.add_shape(type='rect', x0=gd-0.5, x1=gu+0.5,
+            y0=p['isl_mh'], y1=p['gu_low'],
+            fillcolor='rgba(80,255,120,0.35)',
+            line=dict(color='#00ff00', width=2, dash='dot'),
+            xref='x2', yref='y2', layer='below')
+        if is_double_gap:
+            z_next = gu + 1
+            if z_next < ns:
+                z_sg_b = float(sdf['High'].iloc[gu])
+                z_sg_t = float(sdf['Low'].iloc[z_next])
+                fig.add_shape(type='rect', x0=gu+0.3, x1=z_next+0.5,
+                    y0=z_sg_b, y1=z_sg_t,
+                    fillcolor='rgba(0,200,255,0.35)',
+                    line=dict(color='#00ccff', width=2, dash='dot'),
+                    xref='x2', yref='y2', layer='below')
+                fig.add_annotation(x=z_next+0.6, y=(z_sg_b+z_sg_t)/2,
+                    text='<b>2nd Gap↑</b>', showarrow=False,
+                    font=dict(color='#00ccff', size=9),
+                    bgcolor='rgba(0,40,80,0.9)', bordercolor='#00ccff', borderwidth=1,
+                    xref='x2', yref='y2', xanchor='left')
+        if gd < gu:
+            ilo_z = float(sdf['Low'].iloc[gd:gu].min())
+            ihi_z = float(sdf['High'].iloc[gd:gu].max())
+            fig.add_shape(type='rect', x0=gd-0.5, x1=gu-0.5,
+                y0=ilo_z*0.998, y1=ihi_z*1.002,
+                fillcolor='rgba(255,255,0,0.25)',
+                line=dict(color='#ffaa00', width=2, dash='dot'),
+                xref='x2', yref='y2', layer='below')
+        z_left_ext  = min(left_ext, gd - 1)
+        z_line_left  = gd - 1 - z_left_ext if z_left_ext > 0 else gd
+        z_line_right = min(gu + 3, ns - 1)
+        fig.add_shape(type='rect', x0=z_line_left, x1=z_line_right,
+            y0=zone_bottom, y1=island_high,
+            fillcolor=fill_color, line=dict(color='rgba(0,0,0,0)', width=0),
+            xref='x2', yref='y2', layer='below')
+        fig.add_shape(type='line', x0=z_line_left, x1=z_line_right,
+            y0=island_high, y1=island_high,
+            line=dict(color=border_color, width=2, dash='dash'),
+            xref='x2', yref='y2', layer='above')
+        fig.add_shape(type='line', x0=z_line_left, x1=z_line_right,
+            y0=zone_bottom, y1=zone_bottom,
+            line=dict(color=border_color, width=2, dash='dash'),
+            xref='x2', yref='y2', layer='above')
+        fig.add_trace(go.Candlestick(
+            x=x_z, open=sdf['Open'], high=sdf['High'],
+            low=sdf['Low'], close=sdf['Close'],
+            xaxis='x2', yaxis='y2', showlegend=False,
+            increasing=dict(line=dict(color='#26a69a', width=1), fillcolor='#26a69a'),
+            decreasing=dict(line=dict(color='#ef5350', width=1), fillcolor='#ef5350'),
+            whiskerwidth=0.9,
+        ))
+        fig.add_shape(type='line', x0=gd-1.5, x1=gu+0.5,
+            y0=p['ceil_dn'], y1=p['ceil_dn'],
+            line=dict(color='#ff0000', width=2, dash='dash'),
+            xref='x2', yref='y2', layer='above')
+        fig.add_shape(type='line', x0=gd-0.5, x1=gu+0.5,
+            y0=p['isl_mh'], y1=p['isl_mh'],
+            line=dict(color='#00ff00', width=2, dash='dash'),
+            xref='x2', yref='y2', layer='above')
+        fig.add_annotation(x=gu+0.8, y=p['ceil_dn'],
+            text=f"<b>Ceil {p['ceil_dn']:.2f}</b>", showarrow=False,
+            font=dict(color='#ffffff', size=10),
+            bgcolor='rgba(220,0,0,0.9)', bordercolor='#ff0000', borderwidth=2,
+            xref='x2', yref='y2', xanchor='left')
+        fig.add_annotation(x=gu+0.8, y=p['isl_mh'],
+            text=f"<b>MH {p['isl_mh']:.2f}</b>", showarrow=False,
+            font=dict(color='#ffffff', size=10),
+            bgcolor='rgba(0,180,0,0.9)', bordercolor='#00ff00', borderwidth=2,
+            xref='x2', yref='y2', xanchor='left')
+        ztitle = '<b>🔍 ZOOMED — 🔥 TALL ISLAND</b>' if is_tall else (
+                 '<b>🔍 ZOOMED — ✨ PERFECT ISLAND</b>' if is_perfect else '<b>🔍 ZOOMED</b>')
+        fig.add_annotation(x=0.5, y=1.02, text=ztitle,
+            xref='x2 domain', yref='y2 domain',
+            xanchor='center', yanchor='bottom', showarrow=False,
+            font=dict(color='#ffffff', size=11, family='Arial Black'),
+            bgcolor='rgba(0,80,200,0.90)', bordercolor='#00bbff', borderwidth=2)
+
+    # ── Layout ──
+    td = '%Y-%m-%d %H:%M' if intra else '%Y-%m-%d'
+    cur = '  ⬅ CURRENT' if p['current'] else ''
+    perfect_tag = '  ✨ PERFECT' if is_perfect else ''
+    tall_tag    = '  🔥 TALL ISLAND' if is_tall else ''
+    layout_kwargs = dict(
+        title=dict(
+            text=(f"<b>{ticker}</b> — {p['type']}  [{tf_label}]  "
+                  f"🟢 GAP OPEN{tall_tag}{perfect_tag}<br>"
+                  f"<span style='font-size:12px'>"
+                  f"Gap↓ {p['gd_date'].strftime(td)}  →  "
+                  f"Gap↑ {p['gu_date'].strftime(td)}{cur}</span>"),
+            font=dict(size=14)),
+        template='plotly_dark',
+        plot_bgcolor='rgb(10,10,26)',
+        paper_bgcolor='rgb(10,10,26)',
+        width=1250, height=720,
+        showlegend=False,
+        xaxis=dict(tickvals=mtv, ticktext=mtl, tickangle=-45,
+            showgrid=True, gridcolor='rgba(255,255,255,0.03)',
+            rangeslider=dict(visible=False), tickfont=dict(size=9)),
+        yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.03)',
+            title=dict(text='Price', font=dict(size=11))),
+        margin=dict(t=85, b=70, l=60, r=40),
+    )
+    if ISLAND_SHOW_ZOOM:
+        layout_kwargs['xaxis2'] = dict(
+            domain=[ix0, ix1], anchor='y2',
+            tickvals=ztv, ticktext=ztl, tickangle=-30,
+            showgrid=True, gridcolor='rgba(120,120,120,0.3)',
+            tickfont=dict(size=10, color='#222222'),
+            rangeslider=dict(visible=False))
+        layout_kwargs['yaxis2'] = dict(
+            domain=[iy0, iy1], anchor='x2',
+            showgrid=True, gridcolor='rgba(120,120,120,0.3)',
+            tickfont=dict(size=10, color='#222222'), side='right',
+            range=inset_yr)
+    fig.update_layout(**layout_kwargs)
+
+    buf = BytesIO()
+    pio.write_image(fig, buf, format='png', width=1250, height=720, scale=1.5)
+    buf.seek(0)
+    return buf
 
 
 def scan_islands_parallel(tickers, interval, period, pattern_type='both', max_workers=20):
-    """Parallel island scan. Returns list of result dicts."""
+    """Parallel island scan. Returns list of (result_dict, df) tuples."""
     results = []
+    dfs = {}
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         dl_futs = {pool.submit(_island_download, tk, interval, period): tk for tk in tickers}
-        dfs = {}
         for f in as_completed(dl_futs):
             tk, df = f.result()
             if df is not None and len(df) >= 5:
@@ -3631,22 +3943,16 @@ def scan_islands_parallel(tickers, interval, period, pattern_type='both', max_wo
                 if _island_gap_closed(df, p):
                     continue
                 is_perfect = _island_check_perfect(df, p)
-                is_tall = _island_double_gap(df, p)
-                results.append(dict(
-                    ticker=tk,
-                    name=get_name(tk),
-                    pattern='1-Bar' if p['single'] else f'Multi ({p["bars"]}-Bars)',
-                    gd_date=p['gd_date'],
-                    gu_date=p['gu_date'],
-                    bars=p['bars'],
-                    current=p['current'],
-                    gd_size=p['gd_size'],
-                    gu_size=p['gu_size'],
-                    island_top=p['island_top'],
-                    zone_bottom=p['zone_bottom'],
-                    is_perfect=is_perfect,
-                    is_tall=is_tall,
-                ))
+                is_tall    = _island_double_gap(df, p)
+                results.append((dict(
+                    ticker=tk, name=get_name(tk),
+                    pattern=p['type'],
+                    gd_date=p['gd_date'], gu_date=p['gu_date'],
+                    bars=p['bars'], current=p['current'],
+                    gd_size=p['gd_size'], gu_size=p['gu_size'],
+                    island_top=p['island_top'], zone_bottom=p['zone_bottom'],
+                    is_perfect=is_perfect, is_tall=is_tall,
+                ), p, df))
         except Exception:
             continue
     return results
@@ -3659,6 +3965,7 @@ ISLAND_TF_MAP = {
     '1d':  ('يومي',     '1d',  '1y'),
     '1w':  ('أسبوعي',   '1wk', '5y'),
 }
+
 
 _executor = ThreadPoolExecutor(max_workers=4)
 
@@ -4023,6 +4330,9 @@ h1{color:#7c6df5;font-size:2rem;}p{color:#aaa;}</style></head>
 # 15. HANDLERS
 # ─────────────────────────────────────────────────────────────
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_allowed(update):
+        await update.message.reply_text(BLOCKED_MSG)
+        return
     context.user_data.pop('waiting_ticker', None)
     await update.message.reply_text(
         MAIN_MENU_MSG, parse_mode="Markdown",
@@ -4033,6 +4343,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    if not _is_allowed(update):
+        await query.message.reply_text(BLOCKED_MSG)
+        return
     data = query.data
 
     if data == "back_to_main":
@@ -4189,10 +4502,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown",
         )
         loop = asyncio.get_event_loop()
-        results = await loop.run_in_executor(
+        scan_results = await loop.run_in_executor(
             _executor, scan_islands_parallel, TADAWUL_TICKERS, interval, period
         )
-        if not results:
+        if not scan_results:
             await context.bot.send_message(
                 chat_id=chat_id,
                 text="✅ *اكتمل الفحص*\n\nلم يتم العثور على أنماط جزر سعرية مفتوحة.",
@@ -4202,34 +4515,52 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         intra = interval in ('15m', '30m', '1h')
-        dfmt = '%m/%d %H:%M' if intra else '%Y-%m-%d'
+        dfmt  = '%m/%d %H:%M' if intra else '%Y-%m-%d'
 
-        summary = f"🏝️ *فاحص الجزر السعرية — {tf_label}*\n"
-        summary += f"✅ وُجد *{len(results)}* نمط جزيرة سعرية مفتوح\n\n"
+        perfect_list = [(r, p, df) for r, p, df in scan_results if r['is_perfect']]
+        tall_list    = [(r, p, df) for r, p, df in scan_results if r['is_tall']]
+        normal_list  = [(r, p, df) for r, p, df in scan_results
+                        if not r['is_perfect'] and not r['is_tall']]
 
-        perfect = [r for r in results if r['is_perfect']]
-        tall    = [r for r in results if r['is_tall']]
-        normal  = [r for r in results if not r['is_perfect'] and not r['is_tall']]
-
-        summary += f"✨ Perfect: *{len(perfect)}*\n"
-        summary += f"🔥 Tall (Double Gap): *{len(tall)}*\n"
-        summary += f"🏝️ عادي: *{len(normal)}*"
+        summary  = f"🏝️ *فاحص الجزر السعرية — {tf_label}*\n"
+        summary += f"✅ وُجد *{len(scan_results)}* نمط جزيرة سعرية مفتوح\n\n"
+        summary += f"✨ Perfect: *{len(perfect_list)}*\n"
+        summary += f"🔥 Tall (Double Gap): *{len(tall_list)}*\n"
+        summary += f"🏝️ عادي: *{len(normal_list)}*"
         await context.bot.send_message(chat_id=chat_id, text=summary, parse_mode="Markdown")
 
-        for r in results:
-            tag = ""
-            if r['is_tall']:    tag = "🔥 TALL ISLAND"
-            elif r['is_perfect']: tag = "✨ PERFECT ISLAND"
-            else:               tag = "🏝️ Island"
+        for r, p, df in scan_results:
+            if r['is_tall']:
+                tag = "🔥 TALL ISLAND"
+            elif r['is_perfect']:
+                tag = "✨ PERFECT ISLAND"
+            else:
+                tag = "🏝️ Island"
             current_tag = "  🔴 CURRENT" if r['current'] else ""
             msg = (
                 f"{tag}{current_tag}\n"
                 f"رمز: *{r['ticker'].split('.')[0]}*  |  `{r['name']}`\n"
-                f"النوع: `{'1-Bar' if r['pattern'] == '1-Bar' else r['pattern']}`\n"
+                f"النوع: `{r['pattern']}`\n"
                 f"فجوة ↓: `{r['gd_date'].strftime(dfmt)}`  →  فجوة ↑: `{r['gu_date'].strftime(dfmt)}`\n"
                 f"قمة الجزيرة: `{r['island_top']:.2f}`  |  قاع المنطقة: `{r['zone_bottom']:.2f}`"
             )
-            await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode="Markdown")
+            # Send chart image
+            try:
+                chart_buf = await loop.run_in_executor(
+                    _executor, _island_build_chart, df, p, r['ticker'], tf_label, interval
+                )
+                if chart_buf:
+                    await context.bot.send_photo(
+                        chat_id=chat_id,
+                        photo=chart_buf,
+                        caption=msg,
+                        parse_mode="Markdown",
+                    )
+                else:
+                    await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode="Markdown")
+            except Exception as e:
+                logger.error(f"Island chart error {r['ticker']}: {e}")
+                await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode="Markdown")
 
         await context.bot.send_message(
             chat_id=chat_id,
@@ -4241,6 +4572,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle text messages — used for analyzer bot ticker input."""
+    if not _is_allowed(update):
+        await update.message.reply_text(BLOCKED_MSG)
+        return
     if not context.user_data.get('waiting_ticker'):
         return
 
