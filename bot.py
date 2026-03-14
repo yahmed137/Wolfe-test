@@ -3522,6 +3522,144 @@ class Report:
 # ─────────────────────────────────────────────────────────────
 # 9. ANALYZER BOT — generate PDF in thread executor
 # ─────────────────────────────────────────────────────────────
+
+# ═══════════════════════════════════════════════════════════════
+# BULLISH ISLAND REVERSAL SCANNER — integrated into Telegram bot
+# Uses same TADAWUL_TICKERS list as Wolfe scanner
+# ═══════════════════════════════════════════════════════════════
+
+MAX_ISLAND_BARS = 20
+
+def _island_download(tk, interval, period):
+    try:
+        df = yf.download(tk, period=period, interval=interval,
+                         progress=False, auto_adjust=True)
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.droplevel(1)
+        if df.empty:
+            return tk, None
+        df = df[df['Volume'] > 0]
+        return tk, df if not df.empty else None
+    except Exception:
+        return tk, None
+
+
+def _island_find(df):
+    n = len(df)
+    highs, lows = df['High'].values, df['Low'].values
+    out = []
+    for i in range(1, n):
+        if highs[i] >= lows[i - 1]:
+            continue
+        ceil_dn = lows[i - 1]
+        isl_mh = highs[i]
+        for j in range(i + 1, min(i + 1 + MAX_ISLAND_BARS, n)):
+            if lows[j] > isl_mh:
+                il = j - i
+                isl_ml = float(min(lows[k] for k in range(i, j)))
+                island_top = float(max(highs[k] for k in range(i, j)))
+                pre_gap_low = float(lows[i - 1])
+                gap_up_low = float(lows[j])
+                zone_bottom = min(pre_gap_low, gap_up_low)
+                out.append(dict(
+                    single=(il == 1), gd_idx=i, gu_idx=j,
+                    gd_date=df.index[i], gu_date=df.index[j],
+                    bars=il, current=(j == n - 1),
+                    gd_size=round(float(ceil_dn - highs[i]), 2),
+                    gu_size=round(float(lows[j] - isl_mh), 2),
+                    ceil_dn=float(ceil_dn), isl_mh=float(isl_mh),
+                    isl_ml=isl_ml, island_top=island_top,
+                    gu_low=gap_up_low, pre_gap_low=pre_gap_low,
+                    zone_bottom=zone_bottom,
+                ))
+                break
+            if highs[j] >= ceil_dn:
+                break
+            isl_mh = max(isl_mh, highs[j])
+    return out
+
+
+def _island_gap_closed(df, p):
+    for k in range(p['gu_idx'] + 1, len(df)):
+        if df['Low'].values[k] <= p['isl_mh']:
+            return True
+    return False
+
+
+def _island_double_gap(df, p):
+    gu_idx = p['gu_idx']
+    nxt = gu_idx + 1
+    if nxt >= len(df):
+        return False
+    return float(df['Low'].iloc[nxt]) > float(df['High'].iloc[gu_idx])
+
+
+def _island_check_perfect(df, p):
+    if not p['single']:
+        return False
+    island_high = p['island_top']
+    for k in range(1, 11):
+        ci = p['gd_idx'] - 1 - k
+        if ci < 0:
+            break
+        bh = float(df['High'].iloc[ci])
+        bl = float(df['Low'].iloc[ci])
+        if bl <= island_high <= bh:
+            return False
+    return True
+
+
+def scan_islands_parallel(tickers, interval, period, pattern_type='both', max_workers=20):
+    """Parallel island scan. Returns list of result dicts."""
+    results = []
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        dl_futs = {pool.submit(_island_download, tk, interval, period): tk for tk in tickers}
+        dfs = {}
+        for f in as_completed(dl_futs):
+            tk, df = f.result()
+            if df is not None and len(df) >= 5:
+                dfs[tk] = df
+
+    for tk, df in dfs.items():
+        try:
+            raw = _island_find(df)
+            for p in raw:
+                if pattern_type == 'single' and not p['single']:
+                    continue
+                if pattern_type == 'multi' and p['single']:
+                    continue
+                if _island_gap_closed(df, p):
+                    continue
+                is_perfect = _island_check_perfect(df, p)
+                is_tall = _island_double_gap(df, p)
+                results.append(dict(
+                    ticker=tk,
+                    name=get_name(tk),
+                    pattern='1-Bar' if p['single'] else f'Multi ({p["bars"]}-Bars)',
+                    gd_date=p['gd_date'],
+                    gu_date=p['gu_date'],
+                    bars=p['bars'],
+                    current=p['current'],
+                    gd_size=p['gd_size'],
+                    gu_size=p['gu_size'],
+                    island_top=p['island_top'],
+                    zone_bottom=p['zone_bottom'],
+                    is_perfect=is_perfect,
+                    is_tall=is_tall,
+                ))
+        except Exception:
+            continue
+    return results
+
+
+ISLAND_TF_MAP = {
+    '15m': ('15 دقيقة', '15m', '60d'),
+    '30m': ('30 دقيقة', '30m', '60d'),
+    '1h':  ('1 ساعة',   '1h',  '730d'),
+    '1d':  ('يومي',     '1d',  '1y'),
+    '1w':  ('أسبوعي',   '1wk', '5y'),
+}
+
 _executor = ThreadPoolExecutor(max_workers=4)
 
 
@@ -3795,6 +3933,7 @@ def build_main_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📈 بوت موجات الولفي", callback_data="bot_wolfe")],
         [InlineKeyboardButton("📊 بوت المحلل الرقمي", callback_data="bot_analyzer")],
+        [InlineKeyboardButton("🏝️ فاحص الجزر السعرية", callback_data="bot_island")],
     ])
 
 
@@ -3824,6 +3963,18 @@ def build_after_wolfe_keyboard():
 
 def build_back_main_keyboard():
     return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔙 رجوع للقائمة الرئيسية", callback_data="back_to_main")],
+    ])
+
+
+
+def build_island_tf_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("15 دقيقة", callback_data="island_15m"),
+         InlineKeyboardButton("30 دقيقة", callback_data="island_30m")],
+        [InlineKeyboardButton("1 ساعة",   callback_data="island_1h"),
+         InlineKeyboardButton("يومي",     callback_data="island_1d")],
+        [InlineKeyboardButton("أسبوعي",   callback_data="island_1w")],
         [InlineKeyboardButton("🔙 رجوع للقائمة الرئيسية", callback_data="back_to_main")],
     ])
 
@@ -4014,6 +4165,79 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+
+
+    if data == "bot_island":
+        await query.edit_message_text(
+            "🏝️ *فاحص الجزر السعرية (Bullish Island Reversal)*\n\n"
+            "اختر الفاصل الزمني للفحص:",
+            parse_mode="Markdown",
+            reply_markup=build_island_tf_keyboard(),
+        )
+        return
+
+    if data.startswith("island_"):
+        tf_key = data[7:]
+        if tf_key not in ISLAND_TF_MAP:
+            await query.edit_message_text("فاصل غير معروف.", reply_markup=build_back_main_keyboard())
+            return
+        tf_label, interval, period = ISLAND_TF_MAP[tf_key]
+        chat_id = query.message.chat_id
+        await query.edit_message_text(
+            f"⏳ جاري فحص *{len(TADAWUL_TICKERS)}* سهم...\n"
+            f"الفاصل: *{tf_label}*\n\nيرجى الانتظار ⏳",
+            parse_mode="Markdown",
+        )
+        loop = asyncio.get_event_loop()
+        results = await loop.run_in_executor(
+            _executor, scan_islands_parallel, TADAWUL_TICKERS, interval, period
+        )
+        if not results:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="✅ *اكتمل الفحص*\n\nلم يتم العثور على أنماط جزر سعرية مفتوحة.",
+                parse_mode="Markdown",
+                reply_markup=build_after_wolfe_keyboard(),
+            )
+            return
+
+        intra = interval in ('15m', '30m', '1h')
+        dfmt = '%m/%d %H:%M' if intra else '%Y-%m-%d'
+
+        summary = f"🏝️ *فاحص الجزر السعرية — {tf_label}*\n"
+        summary += f"✅ وُجد *{len(results)}* نمط جزيرة سعرية مفتوح\n\n"
+
+        perfect = [r for r in results if r['is_perfect']]
+        tall    = [r for r in results if r['is_tall']]
+        normal  = [r for r in results if not r['is_perfect'] and not r['is_tall']]
+
+        summary += f"✨ Perfect: *{len(perfect)}*\n"
+        summary += f"🔥 Tall (Double Gap): *{len(tall)}*\n"
+        summary += f"🏝️ عادي: *{len(normal)}*"
+        await context.bot.send_message(chat_id=chat_id, text=summary, parse_mode="Markdown")
+
+        for r in results:
+            tag = ""
+            if r['is_tall']:    tag = "🔥 TALL ISLAND"
+            elif r['is_perfect']: tag = "✨ PERFECT ISLAND"
+            else:               tag = "🏝️ Island"
+            current_tag = "  🔴 CURRENT" if r['current'] else ""
+            msg = (
+                f"{tag}{current_tag}\n"
+                f"رمز: *{r['ticker'].split('.')[0]}*  |  `{r['name']}`\n"
+                f"النوع: `{'1-Bar' if r['pattern'] == '1-Bar' else r['pattern']}`\n"
+                f"فجوة ↓: `{r['gd_date'].strftime(dfmt)}`  →  فجوة ↑: `{r['gu_date'].strftime(dfmt)}`\n"
+                f"قمة الجزيرة: `{r['island_top']:.2f}`  |  قاع المنطقة: `{r['zone_bottom']:.2f}`"
+            )
+            await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode="Markdown")
+
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="🔄 *انتهى فحص الجزر السعرية*",
+            parse_mode="Markdown",
+            reply_markup=build_after_wolfe_keyboard(),
+        )
+        return
 
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle text messages — used for analyzer bot ticker input."""
