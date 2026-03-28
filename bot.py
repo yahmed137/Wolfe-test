@@ -55,8 +55,14 @@ try:
     STOCKS_AVAILABLE = True
 except ImportError:
     STOCKS_AVAILABLE = False
-    logger_stub = logging.getLogger(__name__)
-    logger_stub.warning("STOCKS scraper deps not installed; falling back to yfinance only.")
+
+# ── القوة الرقمية الثلاثية dependencies ──
+try:
+    from tvDatafeed import TvDatafeed, Interval as TvInterval
+    from PIL import Image as PILImage, ImageDraw as PILDraw
+    QR_AVAILABLE = True
+except ImportError:
+    QR_AVAILABLE = False
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -67,20 +73,19 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 
 # ─────────────────────────────────────────────────────────────
-# 1. FONT SETUP  (Cairo for Wolfe charts, Amiri for PDF reports)
+# 1. FONT SETUP (Cairo for Wolfe charts, Amiri for PDF reports)
 # ─────────────────────────────────────────────────────────────
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-CAIRO_PATH = os.path.join(HERE, 'Cairo-Regular.ttf')
-AMIRI_REG_PATH  = os.path.join(HERE, 'Amiri-Regular.ttf')
-AMIRI_BOLD_PATH = os.path.join(HERE, 'Amiri-Bold.ttf')
+CAIRO_PATH     = os.path.join(HERE, 'Cairo-Regular.ttf')
+AMIRI_REG_PATH = os.path.join(HERE, 'Amiri-Regular.ttf')
+AMIRI_BOLD_PATH= os.path.join(HERE, 'Amiri-Bold.ttf')
 
 AR_FONT      = 'Amiri'
 AR_FONT_BOLD = 'Amiri-Bold'
-AR_RE = re.compile(r'[\u0600-\u06FF]')
+AR_RE        = re.compile(r'[\u0600-\u06FF]')
 MPL_FONT_PROP      = None
 MPL_FONT_PROP_BOLD = None
-
 
 def _download_font(url, path):
     if not os.path.exists(path):
@@ -90,10 +95,8 @@ def _download_font(url, path):
         except Exception as e:
             logger.warning(f'Font download failed ({os.path.basename(path)}): {e}')
 
-
 def _init_fonts():
     global MPL_FONT_PROP, MPL_FONT_PROP_BOLD, ARABIC_FONT
-
     _download_font(
         'https://github.com/google/fonts/raw/main/ofl/cairo/static/Cairo-Regular.ttf',
         CAIRO_PATH,
@@ -106,7 +109,6 @@ def _init_fonts():
         'https://github.com/google/fonts/raw/refs/heads/main/ofl/amiri/Amiri-Bold.ttf',
         AMIRI_BOLD_PATH,
     )
-
     if os.path.exists(AMIRI_REG_PATH):
         try:
             pdfmetrics.registerFont(TTFont(AR_FONT, AMIRI_REG_PATH))
@@ -117,25 +119,21 @@ def _init_fonts():
             pdfmetrics.registerFont(TTFont(AR_FONT_BOLD, AMIRI_BOLD_PATH))
         except Exception:
             pass
-
     for fp in [AMIRI_REG_PATH, AMIRI_BOLD_PATH, CAIRO_PATH]:
         if os.path.exists(fp):
             fm.fontManager.addfont(fp)
-
     if os.path.exists(AMIRI_REG_PATH):
         MPL_FONT_PROP = fm.FontProperties(fname=AMIRI_REG_PATH)
         plt.rcParams['font.family'] = MPL_FONT_PROP.get_name()
     if os.path.exists(AMIRI_BOLD_PATH):
         MPL_FONT_PROP_BOLD = fm.FontProperties(fname=AMIRI_BOLD_PATH)
     plt.rcParams['axes.unicode_minus'] = False
-
     if os.path.exists(CAIRO_PATH):
         prop = fm.FontProperties(fname=CAIRO_PATH)
         ARABIC_FONT = prop.get_name()
     else:
         ARABIC_FONT = 'DejaVu Sans'
     return ARABIC_FONT
-
 
 ARABIC_FONT = _init_fonts()
 logger.info(f'Fonts initialised. Arabic chart font: {ARABIC_FONT}')
@@ -144,15 +142,12 @@ logger.info(f'Fonts initialised. Arabic chart font: {ARABIC_FONT}')
 # 2. ARABIC TEXT HELPERS
 # ─────────────────────────────────────────────────────────────
 def ar(text: str) -> str:
-    """Reshape + bidi for Wolfe chart labels."""
     try:
         return get_display(arabic_reshaper.reshape(str(text)))
     except Exception:
         return str(text)
 
-
 def rtl(txt):
-    """Reshape + bidi for PDF / matplotlib Arabic text."""
     if txt is None:
         return ''
     s = str(txt)
@@ -160,17 +155,14 @@ def rtl(txt):
         return get_display(arabic_reshaper.reshape(s))
     return s
 
-
 def tx(txt):
     if txt is None:
         return '-'
     return rtl(str(txt))
 
-
 def short_text(s, n=40):
     s = str(s or '-')
     return s if len(s) <= n else s[:n - 1] + '…'
-
 
 def safe(info, key, default=None):
     v = info.get(key)
@@ -179,7 +171,6 @@ def safe(info, key, default=None):
 # ─────────────────────────────────────────────────────────────
 # 3. COMPANY NAMES
 # ─────────────────────────────────────────────────────────────
-
 COMPANY_NAMES = {
     '^TASI.SR':'تاسي','1010.SR':'الرياض','1020.SR':'الجزيرة','1030.SR':'الإستثمار',
     '1050.SR':'بي اس اف','1060.SR':'الأول','1080.SR':'العربي','1111.SR':'مجموعة تداول',
@@ -260,21 +251,16 @@ COMPANY_NAMES = {
 }
 
 TICKER_ALIASES = {
-    "TASI":     "^TASI.SR",
-    "^TASI":    "^TASI.SR",
+    "TASI": "^TASI.SR",
+    "^TASI": "^TASI.SR",
     "^TASI.SR": "^TASI.SR",
-    "تاسي":     "^TASI.SR",
-    "تاسى":     "^TASI.SR",
+    "تاسي": "^TASI.SR",
+    "تاسى": "^TASI.SR",
 }
-
-# ───────────────────── HELPERS ───────────────────────────────────────────────
 
 def _normalize_arabic(text: str) -> str:
     text = text.strip()
-    text = text.replace("ى", "ي")
-    text = text.replace("أ", "ا")
-    text = text.replace("إ", "ا")
-    text = text.replace("آ", "ا")
+    text = text.replace("ى", "ي").replace("أ", "ا").replace("إ", "ا").replace("آ", "ا")
     return text
 
 def _normalize_key(text: str) -> str:
@@ -283,66 +269,38 @@ def _normalize_key(text: str) -> str:
 def get_name(ticker: str) -> str:
     return COMPANY_NAMES.get(ticker, ticker)
 
-# Build normalized alias map once at startup
 _ALIAS_MAP = {
     _normalize_key(alias): canonical
     for alias, canonical in TICKER_ALIASES.items()
 }
 
-# ───────────────────── MAIN LOOKUP ──────────────────────────────────────────
-
 def find_ticker(query: str) -> str | None:
     query = query.strip()
     query_key = _normalize_key(query)
     query_normalized = _normalize_arabic(query)
-
-    # 0) Alias lookup (fast path)
     if query_key in _ALIAS_MAP:
         return _ALIAS_MAP[query_key]
-
-    # Iterate COMPANY_NAMES
     for ticker, name in COMPANY_NAMES.items():
         ticker_upper = ticker.upper()
-
-        # 1) Direct match (case-insensitive)
         if query_key == ticker_upper:
             return ticker
-
-        # 2) Without .SR suffix
         code = ticker_upper[:-3] if ticker_upper.endswith(".SR") else ticker_upper
         if query_key == code:
             return ticker
-
-        # 3) Without ^ and .SR
         code_clean = code.lstrip("^")
         if query_key == code_clean:
             return ticker
-
-        # 4) Exact Arabic name match
         if query_normalized == _normalize_arabic(name):
             return ticker
-
-    # 5) Partial Arabic match (last resort)
     if len(query_normalized) >= 2:
         for ticker, name in COMPANY_NAMES.items():
             if query_normalized in _normalize_arabic(name):
                 return ticker
-
     return None
 
-# ───────────────────── TEST ─────────────────────────────────────────────────
-
-tests = ["tasi", "TASI", "^TASI.SR", "تاسي", "تاسى", "^tasi.sr", "1010", "1010.SR", "الرياض"]
-
-print("Results:")
-for t in tests:
-    result = find_ticker(t)
-    name = get_name(result) if result else "❌ Not found"
-    print(f"  '{t}'  →  {result}  ({name})")
-
-    #print(f"  '{t}'  →  {result}  ({COMPANY_NAMES.get(result, '?')})")
-##############################
-############ القطاعات ########
+# ─────────────────────────────────────────────────────────────
+# 3a. SECTOR MAP
+# ─────────────────────────────────────────────────────────────
 SECTOR_MAP = {
     '1010.SR':('المالية','البنوك'),'1020.SR':('المالية','البنوك'),'1030.SR':('المالية','البنوك'),
     '1050.SR':('المالية','البنوك'),'1060.SR':('المالية','البنوك'),'1080.SR':('المالية','البنوك'),
@@ -452,308 +410,8 @@ SECTOR_MAP = {
 def get_sector_industry(ticker):
     return SECTOR_MAP.get(ticker, (None, None))
 
-# # ─────────────────────────────────────────────────────────────
-# # 3b. STOCKS SCRAPER INTEGRATION
-# # Priority: STOCKS data overrides yfinance for fundamental fields.
-# # Falls back to yfinance if STOCKS is unavailable or scraping fails.
-# # ─────────────────────────────────────────────────────────────
-#############################################
-###########################################
-###############################################
 # ─────────────────────────────────────────────────────────────
 # 3b. STOCKS SCRAPER INTEGRATION
-# Priority: STOCKS data overrides yfinance for fundamental fields.
-# Falls back to yfinance if STOCKS is unavailable or scraping fails.
-# ─────────────────────────────────────────────────────────────
-
-##############################
-############# STOCKS #########
-# STOCKS_COMPANY_MAPPING = {
-#     "3509":    {"ticker":"2222", "name":"أرامكو السعودية"},
-#     "4434":    {"ticker":"2381", "name":"الحفر العربية"},
-#     "14629":    {"ticker":"2382", "name":"أديس"},
-#     "600":    {"ticker":"2380", "name":"بترو رابغ "},
-#     "104":    {"ticker":"4030", "name":"البحري"},
-#     "81":    {"ticker":"2030", "name":"المصافي"},
-#     "4319":    {"ticker":"1202", "name":"مبكو"},
-#     "4749":    {"ticker":"3007", "name":"الواحة"},
-#     "1994":    {"ticker":"1201", "name":"تكوين "},
-#     "13986":    {"ticker":"1322", "name":"أماك"},
-#     "16491":    {"ticker":"4143", "name":"تالكو"},
-#     "70":    {"ticker":"2150", "name":"زجاج"},
-#     "67":    {"ticker":"2180", "name":"فيبكو"},
-#     "73":    {"ticker":"2220", "name":"معدنية "},
-#     "5154":    {"ticker":"1323", "name":"يو سي آي سي"},
-#     "632":    {"ticker":"2300", "name":"صناعة الورق"},
-#     "4726":    {"ticker":"3008", "name":"الكثيري"},
-#     "855":    {"ticker":"1301", "name":"أسلاك"},
-#     "1526":    {"ticker":"1320", "name":"أنابيب السعودية"},
-#     "71":    {"ticker":"2090", "name":"جبسكو"},
-#     "76":    {"ticker":"2200", "name":"أنابيب"},
-#     "89":    {"ticker":"2240", "name":"صناعات"},
-#     "1044":    {"ticker":"2360", "name":"الفخارية "},
-#     "968":    {"ticker":"1210", "name":"بي سي آي"},
-#     "836":    {"ticker":"1211", "name":"معادن"},
-#     "4515":    {"ticker":"1304", "name":"اليمامة للحديد"},
-#     "13749":    {"ticker":"1321", "name":"أنابيب الشرق"},
-#     "4537":    {"ticker":"2223", "name":"لوبريف"},
-#     "599":    {"ticker":"2001", "name":"كيمانول "},
-#     "77":    {"ticker":"2010", "name":"سابك"},
-#     "79":    {"ticker":"2020", "name":"سابك للمغذيات الزراعية"},
-#     "72":    {"ticker":"2060", "name":"التصنيع"},
-#     "63":    {"ticker":"2170", "name":"اللجين"},
-#     "74":    {"ticker":"2210", "name":"نماء للكيماويات"},
-#     "86":    {"ticker":"2250", "name":"المجموعة السعودية"},
-#     "88":    {"ticker":"2290", "name":"ينساب"},
-#     "585":    {"ticker":"2310", "name":"سبكيم العالمية"},
-#     "1007":    {"ticker":"2330", "name":"المتقدمة"},
-#     "598":    {"ticker":"2350", "name":"كيان السعودية "},
-#     "1022":    {"ticker":"3002", "name":"أسمنت نجران"},
-#     "1055":    {"ticker":"3003", "name":"أسمنت المدينة"},
-#     "886":    {"ticker":"3004", "name":"أسمنت الشمالية"},
-#     "53":    {"ticker":"3010", "name":"أسمنت العربية"},
-#     "59":    {"ticker":"3020", "name":"أسمنت اليمامة"},
-#     "56":    {"ticker":"3030", "name":"أسمنت السعودية"},
-#     "55":    {"ticker":"3040", "name":"أسمنت القصيم"},
-#     "57":    {"ticker":"3050", "name":"أسمنت الجنوب"},
-#     "60":    {"ticker":"3060", "name":"أسمنت ينبع"},
-#     "54":    {"ticker":"3080", "name":"أسمنت الشرقية"},
-#     "58":    {"ticker":"3090", "name":"أسمنت تبوك"},
-#     "885":    {"ticker":"3091", "name":"أسمنت الجوف"},
-#     "3408":    {"ticker":"3005", "name":"أسمنت ام القرى"},
-#     "4451":    {"ticker":"3092", "name":"أسمنت الرياض"},
-#     "4391":    {"ticker":"4142", "name":"كابلات الرياض"},
-#     "1880":    {"ticker":"1214", "name":"شاكر"},
-#     "1086":    {"ticker":"1212", "name":"أسترا الصناعية"},
-#     "1992":    {"ticker":"1302", "name":"بوان"},
-#     "915":    {"ticker":"2370", "name":"مسك"},
-#     "3829":    {"ticker":"1303", "name":"الصناعات الكهربائية"},
-#     "907":    {"ticker":"2320", "name":"البابطين"},
-#     "64":    {"ticker":"2160", "name":"أميانتيت"},
-#     "65":    {"ticker":"2110", "name":"الكابلات السعودية "},
-#     "66":    {"ticker":"2040", "name":"الخزف السعودي"},
-#     "97":    {"ticker":"4110", "name":"باتك"},
-#     "101":    {"ticker":"4140", "name":"صادرات "},
-#     "3574":    {"ticker":"4147", "name":"سي جي إس"},
-#     "3106":    {"ticker":"4145", "name":"أو جي سي"},
-#     "13934":    {"ticker":"4146", "name":"جاز"},
-#     "13883":    {"ticker":"4148", "name":"الوسائل الصناعية"},
-#     "4624":    {"ticker":"4141", "name":"العمران"},
-#     "4747":    {"ticker":"4144", "name":"رؤوم"},
-#     "994":    {"ticker":"4270", "name":"طباعة وتغليف "},
-#     "5268":    {"ticker":"1831", "name":"مهارة"},
-#     "4627":    {"ticker":"1832", "name":"صدر"},
-#     "1897":    {"ticker":"6004", "name":"كاتريون"},
-#     "14277":    {"ticker":"1835", "name":"تمكين"},
-#     "15170":    {"ticker":"1833", "name":"الموارد"},
-#     "16903":    {"ticker":"1834", "name":"سماسكو"},
-#     "843":    {"ticker":"4260", "name":"بدجت السعودية"},
-#     "3433":    {"ticker":"4031", "name":"الخدمات الأرضية"},
-#     "5122":    {"ticker":"4261", "name":"ذيب"},
-#     "3069":    {"ticker":"4262", "name":"لومي"},
-#     "11071":    {"ticker":"4263", "name":"سال"},
-#     "17877":    {"ticker":"4265", "name":"شري"},
-#     "4298":    {"ticker":"4264", "name":"طيران ناس"},
-#     "99":    {"ticker":"4040", "name":"سابتكو "},
-#     "87":    {"ticker":"2190", "name":"سيسكو القابضة"},
-#     "4664":    {"ticker":"4012", "name":"الأصيل"},
-#     "4508":    {"ticker":"4011", "name":"لازوردي"},
-#     "909":    {"ticker":"2340", "name":"ارتيكس"},
-#     "93":    {"ticker":"4180", "name":"مجموعة فتيحي"},
-#     "84":    {"ticker":"2130", "name":"صدق "},
-#     "1061":    {"ticker":"1213", "name":"نسيج "},
-#     "1109":    {"ticker":"6002", "name":"هرفي للأغذية"},
-#     "883":    {"ticker":"1810", "name":"سيرا"},
-#     "103":    {"ticker":"4170", "name":"شمس"},
-#     "3412":    {"ticker":"1820", "name":"بان "},
-#     "12964":    {"ticker":"6016", "name":"برغرايززر"},
-#     "16303":    {"ticker":"6018", "name":"الأندية للرياضة"},
-#     "18814":    {"ticker":"6019", "name":"المسار الشامل"},
-#     "5000":    {"ticker":"4292", "name":"عطاء"},
-#     "1087":    {"ticker":"4290", "name":"الخليج للتدريب"},
-#     "5004":    {"ticker":"4291", "name":"الوطنية للتعليم"},
-#     "13502":    {"ticker":"6017", "name":"جاهز"},
-#     "4625":    {"ticker":"6013", "name":"التطويرية الغذائية "},
-#     "4516":    {"ticker":"1830", "name":"لجام للرياضة"},
-#     "4538":    {"ticker":"6012", "name":"ريدان "},
-#     "13805":    {"ticker":"6014", "name":"الآمار"},
-#     "15023":    {"ticker":"6015", "name":"أمريكانا"},
-#     "4367":    {"ticker":"4071", "name":"العربية"},
-#     "14806":    {"ticker":"4072", "name":"مجموعة إم بي سي"},
-#     "107":    {"ticker":"4070", "name":"تهامة "},
-#     "578":    {"ticker":"4210", "name":"الأبحاث والإعلام"},
-#     "17978":    {"ticker":"4194", "name":"محطة البناء"},
-#     "14891":    {"ticker":"4192", "name":"السيف غاليري"},
-#     "16515":    {"ticker":"4193", "name":"نايس ون"},
-#     "4606":    {"ticker":"4051", "name":"باعظيم"},
-#     "4626":    {"ticker":"4191", "name":"أبو معطي"},
-#     "4337":    {"ticker":"4008", "name":"ساكو"},
-#     "95":    {"ticker":"4190", "name":"جرير"},
-#     "577":    {"ticker":"4200", "name":"الدريس"},
-#     "917":    {"ticker":"4240", "name":"سينومي ريتيل "},
-#     "1907":    {"ticker":"4003", "name":"إكسترا"},
-#     "100":    {"ticker":"4050", "name":"ساسكو"},
-#     "106":    {"ticker":"4160", "name":"ثمار "},
-#     "2500":    {"ticker":"4006", "name":"أسواق المزرعة"},
-#     "5131":    {"ticker":"4161", "name":"بن داود"},
-#     "911":    {"ticker":"4001", "name":"أسواق ع العثيم"},
-#     "5135":    {"ticker":"4162", "name":"المنجم"},
-#     "12760":    {"ticker":"4164", "name":"النهدي"},
-#     "3815":    {"ticker":"4163", "name":"الدواء"},
-#     "102":    {"ticker":"4061", "name":"أنعام القابضة"},
-#     "918":    {"ticker":"6001", "name":"حلواني إخوان"},
-#     "14432":    {"ticker":"2282", "name":"نقي"},
-#     "15705":    {"ticker":"2283", "name":"المطاحن الأولى"},
-#     "16485":    {"ticker":"2284", "name":"المطاحن الحديثة"},
-#     "13453":    {"ticker":"2285", "name":"المطاحن العربية"},
-#     "13454":    {"ticker":"2286", "name":"المطاحن الرابعة"},
-#     "34":    {"ticker":"6010", "name":"نادك"},
-#     "35":    {"ticker":"6020", "name":"جاكو"},
-#     "37":    {"ticker":"6040", "name":"تبوك الزراعية "},
-#     "38":    {"ticker":"6050", "name":"الأسماك "},
-#     "39":    {"ticker":"6060", "name":"الشرقية للتنمية"},
-#     "40":    {"ticker":"6070", "name":"الجوف"},
-#     "42":    {"ticker":"6090", "name":"جازادكو "},
-#     "13515":    {"ticker":"2281", "name":"تنمية"},
-#     "85":    {"ticker":"2050", "name":"مجموعة صافولا"},
-#     "68":    {"ticker":"2100", "name":"وفرة"},
-#     "78":    {"ticker":"2270", "name":"سدافكو"},
-#     "62":    {"ticker":"2280", "name":"المراعي"},
-#     "17417":    {"ticker":"2287", "name":"إنتاج"},
-#     "14965":    {"ticker":"2288", "name":"نفوذ"},
-#     "92":    {"ticker":"4080", "name":"سناد القابضة"},
-#     "83":    {"ticker":"2230", "name":"الكيميائية"},
-#     "13881":    {"ticker":"4014", "name":"دار المعدات"},
-#     "61":    {"ticker":"2140", "name":"أيان"},
-#     "4286":    {"ticker":"4017", "name":"فقيه الطبية"},
-#     "4433":    {"ticker":"4013", "name":"سليمان الحبيب"},
-#     "2298":    {"ticker":"4005", "name":"رعاية"},
-#     "1524":    {"ticker":"4002", "name":"المواساة"},
-#     "1181":    {"ticker":"4004", "name":"دله الصحية"},
-#     "3438":    {"ticker":"4007", "name":"الحمادي"},
-#     "4475":    {"ticker":"4009", "name":"السعودي الألماني الصحية"},
-#     "16511":    {"ticker":"4018", "name":"الموسى"},
-#     "17867":    {"ticker":"4019", "name":"اس ام سي للرعاية الصحية"},
-#     "13574":    {"ticker":"4021", "name":"المركز الكندي الطبي"},
-#     "75":    {"ticker":"2070", "name":"الدوائية"},
-#     "15187":    {"ticker":"4015", "name":"جمجوم فارما"},
-#     "16437":    {"ticker":"4016", "name":"أفالون فارما"},
-#     "47":    {"ticker":"1010", "name":"الرياض"},
-#     "46":    {"ticker":"1020", "name":"الجزيرة"},
-#     "52":    {"ticker":"1030", "name":"الإستثمار"},
-#     "50":    {"ticker":"1050", "name":"بي اس اف"},
-#     "48":    {"ticker":"1060", "name":"الأول"},
-#     "45":    {"ticker":"1080", "name":"العربي"},
-#     "43":    {"ticker":"1120", "name":"الراجحي"},
-#     "44":    {"ticker":"1140", "name":"البلاد"},
-#     "826":    {"ticker":"1150", "name":"الإنماء"},
-#     "3413":    {"ticker":"1180", "name":"الأهلي"},
-#     "15432":    {"ticker":"4083", "name":"تسهيل"},
-#     "2727":    {"ticker":"1183", "name":"سهل"},
-#     "2707":    {"ticker":"1182", "name":"أملاك"},
-#     "5269":    {"ticker":"4081", "name":"النايفات"},
-#     "4067":    {"ticker":"1111", "name":"مجموعة تداول"},
-#     "4696":    {"ticker":"4082", "name":"مرنة"},
-#     "4370":    {"ticker":"4084", "name":"دراية"},
-#     "90":    {"ticker":"4130", "name":"درب السعودية"},
-#     "82":    {"ticker":"2120", "name":"متطورة"},
-#     "856":    {"ticker":"4280", "name":"المملكة"},
-#     "15706":    {"ticker":"8313", "name":"رسن"},
-#     "33":    {"ticker":"8010", "name":"التعاونية"},
-#     "970":    {"ticker":"8020", "name":"ملاذ للتأمين"},
-#     "1015":    {"ticker":"8030", "name":"ميدغلف للتأمين"},
-#     "1012":    {"ticker":"8060", "name":"ولاء"},
-#     "1013":    {"ticker":"8040", "name":"متكاملة"},
-#     "879":    {"ticker":"8070", "name":"الدرع العربي"},
-#     "823":    {"ticker":"8050", "name":"سلامة "},
-#     "1018":    {"ticker":"8100", "name":"سايكو"},
-#     "2352":    {"ticker":"8012", "name":"جزيرة تكافل"},
-#     "1057":    {"ticker":"8120", "name":"إتحاد الخليج الأهلية"},
-#     "876":    {"ticker":"8150", "name":"أسيج "},
-#     "1183":    {"ticker":"8160", "name":"التأمين العربية"},
-#     "1010":    {"ticker":"8170", "name":"الاتحاد"},
-#     "963":    {"ticker":"8180", "name":"الصقر للتأمين"},
-#     "829":    {"ticker":"8190", "name":"المتحدة للتأمين "},
-#     "1129":    {"ticker":"8200", "name":"الإعادة السعودية"},
-#     "878":    {"ticker":"8210", "name":"بوبا العربية"},
-#     "870":    {"ticker":"8230", "name":"تكافل الراجحي"},
-#     "1515":    {"ticker":"8240", "name":"تْشب"},
-#     "1513":    {"ticker":"8250", "name":"جي آي جي"},
-#     "1527":    {"ticker":"8260", "name":"الخليجية العامة "},
-#     "871":    {"ticker":"8280", "name":"ليفا"},
-#     "1891":    {"ticker":"8300", "name":"الوطنية"},
-#     "1892":    {"ticker":"8310", "name":"أمانة للتأمين "},
-#     "1928":    {"ticker":"8311", "name":"عناية "},
-#     "30":    {"ticker":"7010", "name":"اس تي سي"},
-#     "31":    {"ticker":"7020", "name":"إتحاد إتصالات"},
-#     "1058":    {"ticker":"7030", "name":"زين السعودية"},
-#     "1404":    {"ticker":"7040", "name":"قو للإتصالات"},
-#     "69":    {"ticker":"2080", "name":"الغاز"},
-#     "32":    {"ticker":"5110", "name":"السعودية للطاقة"},
-#     "13068":    {"ticker":"2081", "name":"الخريف"},
-#     "4269":    {"ticker":"2082", "name":"أكوا"},
-#     "4307":    {"ticker":"2083", "name":"مرافق"},
-#     "16275":    {"ticker":"2084", "name":"مياهنا"},
-#     "4604":    {"ticker":"4330", "name":"الرياض ريت"},
-#     "4620":    {"ticker":"4331", "name":"الجزيرة ريت"},
-#     "4690":    {"ticker":"4332", "name":"جدوى ريت الحرمين"},
-#     "4718":    {"ticker":"4333", "name":"تعليم ريت"},
-#     "4746":    {"ticker":"4334", "name":"المعذر ريت"},
-#     "4760":    {"ticker":"4335", "name":"مشاركة ريت"},
-#     "4771":    {"ticker":"4336", "name":"ملكية ريت"},
-#     "4830":    {"ticker":"4337", "name":"العزيزية ريت"},
-#     "4855":    {"ticker":"4338", "name":"الأهلي ريت 1"},
-#     "4869":    {"ticker":"4344", "name":"سدكو كابيتال ريت"},
-#     "4871":    {"ticker":"4339", "name":"دراية ريت"},
-#     "4880":    {"ticker":"4340", "name":"الراجحي ريت"},
-#     "4883":    {"ticker":"4345", "name":"الإنماء ريت للتجزئة"},
-#     "4884":    {"ticker":"4342", "name":"جدوى ريت السعودية"},
-#     "4926":    {"ticker":"4346", "name":"ميفك ريت"},
-#     "4934":    {"ticker":"4347", "name":"بنيان ريت"},
-#     "5026":    {"ticker":"4348", "name":"الخبير ريت"},
-#     "14889":    {"ticker":"4349", "name":"الإنماء ريت الفندقي"},
-#     "16599":    {"ticker":"4350", "name":"الاستثمار ريت"},
-#     "3376":    {"ticker":"4325", "name":"مسار"},
-#     "14966":    {"ticker":"4327", "name":"الرمز"},
-#     "98":    {"ticker":"4020", "name":"العقارية"},
-#     "105":    {"ticker":"4090", "name":"طيبة"},
-#     "96":    {"ticker":"4100", "name":"مكة"},
-#     "91":    {"ticker":"4150", "name":"التعمير"},
-#     "832":    {"ticker":"4220", "name":"إعمار"},
-#     "922":    {"ticker":"4250", "name":"جبل عمر"},
-#     "920":    {"ticker":"4300", "name":"دار الأركان"},
-#     "867":    {"ticker":"4310", "name":"مدينة المعرفة"},
-#     "4461":    {"ticker":"4320", "name":"الأندلس"},
-#     "4638":    {"ticker":"4321", "name":"سينومي سنترز"},
-#     "10201":    {"ticker":"4322", "name":"رتال"},
-#     "14169":    {"ticker":"4326", "name":"الماجدية"},
-#     "11043":    {"ticker":"4323", "name":"سمو"},
-#     "13573":    {"ticker":"4324", "name":"بنان"},
-#     "833":    {"ticker":"4230", "name":"البحر الأحمر"},
-#     "5192":    {"ticker":"7200", "name":"ام آي اس"},
-#     "4610":    {"ticker":"7201", "name":"بحر العرب"},
-#     "2983":    {"ticker":"7202", "name":"سلوشنز"},
-#     "11828":    {"ticker":"7203", "name":"علم"},
-#     "14801":    {"ticker":"7204", "name":"توبي"},
-#     "13995":    {"ticker":"7211", "name":"عزم"},
-#     "17152":    {"ticker":"4165", "name":"الماجد للعود"},
-#     "14273":    {"ticker":"9406", "name":"صندوق البلاد الأمريكي"},
-#     "12946":    {"ticker":"9402", "name":"صندوق الأول للاستثمار الكمي المتداول"},
-#     "12947":    {"ticker":"9403", "name":"صندوق البلاد للصكوك السيادية"},
-#     "14118":    {"ticker":"4701", "name":"الخبير للنمو والدخل"},
-#     "14355":    {"ticker":"9400", "name":"صندوق يقين 30"},
-#     "14356":    {"ticker":"9401", "name":"صندوق يقين للبتروكيماويات"},
-#     "12948":    {"ticker":"9404", "name":"صندوق الإنماء للصكوك الحكومية"},
-#     "12949":    {"ticker":"9405", "name":"صندوق البلاد للذهب"},
-#     "13034":    {"ticker":"4700", "name":"الخبير للدخل"},
-#     "15211":    {"ticker":"9407", "name":"صندوق البلاد التقني الأمريكي"},
-#     "16523":    {"ticker":"9408", "name":"صندوق البلاد للنمو السعودي"},
-#     "16995":    {"ticker":"4702", "name":"الخبير للدخل 2030"},
-#     "17095":    {"ticker":"4703", "name":"سدكو متعدد الأصول"},
-#     "17450":    {"ticker":"9410", "name":"صندوق البلاد هونج كونج الصين"},
-#     "17451":    {"ticker":"9411", "name":"صندوق الأول للاستثمار هونج كونج"},
-#     "17828":    {"ticker":"9409", "name":"صندوق يقين إي إس جي"},
-# }
 # ─────────────────────────────────────────────────────────────
 # 3b. STOCKS STATIC DATA INTEGRATION
 # Priority: STOCKS data overrides yfinance for fundamental fields.
@@ -3789,42 +3447,332 @@ TF_MAP = {
 }
 
 # ─────────────────────────────────────────────────────────────
+# 4–11. ALL INDICATOR / WOLFE / PDF SECTIONS FROM bot.py
+# ─────────────────────────────────────────────────────────────
+# ... (PASTE SECTIONS 4 through 11 + TF_MAP FROM bot.py HERE — UNCHANGED) ...
+# This includes: find_pivots, get_alternating_pivots, line_at,
+# validate_bullish, validate_bearish, find_active_wolfe,
+# plot_wolfe_chart, scan_tickers, _build_report_sync,
+# TADAWUL_TICKERS, TF_MAP, _executor, etc.
+
+# ═══════════════════════════════════════════════════════════════════
+# 11b. محرك القوة الرقمية الثلاثية
+# ═══════════════════════════════════════════════════════════════════
+_QR_BODY_AVG_WINDOW  = 7
+_QR_MIN_BODY_MULT    = 1
+_QR_BODY_PCT_THRESH  = 0.70
+_QR_CHART_CANDLES    = 30
+_QR_EXCHANGE_DEFAULT = "TADAWUL"
+_QR_TIMEFRAMES = {
+    'monthly': {'label': 'شهري',   'interval': None, 'n_bars': 120},
+    'weekly':  {'label': 'أسبوعي', 'interval': None, 'n_bars': 200},
+    'daily':   {'label': 'يومي',   'interval': None, 'n_bars': 150},
+}
+
+def _qr_init_intervals():
+    if not QR_AVAILABLE:
+        return
+    _QR_TIMEFRAMES['monthly']['interval'] = TvInterval.in_monthly
+    _QR_TIMEFRAMES['weekly']['interval']  = TvInterval.in_weekly
+    _QR_TIMEFRAMES['daily']['interval']   = TvInterval.in_daily
+
+if QR_AVAILABLE:
+    _qr_init_intervals()
+
+def _qr_fetch(tv, sym, ex, intv, nb):
+    try:
+        df = tv.get_hist(symbol=sym, exchange=ex, interval=intv, n_bars=nb)
+        if df is None or df.empty:
+            return None
+        df.index = pd.to_datetime(df.index)
+        df.columns = [c.capitalize() for c in df.columns]
+        keep = [c for c in ['Open','High','Low','Close','Volume'] if c in df.columns]
+        df = df[keep].dropna()
+        if 'Volume' not in df.columns:
+            df['Volume'] = 0
+        return df.sort_index(ascending=True)
+    except Exception:
+        return None
+
+def _qr_find_bearish_current(df):
+    d = df.copy().reset_index()
+    dc = d.columns[0]
+    d['body'] = (d['Open'] - d['Close']).abs()
+    for i in range(len(d) - 2, _QR_BODY_AVG_WINDOW, -1):
+        avg = d['body'].iloc[i - _QR_BODY_AVG_WINDOW:i].mean()
+        if avg == 0:
+            continue
+        r = d.iloc[i]
+        if float(r['Close']) < float(r['Open']) and float(r['body']) > avg * _QR_MIN_BODY_MULT:
+            return {
+                'date': str(r[dc])[:10],
+                'open':  round(float(r['Open']),  4),
+                'high':  round(float(r['High']),  4),
+                'low':   round(float(r['Low']),   4),
+                'close': round(float(r['Close']), 4),
+                'body_ratio': round(float(r['body']) / avg, 2),
+                'idx': i
+            }
+    return None
+
+def _qr_find_bearish_body75(df):
+    d = df.copy().reset_index()
+    dc = d.columns[0]
+    for i in range(len(d) - 2, 0, -1):
+        r = d.iloc[i]
+        o, h, l, c = float(r['Open']), float(r['High']), float(r['Low']), float(r['Close'])
+        if c >= o:
+            continue
+        tr = h - l
+        if tr == 0:
+            continue
+        bp = (o - c) / tr
+        if bp > _QR_BODY_PCT_THRESH:
+            return {
+                'date': str(r[dc])[:10],
+                'open':  round(o, 4), 'high': round(h, 4),
+                'low':   round(l, 4), 'close': round(c, 4),
+                'body_ratio': round(bp * 100, 1),
+                'idx': i
+            }
+    return None
+
+def _qr_fib_targets(candle):
+    lo, hi = candle['low'], candle['high']
+    rng = hi - lo
+    return {200: round(lo + 2*rng, 4), 300: round(lo + 3*rng, 4), 400: round(lo + 4*rng, 4)}
+
+def _qr_find_abd(df, ci, f400, method):
+    dr = df.copy().reset_index()
+    dc = dr.columns[0]
+    dr['body'] = (dr['Open'] - dr['Close']).abs()
+    for i in range(ci + 1, len(dr)):
+        r = dr.iloc[i]
+        o, h, l, c = float(r['Open']), float(r['High']), float(r['Low']), float(r['Close'])
+        if c <= o or h <= f400:
+            continue
+        if method == 1:
+            if i <= _QR_BODY_AVG_WINDOW:
+                continue
+            avg = dr['body'].iloc[i - _QR_BODY_AVG_WINDOW:i].mean()
+            if avg == 0 or float(r['body']) <= avg * _QR_MIN_BODY_MULT:
+                continue
+            br = round(float(r['body']) / avg, 2)
+        else:
+            tr = h - l
+            if tr == 0:
+                continue
+            bp = (c - o) / tr
+            if bp <= _QR_BODY_PCT_THRESH:
+                continue
+            br = round(bp * 100, 1)
+        return {
+            'date': str(r[dc])[:10],
+            'open':  round(o, 4), 'high': round(h, 4),
+            'low':   round(l, 4), 'close': round(c, 4),
+            'body_ratio': br,
+            'idx': i
+        }
+    return None
+
+def _qr_build_chart_buf(sym, label, df, candle, fibs, method, abd):
+    dp = df.tail(_QR_CHART_CANDLES).copy().reset_index()
+    dc = dp.columns[0]
+    xl = dp[dc].astype(str).str[:10].tolist()
+    n  = len(xl)
+    fig, (ax1, ax2) = plt.subplots(
+        2, 1, figsize=(14, 6),
+        gridspec_kw={'height_ratios': [0.78, 0.22]}, sharex=True
+    )
+    fig.patch.set_facecolor('#FFFFFF')
+    ax1.set_facecolor('#FAFBFE')
+    ax2.set_facecolor('#FAFBFE')
+    for i in range(n):
+        o = float(dp['Open'].iloc[i]); h = float(dp['High'].iloc[i])
+        l = float(dp['Low'].iloc[i]);  c = float(dp['Close'].iloc[i])
+        clr = '#00C853' if c >= o else '#FF1744'
+        ax1.plot([i, i], [l, h], color=clr, lw=1)
+        ax1.bar(i, abs(c - o), bottom=min(o, c), color=clr, width=0.6)
+    for i in range(n):
+        o = float(dp['Open'].iloc[i]); c = float(dp['Close'].iloc[i])
+        v = float(dp['Volume'].iloc[i])
+        ax2.bar(i, v, color='#00C853' if c >= o else '#FF1744', alpha=0.5, width=0.6)
+    fib_styles = {
+        200: ('#1565C0', '--', '200%'),
+        300: ('#6A1B9A', '-.', '300%'),
+        400: ('#2E7D32', ':',  '400%'),
+    }
+    for r, p in fibs.items():
+        fc, fs, fl = fib_styles[r]
+        ax1.axhline(p, color=fc, lw=1.2, ls=fs, alpha=0.85)
+        ax1.text(n + 0.3, p, f'{fl} {p}', color=fc, fontsize=7.5, va='center')
+    ax1.axhline(candle['high'], color='#D50000', lw=2, ls='-')
+    ax1.axhline(candle['low'],  color='#FF6D00', lw=1.5, ls='-')
+    ax1.text(n + 0.3, candle['high'], f'H {candle["high"]}', color='#D50000', fontsize=7.5, va='center')
+    ax1.text(n + 0.3, candle['low'],  f'L {candle["low"]}',  color='#FF6D00', fontsize=7.5, va='center')
+    if abd:
+        ax1.axhline(abd['low'], color='#00C853', lw=2.5, ls='-')
+        ax1.text(n + 0.3, abd['low'], f'🟢 ABD {abd["low"]}', color='#00C853', fontsize=7.5, va='center')
+    step = max(1, n // 10)
+    ax2.set_xticks(range(0, n, step))
+    ax2.set_xticklabels([xl[i] for i in range(0, n, step)], rotation=45, fontsize=7)
+    ax1.set_xlim(-1, n + 13); ax2.set_xlim(-1, n + 13)
+    method_lbl = "Current" if method == 1 else f"Body>{int(_QR_BODY_PCT_THRESH*100)}%"
+    abd_tag = " | 🟢 ABD" if abd else ""
+    ax1.set_title(
+        f'{sym} — {label} | القوة الرقمية الثلاثية | {method_lbl}{abd_tag}',
+        fontsize=12, color='#1a1a2e', pad=6
+    )
+    ax1.set_ylabel('السعر', fontsize=9)
+    ax2.set_ylabel('الحجم', fontsize=8)
+    ax1.grid(True, alpha=0.3); ax2.grid(False)
+    plt.tight_layout(rect=[0, 0, 0.86, 1])
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=120, bbox_inches='tight')
+    plt.close(fig)
+    buf.seek(0)
+    return buf
+
+def _qr_build_summary_panel(img_w, results, sym, stock_name):
+    panel_h = 260
+    panel = PILImage.new('RGB', (img_w, panel_h), '#FAFBFE')
+    draw  = PILDraw.Draw(panel)
+    draw.rectangle([0, 0, img_w, 6], fill='#CC2200')
+    m = results.get('monthly'); w = results.get('weekly'); d = results.get('daily')
+    lines = [
+        (f'تحليل القوة الرقمية الثلاثية — {stock_name} ({sym})', '#1a1a2e', 18),
+        ('السهم في مناطق قيعان لكن للآن لم يفتح الموجة', '#444444', 14),
+        ('', '#000', 6),
+    ]
+    if m: lines.append((f'📅 الفاصل الشهري — الإغلاق فوق: {m["high"]}',  '#CC2200', 14))
+    if w: lines.append((f'📆 الفاصل الأسبوعي — الإغلاق فوق: {w["high"]}','#B8860B', 14))
+    if d: lines.append((f'🗓 الفاصل اليومي — الإغلاق فوق: {d["high"]}',   '#1a7a5e', 14))
+    lines.append(('', '#000', 6))
+    parts = []
+    if d: parts.append(f'لبدء ردة الفعل يحتاج الإغلاق فوق {d["high"]}')
+    if w: parts.append(f'للإيجابية يحتاج العودة فوق {w["high"]}')
+    if m: parts.append(f'لفتح الموجة يحتاج الإغلاق الشهري فوق {m["high"]}')
+    if parts:
+        summary = 'الزبدة: السهم لا زال تحت الضغط، ' + ' و'.join(parts) + '.'
+        lines.append((summary, '#CC2200', 13))
+    report_date = datetime.now().strftime('%Y-%m-%d')
+    lines.append(('', '#000', 4))
+    lines.append((f'القراءة على مدرسة القوة الرقمية الثلاثية — ليست توصية | {report_date}', '#999999', 11))
+    y = 14
+    for text, color, size in lines:
+        if text:
+            draw.text((20, y), text, fill=color)
+            y += size + 8
+    draw.rectangle([0, panel_h - 4, img_w, panel_h], fill='#CC2200')
+    return panel
+
+def _qr_build_combined_image(chart_bufs, results, sym, stock_name):
+    images = []
+    for buf in chart_bufs:
+        buf.seek(0)
+        images.append(PILImage.open(buf).copy())
+    if not images:
+        return None
+    img_w    = images[0].width
+    panel    = _qr_build_summary_panel(img_w, results, sym, stock_name)
+    sep_h    = 4
+    sep_cls  = ['#D50000', '#B8860B', '#1a7a5e']
+    total_h  = sum(img.height for img in images) + sep_h * len(images) + panel.height + sep_h
+    combined = PILImage.new('RGB', (img_w, total_h), '#FFFFFF')
+    yo = 0
+    for idx, img in enumerate(images):
+        combined.paste(img, (0, yo)); yo += img.height
+        PILDraw.Draw(combined).rectangle(
+            [0, yo, img_w, yo + sep_h],
+            fill=sep_cls[idx] if idx < len(sep_cls) else '#CCCCCC'
+        )
+        yo += sep_h
+    combined.paste(panel, (0, yo))
+    out = io.BytesIO()
+    combined.save(out, 'PNG', quality=92)
+    out.seek(0)
+    return out
+
+def _qr_analyze_sync(symbol_raw, method=1):
+    if not QR_AVAILABLE:
+        raise ValueError("❌ مكتبات tvDatafeed أو Pillow غير مثبتة على الخادم.")
+    ticker = find_ticker(symbol_raw)
+    if ticker is None:
+        raise ValueError(f"❌ لم يتم التعرف على الرمز: {symbol_raw}")
+    tv_sym     = ticker.replace('.SR', '').lstrip('^')
+    stock_name = get_name(ticker)
+    exchange   = _QR_EXCHANGE_DEFAULT
+    tv         = TvDatafeed()
+    results    = {}
+    chart_bufs = []
+    for tf in ['monthly', 'weekly', 'daily']:
+        cfg    = _QR_TIMEFRAMES[tf]
+        df     = _qr_fetch(tv, tv_sym, exchange, cfg['interval'], cfg['n_bars'])
+        if df is None or len(df) < _QR_BODY_AVG_WINDOW + 5:
+            continue
+        candle = _qr_find_bearish_current(df) if method == 1 else _qr_find_bearish_body75(df)
+        if candle is None:
+            continue
+        fibs          = _qr_fib_targets(candle)
+        results[tf]   = candle
+        abd           = _qr_find_abd(df, candle['idx'], fibs[400], method)
+        chart_bufs.append(_qr_build_chart_buf(tv_sym, cfg['label'], df, candle, fibs, method, abd))
+    if not results:
+        raise ValueError(f"❌ لم يُعثر على شمعة بيعية لـ {stock_name} في أي إطار زمني.")
+    combined_buf = _qr_build_combined_image(chart_bufs, results, tv_sym, stock_name)
+    if combined_buf is None:
+        raise ValueError("❌ فشل إنشاء الصورة المجمّعة.")
+    m = results.get('monthly'); w = results.get('weekly'); d = results.get('daily')
+    lines = [f"📊 *تحليل القوة الرقمية الثلاثية — {stock_name}*\n"]
+    if m: lines.append(f"📅 الفاصل الشهري: الإغلاق فوق *{m['high']}*")
+    if w: lines.append(f"📆 الفاصل الأسبوعي: الإغلاق فوق *{w['high']}*")
+    if d: lines.append(f"🗓 الفاصل اليومي: الإغلاق فوق *{d['high']}*")
+    lines.append("\n_هذه القراءة على مدرسة القوة الرقمية الثلاثية — ليست توصية_")
+    summary = "\n".join(lines)
+    return combined_buf, summary, tv_sym
+
+# ─────────────────────────────────────────────────────────────
 # 12. KEYBOARD BUILDERS
 # ─────────────────────────────────────────────────────────────
 def build_main_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📈 بوت موجات الولفي", callback_data="bot_wolfe")],
-        [InlineKeyboardButton("📊 بوت المحلل الرقمي", callback_data="bot_analyzer")],
+        [InlineKeyboardButton("📈 بوت موجات الولفي",               callback_data="bot_wolfe")],
+        [InlineKeyboardButton("📊 بوت المحلل الرقمي",              callback_data="bot_analyzer")],
+        [InlineKeyboardButton("🔢 محلل القوة الرقمية الثلاثية",    callback_data="bot_qr")],
     ])
-
 
 def build_tf_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("30 دقيقة", callback_data="scan_30m"), InlineKeyboardButton("1 ساعة", callback_data="scan_1h")],
-        [InlineKeyboardButton("2 ساعة",  callback_data="scan_2h"),  InlineKeyboardButton("4 ساعات",callback_data="scan_4h")],
-        [InlineKeyboardButton("يومي",    callback_data="scan_1d"),  InlineKeyboardButton("أسبوعي", callback_data="scan_1w")],
+        [InlineKeyboardButton("30 دقيقة", callback_data="scan_30m"), InlineKeyboardButton("1 ساعة",  callback_data="scan_1h")],
+        [InlineKeyboardButton("2 ساعة",   callback_data="scan_2h"),  InlineKeyboardButton("4 ساعات", callback_data="scan_4h")],
+        [InlineKeyboardButton("يومي",      callback_data="scan_1d"),  InlineKeyboardButton("أسبوعي",  callback_data="scan_1w")],
         [InlineKeyboardButton("🔙 رجوع للقائمة الرئيسية", callback_data="back_to_main")],
     ])
 
-
 def build_filter_keyboard(tf_key):
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📈 صاعد فقط", callback_data=f"filter_{tf_key}_bullish"), InlineKeyboardButton("📉 هابط فقط", callback_data=f"filter_{tf_key}_bearish")],
-        [InlineKeyboardButton("📊 الكل",      callback_data=f"filter_{tf_key}_both")],
-        [InlineKeyboardButton("🔙 رجوع", callback_data="back_to_wolfe")],
+        [InlineKeyboardButton("📈 صاعد فقط", callback_data=f"filter_{tf_key}_bullish"),
+         InlineKeyboardButton("📉 هابط فقط", callback_data=f"filter_{tf_key}_bearish")],
+        [InlineKeyboardButton("📊 الكل",     callback_data=f"filter_{tf_key}_both")],
+        [InlineKeyboardButton("🔙 رجوع",     callback_data="back_to_wolfe")],
     ])
-
 
 def build_after_wolfe_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔄 فحص جديد", callback_data="bot_wolfe")],
+        [InlineKeyboardButton("🔄 فحص جديد",       callback_data="bot_wolfe")],
         [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="back_to_main")],
     ])
-
 
 def build_back_main_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🔙 رجوع للقائمة الرئيسية", callback_data="back_to_main")],
+    ])
+
+def build_qr_method_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("1️⃣ الطريقة الحالية (Current)",  callback_data="qr_method_1")],
+        [InlineKeyboardButton("2️⃣ الجسم > 70% من المدى",       callback_data="qr_method_2")],
+        [InlineKeyboardButton("🔙 رجوع للقائمة الرئيسية",      callback_data="back_to_main")],
     ])
 
 # ─────────────────────────────────────────────────────────────
@@ -3834,7 +3782,8 @@ MAIN_MENU_MSG = (
     "🤖 *مرحباً بك في البوت المتكامل*\n\n"
     "اختر الخدمة التي تريدها:\n\n"
     "📈 *بوت موجات الولفي* — فحص السوق السعودي\n"
-    "📊 *بوت المحلل الرقمي* — تقرير PDF شامل للسهم"
+    "📊 *بوت المحلل الرقمي* — تقرير PDF شامل للسهم\n"
+    "🔢 *محلل القوة الرقمية الثلاثية* — تحليل الفواصل الشهري/الأسبوعي/اليومي"
 )
 
 WOLFE_WELCOME_MSG = (
@@ -3855,29 +3804,43 @@ ANALYZER_MSG = (
     "_مثال: أرسل_ `2222` _للحصول على تقرير أرامكو_"
 )
 
+QR_WELCOME_MSG = (
+    "🔢 *محلل القوة الرقمية الثلاثية*\n\n"
+    "يحلل السهم على ثلاثة إطارات زمنية:\n"
+    "📅 شهري | 📆 أسبوعي | 🗓 يومي\n\n"
+    "اختر طريقة تحديد الشمعة البيعية:"
+)
+
+QR_TICKER_MSG = (
+    "✅ تم اختيار الطريقة.\n\n"
+    "أرسل الآن *رقم السهم أو اسمه* للتحليل:\n"
+    "_مثال: `2222` أو `أرامكو`_"
+)
+
 # ─────────────────────────────────────────────────────────────
 # 14. LANDING HTML
 # ─────────────────────────────────────────────────────────────
 LANDING_HTML = """<!DOCTYPE html>
 <html dir="rtl" lang="ar">
-<head><meta charset="UTF-8"><title>بوت السوق السعودي</title>
-<style>body{font-family:Arial,sans-serif;background:#080c1a;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;}
-.card{background:rgba(255,255,255,0.07);padding:40px;border-radius:16px;text-align:center;max-width:480px;}
-h1{color:#7c6df5;font-size:2rem;}p{color:#aaa;}</style></head>
-<body><div class="card"><h1>🤖 بوت السوق السعودي</h1>
-<p>بوت موجات الولفي ويف + المحلل الرقمي</p>
-<p style="color:#7c6df5;">ابدأ المحادثة على تيليغرام</p></div></body></html>"""
+<head><meta charset="UTF-8">
+<title>بوت موجات الولفي ويف + المحلل الرقمي + القوة الرقمية الثلاثية</title>
+</head>
+<body style="font-family:Arial;text-align:center;padding:40px;background:#f0f2f5">
+<h2>🤖 البوت المتكامل</h2>
+<p>📈 موجات الولفي | 📊 المحلل الرقمي | 🔢 القوة الرقمية الثلاثية</p>
+<p><a href="https://t.me/YourBotUsername">ابدأ المحادثة على تيليغرام</a></p>
+</body>
+</html>"""
 
 # ─────────────────────────────────────────────────────────────
 # 15. HANDLERS
 # ─────────────────────────────────────────────────────────────
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data.pop('waiting_ticker', None)
+    context.user_data.clear()
     await update.message.reply_text(
         MAIN_MENU_MSG, parse_mode="Markdown",
         reply_markup=build_main_keyboard(),
     )
-
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -3885,7 +3848,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
 
     if data == "back_to_main":
-        context.user_data.pop('waiting_ticker', None)
+        context.user_data.clear()
         await query.edit_message_text(
             MAIN_MENU_MSG, parse_mode="Markdown",
             reply_markup=build_main_keyboard(),
@@ -3893,7 +3856,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "bot_wolfe":
-        context.user_data.pop('waiting_ticker', None)
+        context.user_data.clear()
         await query.edit_message_text(
             WOLFE_WELCOME_MSG, parse_mode="Markdown",
             reply_markup=build_tf_keyboard(),
@@ -3901,9 +3864,28 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "bot_analyzer":
-        context.user_data['waiting_ticker'] = True
+        context.user_data.clear()
+        context.user_data['waiting_ticker'] = 'analyzer'
         await query.edit_message_text(
             ANALYZER_MSG, parse_mode="Markdown",
+            reply_markup=build_back_main_keyboard(),
+        )
+        return
+
+    if data == "bot_qr":
+        context.user_data.clear()
+        await query.edit_message_text(
+            QR_WELCOME_MSG, parse_mode="Markdown",
+            reply_markup=build_qr_method_keyboard(),
+        )
+        return
+
+    if data in ("qr_method_1", "qr_method_2"):
+        method = 1 if data == "qr_method_1" else 2
+        context.user_data['waiting_ticker'] = 'qr'
+        context.user_data['qr_method']      = method
+        await query.edit_message_text(
+            QR_TICKER_MSG, parse_mode="Markdown",
             reply_markup=build_back_main_keyboard(),
         )
         return
@@ -3936,50 +3918,41 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if tf_key not in TF_MAP:
             await query.edit_message_text("فاصل زمني غير معروف.", reply_markup=build_back_main_keyboard())
             return
-
         tf_label, interval, period, resample_rule = TF_MAP[tf_key]
         chat_id = query.message.chat_id
-
         await query.edit_message_text(
             f"⏳ جاري فحص *{len(TADAWUL_TICKERS)}* سهم...\n"
             f"الفاصل: *{tf_label}*\n\nيرجى الانتظار ⏳",
             parse_mode="Markdown",
         )
-
         loop = asyncio.get_event_loop()
         results, ohlc_data = await loop.run_in_executor(
             _executor, scan_tickers, TADAWUL_TICKERS, period, interval, resample_rule
         )
-
         bullish_list = []; bearish_list = []
         is_intraday = interval not in ('1d', '1wk')
-
         for tk, patterns in results.items():
             for r in patterns:
-                pct = ((r['target_price'] - r['entry_price']) / r['entry_price']) * 100
+                pct  = ((r['target_price'] - r['entry_price']) / r['entry_price']) * 100
                 item = {
                     'ticker': tk, 'name': get_name(tk),
                     'last_close': r['last_close'], 'entry': round(r['entry_price'], 2),
                     'target': r['target_price'], 'pct': round(pct, 1),
-                    'p5_date': (r['points'][5]['date'].strftime('%Y-%m-%d %H:%M') if is_intraday else r['points'][5]['date'].strftime('%Y-%m-%d')),
+                    'p5_date': (r['points'][5]['date'].strftime('%Y-%m-%d %H:%M') if is_intraday
+                                else r['points'][5]['date'].strftime('%Y-%m-%d')),
                     '_r': r, '_df': ohlc_data[tk],
                 }
                 if r['direction'] == 'Bullish': bullish_list.append(item)
-                else: bearish_list.append(item)
-
+                else:                           bearish_list.append(item)
         bullish_list.sort(key=lambda x: x['pct'], reverse=True)
         bearish_list.sort(key=lambda x: x['pct'])
-
         show_bull = direction in ('bullish', 'both')
         show_bear = direction in ('bearish', 'both')
-
-        summary = f"✅ *اكتمل الفحص — {tf_label}*\n\n"
+        summary  = f"✅ *اكتمل الفحص — {tf_label}*\n\n"
         if show_bull: summary += f"📈 ولفي صاعد: *{len(bullish_list)}*\n"
         if show_bear: summary += f"📉 ولفي هابط: *{len(bearish_list)}*\n"
         if not bullish_list and not bearish_list: summary += "\nلا توجد نتائج لهذا الفلتر."
-
         await context.bot.send_message(chat_id=chat_id, text=summary, parse_mode="Markdown")
-
         if show_bull and bullish_list:
             await context.bot.send_message(chat_id=chat_id, text="📈 *— نتائج الولفي الصاعد —*", parse_mode="Markdown")
             for item in bullish_list:
@@ -3988,12 +3961,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await context.bot.send_photo(chat_id=chat_id, photo=buf)
                 except Exception as e:
                     logger.error(f"Chart error {item['ticker']}: {e}")
-                msg = (f"رمز السهم: *{item['ticker'].split('.')[0]}*\nالاسم       : `{item['name']}`\n"
-                       f"الفاصل       : `{tf_label}`\nآخر إغلاق : `{item['last_close']}`\n"
-                       f"قاع (5)    : `{item['entry']}`\nخط (1←4)  : `{item['target']}`\n"
-                       f"النسبة      : `{item['pct']:+.1f}%`\nتاريخ (5)  : `{item['p5_date']}`")
+                msg = (f"رمز السهم: *{item['ticker'].split('.')[0]}*\nالاسم : `{item['name']}`\n"
+                       f"الفاصل : `{tf_label}`\nآخر إغلاق : `{item['last_close']}`\n"
+                       f"قاع (5) : `{item['entry']}`\nخط (1←4) : `{item['target']}`\n"
+                       f"النسبة : `{item['pct']:+.1f}%`\nتاريخ (5) : `{item['p5_date']}`")
                 await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode="Markdown")
-
         if show_bear and bearish_list:
             await context.bot.send_message(chat_id=chat_id, text="📉 *— نتائج الولفي الهابط —*", parse_mode="Markdown")
             for item in bearish_list:
@@ -4002,85 +3974,128 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await context.bot.send_photo(chat_id=chat_id, photo=buf)
                 except Exception as e:
                     logger.error(f"Chart error {item['ticker']}: {e}")
-                msg = (f"رمز السهم: *{item['ticker'].split('.')[0]}*\nالاسم       : `{item['name']}`\n"
-                       f"الفاصل       : `{tf_label}`\nآخر إغلاق : `{item['last_close']}`\n"
-                       f"قمة (5)    : `{item['entry']}`\nخط (1←4)  : `{item['target']}`\n"
-                       f"النسبة      : `{item['pct']:+.1f}%`\nتاريخ (5)  : `{item['p5_date']}`")
+                msg = (f"رمز السهم: *{item['ticker'].split('.')[0]}*\nالاسم : `{item['name']}`\n"
+                       f"الفاصل : `{tf_label}`\nآخر إغلاق : `{item['last_close']}`\n"
+                       f"قمة (5) : `{item['entry']}`\nخط (1←4) : `{item['target']}`\n"
+                       f"النسبة : `{item['pct']:+.1f}%`\nتاريخ (5) : `{item['p5_date']}`")
                 await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode="Markdown")
-
         await context.bot.send_message(
             chat_id=chat_id, text="🔄 *انتهى الفحص*", parse_mode="Markdown",
             reply_markup=build_after_wolfe_keyboard(),
         )
         return
 
-
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle text messages — used for analyzer bot ticker input."""
-    if not context.user_data.get('waiting_ticker'):
+    mode = context.user_data.get('waiting_ticker')
+    if not mode:
         return
 
     ticker_input = update.message.text.strip()
-    chat_id = update.effective_chat.id
+    chat_id      = update.effective_chat.id
 
-    proc_msg = await update.message.reply_text(
-        f"⏳ جاري تحميل وتحليل بيانات *{ticker_input}*...\n"
-        "قد يستغرق ذلك حتى دقيقتين، يرجى الانتظار 🔄",
-        parse_mode="Markdown",
-    )
-
-    try:
-        loop = asyncio.get_event_loop()
-        pdf_buf, summary, display_ticker = await loop.run_in_executor(
-            _executor, _build_report_sync, ticker_input
-        )
-        context.user_data.pop('waiting_ticker', None)
-
-        await context.bot.edit_message_text(
-            chat_id=chat_id, message_id=proc_msg.message_id,
-            text=f"✅ *اكتمل التحليل — {display_ticker}*",
+    # ── QR analysis ──
+    if mode == 'qr':
+        method   = context.user_data.get('qr_method', 1)
+        proc_msg = await update.message.reply_text(
+            f"⏳ جاري تحليل القوة الرقمية الثلاثية لـ *{ticker_input}*...\n"
+            "يرجى الانتظار 🔄",
             parse_mode="Markdown",
         )
-        await context.bot.send_document(
-            chat_id=chat_id,
-            document=pdf_buf,
-            filename=f"{ticker_input.replace('.','_')}_Report.pdf",
-            caption=summary,
-            parse_mode="Markdown",
-        )
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="📊 هل تريد تحليل سهم آخر أو العودة للقائمة الرئيسية؟",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📊 تحليل سهم آخر", callback_data="bot_analyzer")],
-                [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="back_to_main")],
-            ]),
-        )
+        try:
+            loop = asyncio.get_event_loop()
+            combined_buf, summary, display_sym = await loop.run_in_executor(
+                _executor, _qr_analyze_sync, ticker_input, method
+            )
+            context.user_data.clear()
+            await context.bot.edit_message_text(
+                chat_id=chat_id, message_id=proc_msg.message_id,
+                text=f"✅ *اكتمل التحليل — {display_sym}*", parse_mode="Markdown",
+            )
+            await context.bot.send_photo(
+                chat_id=chat_id, photo=combined_buf, caption=summary, parse_mode="Markdown",
+            )
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="هل تريد تحليل سهم آخر أو العودة للقائمة؟",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔢 تحليل سهم آخر", callback_data="bot_qr")],
+                    [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="back_to_main")],
+                ]),
+            )
+        except ValueError as e:
+            await context.bot.edit_message_text(
+                chat_id=chat_id, message_id=proc_msg.message_id, text=str(e)
+            )
+            context.user_data['waiting_ticker'] = 'qr'
+            await context.bot.send_message(
+                chat_id=chat_id, text="أعد إدخال رمز السهم أو اضغط رجوع:",
+                reply_markup=build_back_main_keyboard(),
+            )
+        except Exception as e:
+            logger.error(f"QR error: {e}", exc_info=True)
+            await context.bot.edit_message_text(
+                chat_id=chat_id, message_id=proc_msg.message_id,
+                text=f"❌ حدث خطأ:\n`{str(e)[:200]}`", parse_mode="Markdown",
+            )
+            context.user_data['waiting_ticker'] = 'qr'
+            await context.bot.send_message(
+                chat_id=chat_id, text="أعد المحاولة أو اضغط رجوع:",
+                reply_markup=build_back_main_keyboard(),
+            )
+        return
 
-    except ValueError as e:
-        await context.bot.edit_message_text(
-            chat_id=chat_id, message_id=proc_msg.message_id,
-            text=str(e),
-        )
-        context.user_data['waiting_ticker'] = True
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="أعد إدخال رقم الشركة أو اضغط رجوع:",
-            reply_markup=build_back_main_keyboard(),
-        )
-    except Exception as e:
-        logger.error(f"Report error: {e}", exc_info=True)
-        await context.bot.edit_message_text(
-            chat_id=chat_id, message_id=proc_msg.message_id,
-            text=f"❌ حدث خطأ أثناء التحليل:\n`{str(e)[:200]}`",
+    # ── PDF Analyzer ──
+    if mode == 'analyzer':
+        proc_msg = await update.message.reply_text(
+            f"⏳ جاري تحميل وتحليل بيانات *{ticker_input}*...\n"
+            "قد يستغرق ذلك حتى دقيقتين، يرجى الانتظار 🔄",
             parse_mode="Markdown",
         )
-        context.user_data['waiting_ticker'] = True
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="أعد المحاولة أو اضغط رجوع:",
-            reply_markup=build_back_main_keyboard(),
-        )
+        try:
+            loop = asyncio.get_event_loop()
+            pdf_buf, summary, display_ticker = await loop.run_in_executor(
+                _executor, _build_report_sync, ticker_input
+            )
+            context.user_data.clear()
+            await context.bot.edit_message_text(
+                chat_id=chat_id, message_id=proc_msg.message_id,
+                text=f"✅ *اكتمل التحليل — {display_ticker}*", parse_mode="Markdown",
+            )
+            await context.bot.send_document(
+                chat_id=chat_id,
+                document=pdf_buf,
+                filename=f"{ticker_input.replace('.','_')}_Report.pdf",
+                caption=summary,
+                parse_mode="Markdown",
+            )
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="📊 هل تريد تحليل سهم آخر أو العودة للقائمة الرئيسية؟",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📊 تحليل سهم آخر",     callback_data="bot_analyzer")],
+                    [InlineKeyboardButton("🏠 القائمة الرئيسية",  callback_data="back_to_main")],
+                ]),
+            )
+        except ValueError as e:
+            await context.bot.edit_message_text(
+                chat_id=chat_id, message_id=proc_msg.message_id, text=str(e)
+            )
+            context.user_data['waiting_ticker'] = 'analyzer'
+            await context.bot.send_message(
+                chat_id=chat_id, text="أعد إدخال رقم الشركة أو اضغط رجوع:",
+                reply_markup=build_back_main_keyboard(),
+            )
+        except Exception as e:
+            logger.error(f"Report error: {e}", exc_info=True)
+            await context.bot.edit_message_text(
+                chat_id=chat_id, message_id=proc_msg.message_id,
+                text=f"❌ حدث خطأ أثناء التحليل:\n`{str(e)[:200]}`", parse_mode="Markdown",
+            )
+            context.user_data['waiting_ticker'] = 'analyzer'
+            await context.bot.send_message(
+                chat_id=chat_id, text="أعد المحاولة أو اضغط رجوع:",
+                reply_markup=build_back_main_keyboard(),
+            )
 
 # ─────────────────────────────────────────────────────────────
 # 16. MAIN
@@ -4110,7 +4125,7 @@ def main():
             await app.bot.set_webhook(webhook_url)
             logger.info(f"Webhook set → {webhook_url}")
             web_app = aio_web.Application()
-            web_app.router.add_get('/',         home)
+            web_app.router.add_get('/', home)
             web_app.router.add_post('/webhook', webhook_route)
             runner = aio_web.AppRunner(web_app)
             await runner.setup()
@@ -4125,7 +4140,6 @@ def main():
     else:
         logger.info("Starting polling (local dev)")
         app.run_polling(drop_pending_updates=True)
-
 
 if __name__ == "__main__":
     main()
