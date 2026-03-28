@@ -3575,6 +3575,14 @@ def _qr_find_abd(df, ci, f400, method):
         }
     return None
 
+def _qr_ar(text: str) -> str:
+    """Reshape + bidi-reorder for Arabic in matplotlib (returns display string)."""
+    try:
+        return get_display(arabic_reshaper.reshape(str(text)))
+    except Exception:
+        return str(text)
+
+
 def _qr_build_chart_buf(sym, label, df, candle, fibs, method, abd):
     dp = df.tail(_QR_CHART_CANDLES).copy().reset_index()
     dc = dp.columns[0]
@@ -3587,9 +3595,9 @@ def _qr_build_chart_buf(sym, label, df, candle, fibs, method, abd):
     ci_dp      = candle['idx'] - tail_start
     ci_dp      = max(0, min(ci_dp, n - 1))
 
-    # ── Lines extend 3 extra bars past last candle; labels start 3 bars after that ──
-    LINE_EXTRA = 3          # how many bars lines extend beyond last candle
-    LABEL_OFF  = 3          # additional gap from line-end to label start
+    # ── Lines extend 3 extra bars past last candle; labels 3 bars after that ──
+    LINE_EXTRA = 3
+    LABEL_OFF  = 3
     LINE_END   = n - 1 + LINE_EXTRA
     LABEL_X    = LINE_END + LABEL_OFF
 
@@ -3597,9 +3605,12 @@ def _qr_build_chart_buf(sym, label, df, candle, fibs, method, abd):
         2, 1, figsize=(14, 6),
         gridspec_kw={'height_ratios': [0.78, 0.22]}, sharex=True
     )
+    # ── Pure white background, no grid ──
     fig.patch.set_facecolor('#FFFFFF')
-    ax1.set_facecolor('#FAFBFE')
-    ax2.set_facecolor('#FAFBFE')
+    ax1.set_facecolor('#FFFFFF')
+    ax2.set_facecolor('#FFFFFF')
+    ax1.grid(False)
+    ax2.grid(False)
 
     for i in range(n):
         o = float(dp['Open'].iloc[i]); h = float(dp['High'].iloc[i])
@@ -3637,22 +3648,29 @@ def _qr_build_chart_buf(sym, label, df, candle, fibs, method, abd):
     ax2.set_xticks(range(0, n, step))
     ax2.set_xticklabels([xl[i] for i in range(0, n, step)], rotation=45, fontsize=7)
 
-    # Right margin wide enough to show labels
     label_margin = LABEL_OFF + max(18, int(n * 0.18))
     ax1.set_xlim(-1, n + label_margin)
     ax2.set_xlim(-1, n + label_margin)
 
-    # ── Title: show Arabic method name, no "Body>70%" ──
-    method_lbl = rtl('الطريقة العادية') if method == 1 else rtl('متساهل')
-    abd_tag    = rtl(" | ABD") if abd else ""
+    # ── Title: pure Arabic, properly shaped for matplotlib ──
+    method_lbl = 'الطريقة العادية' if method == 1 else 'متساهل'
+    abd_tag    = ' | ABD' if abd else ''
+    # Build the full Arabic title then shape it all at once
+    title_raw  = f'{sym} — {label} | القوة الرقمية الثلاثية | {method_lbl}{abd_tag}'
     ax1.set_title(
-       rtl(f'{sym} — {label} | القوة الرقمية الثلاثية | {method_lbl}{abd_tag}'),
-       fontsize=12, color='#1a1a2e', pad=6,
-       fontproperties=MPL_FONT_PROP
-)
-    ax1.set_ylabel(rtl('السعر'), fontsize=9, fontproperties=MPL_FONT_PROP)
-    ax2.set_ylabel(rtl('الحجم'), fontsize=8, fontproperties=MPL_FONT_PROP)
-    ax1.grid(True, alpha=0.3); ax2.grid(False)
+        _qr_ar(title_raw),
+        fontsize=12, color='#1a1a2e', pad=6,
+        fontproperties=MPL_FONT_PROP
+    )
+    ax1.set_ylabel(_qr_ar('السعر'), fontsize=9, fontproperties=MPL_FONT_PROP)
+    ax2.set_ylabel(_qr_ar('الحجم'), fontsize=8, fontproperties=MPL_FONT_PROP)
+
+    # Light border on spines instead of grid
+    for spine in ax1.spines.values():
+        spine.set_edgecolor('#DDDDDD')
+    for spine in ax2.spines.values():
+        spine.set_edgecolor('#DDDDDD')
+
     plt.tight_layout(rect=[0, 0, 0.86, 1])
     buf = io.BytesIO()
     fig.savefig(buf, format='png', dpi=120, bbox_inches='tight')
@@ -3662,10 +3680,9 @@ def _qr_build_chart_buf(sym, label, df, candle, fibs, method, abd):
 
 
 def _qr_build_summary_panel(img_w, results, sym, stock_name):
-    """Bottom summary panel with proper Arabic rendering via PIL + Amiri/Cairo font."""
+    """Bottom summary panel — pure white bg, Arabic rendered with TrueType font."""
     from PIL import ImageFont as PILFont
 
-    # ── Load an Arabic-capable TrueType font ──
     def _pil_font(size):
         for fpath in [AMIRI_REG_PATH, CAIRO_PATH]:
             if os.path.exists(fpath):
@@ -3676,66 +3693,68 @@ def _qr_build_summary_panel(img_w, results, sym, stock_name):
         return PILFont.load_default()
 
     def _shaped(text):
-        """Reshape + bidi-reorder Arabic so PIL renders it correctly."""
+        """Reshape + bidi so Arabic letters join and display RTL correctly in PIL."""
         try:
-            return get_display(arabic_reshaper.reshape(str(text)))
+            reshaped = arabic_reshaper.reshape(str(text))
+            return get_display(reshaped)
         except Exception:
             return str(text)
 
-    panel_h = 300
-    panel = PILImage.new('RGB', (img_w, panel_h), '#FAFBFE')
+    def _draw_rtl(draw, text, y, color, size, img_w, right_margin=24):
+        """Draw one line of Arabic text, right-aligned."""
+        font   = _pil_font(size)
+        shaped = _shaped(text)
+        try:
+            bbox = draw.textbbox((0, 0), shaped, font=font)
+            tw   = bbox[2] - bbox[0]
+        except Exception:
+            tw = len(shaped) * max(6, size // 2)
+        x = max(10, img_w - tw - right_margin)
+        draw.text((x, y), shaped, fill=color, font=font)
+        return y + size + 10   # return next y
+
+    panel_h = 310
+    panel = PILImage.new('RGB', (img_w, panel_h), '#FFFFFF')   # white background
     draw  = PILDraw.Draw(panel)
-    draw.rectangle([0, 0, img_w, 6], fill='#CC2200')
+    draw.rectangle([0, 0, img_w, 7], fill='#CC2200')           # top red bar
 
     m = results.get('monthly')
     w = results.get('weekly')
     d = results.get('daily')
 
-    # Each entry: (arabic_text, hex_color, font_size)
-    lines = [
-        (f'بسم الله — تحليل القوة الرقمية الثلاثية لـ {stock_name} ({sym})', '#1a1a2e', 17),
-        ('السهم في مناطق قيعان لكن للآن لم يفتح الموجة', '#444444', 13),
-        ('', '#000', 5),
-    ]
-    if m: lines.append((f'الفاصل الشهري — الإغلاق فوق: {m["high"]}',   '#CC2200', 13))
-    if w: lines.append((f'الفاصل الأسبوعي — الإغلاق فوق: {w["high"]}', '#B8860B', 13))
-    if d: lines.append((f'الفاصل اليومي — الإغلاق فوق: {d["high"]}',   '#1a7a5e', 13))
-    lines.append(('', '#000', 5))
+    y = 18
+    # ── Header ──
+    y = _draw_rtl(draw, f'بسم الله — تحليل القوة الرقمية الثلاثية لـ {stock_name} ({sym})',
+                  y, '#1a1a2e', 17, img_w)
+    y = _draw_rtl(draw, 'السهم في مناطق قيعان لكن للآن لم يفتح الموجة',
+                  y, '#555555', 13, img_w)
+    y += 6
 
+    # ── Per-timeframe lines ──
+    if m:
+        y = _draw_rtl(draw, f'الفاصل الشهري — الإغلاق فوق: {m["high"]}',   y, '#CC2200', 13, img_w)
+    if w:
+        y = _draw_rtl(draw, f'الفاصل الأسبوعي — الإغلاق فوق: {w["high"]}', y, '#B8860B', 13, img_w)
+    if d:
+        y = _draw_rtl(draw, f'الفاصل اليومي — الإغلاق فوق: {d["high"]}',   y, '#1a7a5e', 13, img_w)
+    y += 6
+
+    # ── Summary sentence ──
     parts = []
     if d: parts.append(f'لبدء ردة الفعل يحتاج الإغلاق فوق {d["high"]}')
     if w: parts.append(f'للإيجابية يحتاج العودة فوق {w["high"]}')
     if m: parts.append(f'لفتح الموجة يحتاج الإغلاق الشهري فوق {m["high"]}')
     if parts:
         summary = 'الزبدة: السهم لا زال تحت الضغط، ' + ' و'.join(parts) + '.'
-        lines.append((summary, '#CC2200', 13))
+        y = _draw_rtl(draw, summary, y, '#CC2200', 13, img_w)
 
+    y += 4
     report_date = datetime.now().strftime('%Y-%m-%d')
-    lines.append(('', '#000', 4))
-    lines.append((
-        f'القراءة على مدرسة القوة الرقمية الثلاثية — ليست دعوة للبيع والشراء | {report_date}',
-        '#999999', 11
-    ))
+    _draw_rtl(draw,
+              f'القراءة على مدرسة القوة الرقمية الثلاثية — ليست دعوة للبيع والشراء | {report_date}',
+              y, '#999999', 11, img_w)
 
-    y = 14
-    RIGHT_MARGIN = 20
-    for text, color, size in lines:
-        if not text:
-            y += size
-            continue
-        font   = _pil_font(size)
-        shaped = _shaped(text)
-        # Measure rendered width for right-alignment
-        try:
-            bbox = draw.textbbox((0, 0), shaped, font=font)
-            tw   = bbox[2] - bbox[0]
-        except Exception:
-            tw = len(shaped) * (size // 2 + 1)
-        x = max(10, img_w - tw - RIGHT_MARGIN)
-        draw.text((x, y), shaped, fill=color, font=font)
-        y += size + 9
-
-    draw.rectangle([0, panel_h - 4, img_w, panel_h], fill='#CC2200')
+    draw.rectangle([0, panel_h - 5, img_w, panel_h], fill='#CC2200')  # bottom red bar
     return panel
 
 def _qr_build_combined_image(chart_bufs, results, sym, stock_name):
