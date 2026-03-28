@@ -3605,17 +3605,17 @@ def _qr_build_chart_buf(sym, label, df, candle, fibs, method, abd):
     for r, p in fibs.items():
         fc, fs, fl = fib_styles[r]
         #ax1.axhline(p, color=fc, lw=1.2, ls=fs, alpha=0.85)###yas
-        ax1.plot([0, n+6], [p, p], color=fc, lw=1.2, ls=fs, alpha=0.85)
+        ax1.plot([0, n+2], [p, p], color=fc, lw=1.2, ls=fs, alpha=0.85)
         ax1.text(n + 0.3, p, f'{fl} {p}', color=fc, fontsize=7.5, va='center')
     #ax1.axhline(candle['high'], color='#D50000', lw=2, ls='-')###YAS
-    ax1.plot([0, n+6], [candle['high'], candle['high']], color='#D50000', lw=2, ls='-')
+    ax1.plot([0, n+2], [candle['high'], candle['high']], color='#D50000', lw=2, ls='-')
     #ax1.axhline(candle['low'],  color='#FF6D00', lw=1.5, ls='-')###YAS
-    ax1.plot([0, n+6], [candle['low'], candle['low']], color='#FF6D00', lw=1.5, ls='-')
+    ax1.plot([0, n+2], [candle['low'], candle['low']], color='#FF6D00', lw=1.5, ls='-')
     ax1.text(n + 0.3, candle['high'], f'H {candle["high"]}', color='#D50000', fontsize=7.5, va='center')
     ax1.text(n + 0.3, candle['low'],  f'L {candle["low"]}',  color='#FF6D00', fontsize=7.5, va='center')
     if abd:
         #ax1.axhline(abd['low'], color='#00C853', lw=2.5, ls='-')###YAS
-        ax1.plot([0, n+6], [abd['low'], abd['low']], color='#00C853', lw=2.5, ls='-')
+        ax1.plot([0, n+2], [abd['low'], abd['low']], color='#00C853', lw=2.5, ls='-')
         ax1.text(n + 0.3, abd['low'], f'🟢 ABD {abd["low"]}', color='#00C853', fontsize=7.5, va='center')
     step = max(1, n // 10)
     ax2.set_xticks(range(0, n, step))
@@ -3732,7 +3732,7 @@ def _qr_analyze_sync(symbol_raw, method=1):
     if m: lines.append(f"📅 الفاصل الشهري: الإغلاق فوق *{m['high']}*")
     if w: lines.append(f"📆 الفاصل الأسبوعي: الإغلاق فوق *{w['high']}*")
     if d: lines.append(f"🗓 الفاصل اليومي: الإغلاق فوق *{d['high']}*")
-    lines.append("\n_هذه القراءة على مدرسة القوة الرقمية الثلاثية — ليست توصية_")
+    lines.append("\n_هذه القراءة على مدرسة القوة الرقمية الثلاثية — ليست دعوة للبيع ولا الشراء_")
     summary = "\n".join(lines)
     return combined_buf, summary, tv_sym
 
@@ -3776,7 +3776,7 @@ def build_back_main_keyboard():
 def build_qr_method_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("1️⃣ االطريقة العادية",       callback_data="qr_method_2")],
-        [InlineKeyboardButton("2️⃣ متشدد",  callback_data="qr_method_1")],
+        [InlineKeyboardButton("2️⃣ متساهل",  callback_data="qr_method_1")],
         [InlineKeyboardButton("🔙 رجوع للقائمة الرئيسية",      callback_data="back_to_main")],
     ])
 
