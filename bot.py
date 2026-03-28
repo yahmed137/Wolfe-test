@@ -3669,7 +3669,7 @@ def _qr_build_chart_buf(sym, label, df, candle, fibs, method, abd):
                  color='#00C853', lw=2.5, ls='-', alpha=1.0)
         # ABD label sits at LINE_END + 3 (closer column, before the faded fib labels)
         abd_label_x = LINE_END + 3
-        ax1.text(abd_label_x, abd['low'], f'ABD {abd["low"]}',
+        ax1.text(abd_label_x, abd['low'], f'ABC {abd["low"]}',
                  color='#00C853', fontsize=8, fontweight='bold', va='center')
 
     step = max(1, n // 10)
@@ -3681,8 +3681,8 @@ def _qr_build_chart_buf(sym, label, df, candle, fibs, method, abd):
     ax2.set_xlim(-1, n + label_margin)
 
     # ── Title ──
-    method_lbl = 'الطريقة العادية' if method == 1 else 'متساهل'
-    abd_tag    = ' | ABD' if abd else ''
+    method_lbl = 'متشدد' if method == 1 else 'عادي'
+    abd_tag    = ' | ABC' if abd else ''
     title_raw  = f'{sym} — {label} | القوة الرقمية الثلاثية | {method_lbl}{abd_tag}'
     ax1.set_title(
         _qr_ar(title_raw),
