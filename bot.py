@@ -3657,7 +3657,7 @@ def _qr_build_summary_panel(img_w, results, sym, stock_name):
         lines.append((summary, '#CC2200', 13))
     report_date = datetime.now().strftime('%Y-%m-%d')
     lines.append(('', '#000', 4))
-    lines.append((f'القراءة على مدرسة القوة الرقمية الثلاثية — ليست توصية | {report_date}', '#999999', 11))
+    lines.append((f'القراءة على مدرسة القوة الرقمية الثلاثية — ليست دعوة للبيع والشراء | {report_date}', '#999999', 11))
     y = 14
     for text, color, size in lines:
         if text:
@@ -3736,9 +3736,9 @@ def _qr_analyze_sync(symbol_raw, method=1):
 # ─────────────────────────────────────────────────────────────
 def build_main_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📈 بوت موجات الولفي",               callback_data="bot_wolfe")],
-        [InlineKeyboardButton("📊 بوت المحلل الرقمي",              callback_data="bot_analyzer")],
-        [InlineKeyboardButton("🔢 محلل القوة الرقمية الثلاثية",    callback_data="bot_qr")],
+        [InlineKeyboardButton("📈 موجات الولفي",               callback_data="bot_wolfe")],
+        [InlineKeyboardButton("📊 المحلل الرقمي",              callback_data="bot_analyzer")],
+        [InlineKeyboardButton("🔢 القوة الرقمية الثلاثية",    callback_data="bot_qr")],
     ])
 
 def build_tf_keyboard():
@@ -3770,8 +3770,8 @@ def build_back_main_keyboard():
 
 def build_qr_method_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("1️⃣ الطريقة الحالية (Current)",  callback_data="qr_method_1")],
-        [InlineKeyboardButton("2️⃣ الجسم > 70% من المدى",       callback_data="qr_method_2")],
+        [InlineKeyboardButton("1️⃣ االطريقة العادية",       callback_data="qr_method_2")],
+        [InlineKeyboardButton("2️⃣ متشدد",  callback_data="qr_method_1")],
         [InlineKeyboardButton("🔙 رجوع للقائمة الرئيسية",      callback_data="back_to_main")],
     ])
 
@@ -3781,9 +3781,9 @@ def build_qr_method_keyboard():
 MAIN_MENU_MSG = (
     "🤖 *مرحباً بك في البوت المتكامل*\n\n"
     "اختر الخدمة التي تريدها:\n\n"
-    "📈 *بوت موجات الولفي* — فحص السوق السعودي\n"
-    "📊 *بوت المحلل الرقمي* — تقرير PDF شامل للسهم\n"
-    "🔢 *محلل القوة الرقمية الثلاثية* — تحليل الفواصل الشهري/الأسبوعي/اليومي"
+    "📈 * موجات الولفي* — فحص السوق السعودي\n"
+    "📊 * المحلل الرقمي* — تقرير PDF شامل للسهم\n"
+    "🔢 * القوة الرقمية الثلاثية* — تحليل الفواصل الشهري/الأسبوعي/اليومي"
 )
 
 WOLFE_WELCOME_MSG = (
@@ -3828,7 +3828,7 @@ LANDING_HTML = """<!DOCTYPE html>
 <body style="font-family:Arial;text-align:center;padding:40px;background:#f0f2f5">
 <h2>🤖 البوت المتكامل</h2>
 <p>📈 موجات الولفي | 📊 المحلل الرقمي | 🔢 القوة الرقمية الثلاثية</p>
-<p><a href="https://t.me/YourBotUsername">ابدأ المحادثة على تيليغرام</a></p>
+<p><a href="https://t.me/YourBDSFFtUsername">ابدأ المحادثة على تيليغرام</a></p>
 </body>
 </html>"""
 
