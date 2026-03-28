@@ -3653,7 +3653,7 @@ def _qr_build_chart_buf(sym, label, df, candle, fibs, method, abd):
     ax2.set_xlim(-1, n + label_margin)
 
     # ── Title: pure Arabic, properly shaped for matplotlib ──
-    method_lbl = 'الطريقة العادية' if method == 1 else 'متساهل'
+    method_lbl = 'متشدد' if method == 1 else 'عادي'
     abd_tag    = ' | ABD' if abd else ''
     # Build the full Arabic title then shape it all at once
     title_raw  = f'{sym} — {label} | القوة الرقمية الثلاثية | {method_lbl}{abd_tag}'
@@ -3861,8 +3861,8 @@ def build_back_main_keyboard():
 
 def build_qr_method_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("1️⃣ الطريقة العادية",       callback_data="qr_method_2")],
-        [InlineKeyboardButton("2️⃣ متساهل",  callback_data="qr_method_1")],
+        [InlineKeyboardButton("1️⃣ عادي",       callback_data="qr_method_2")],
+        [InlineKeyboardButton("2️⃣ متشدد",  callback_data="qr_method_1")],
         [InlineKeyboardButton("🔙 رجوع للقائمة الرئيسية",      callback_data="back_to_main")],
     ])
 
