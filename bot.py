@@ -3605,17 +3605,17 @@ def _qr_build_chart_buf(sym, label, df, candle, fibs, method, abd):
     for r, p in fibs.items():
         fc, fs, fl = fib_styles[r]
         #ax1.axhline(p, color=fc, lw=1.2, ls=fs, alpha=0.85)###yas
-        ax1.plot([0, n-1], [p, p], color=fc, lw=1.2, ls=fs, alpha=0.85)
+        ax1.plot([0, n+6], [p, p], color=fc, lw=1.2, ls=fs, alpha=0.85)
         ax1.text(n + 0.3, p, f'{fl} {p}', color=fc, fontsize=7.5, va='center')
     #ax1.axhline(candle['high'], color='#D50000', lw=2, ls='-')###YAS
-    ax1.plot([0, n-1], [candle['high'], candle['high']], color='#D50000', lw=2, ls='-')
+    ax1.plot([0, n+6], [candle['high'], candle['high']], color='#D50000', lw=2, ls='-')
     #ax1.axhline(candle['low'],  color='#FF6D00', lw=1.5, ls='-')###YAS
-    ax1.plot([0, n-1], [candle['low'], candle['low']], color='#FF6D00', lw=1.5, ls='-')
+    ax1.plot([0, n+6], [candle['low'], candle['low']], color='#FF6D00', lw=1.5, ls='-')
     ax1.text(n + 0.3, candle['high'], f'H {candle["high"]}', color='#D50000', fontsize=7.5, va='center')
     ax1.text(n + 0.3, candle['low'],  f'L {candle["low"]}',  color='#FF6D00', fontsize=7.5, va='center')
     if abd:
         #ax1.axhline(abd['low'], color='#00C853', lw=2.5, ls='-')###YAS
-        ax1.plot([0, n-1], [abd['low'], abd['low']], color='#00C853', lw=2.5, ls='-')
+        ax1.plot([0, n+6], [abd['low'], abd['low']], color='#00C853', lw=2.5, ls='-')
         ax1.text(n + 0.3, abd['low'], f'🟢 ABD {abd["low"]}', color='#00C853', fontsize=7.5, va='center')
     step = max(1, n // 10)
     ax2.set_xticks(range(0, n, step))
@@ -3624,11 +3624,12 @@ def _qr_build_chart_buf(sym, label, df, candle, fibs, method, abd):
     method_lbl = "Current" if method == 1 else f"Body>{int(_QR_BODY_PCT_THRESH*100)}%"
     abd_tag = " | 🟢 ABD" if abd else ""
     ax1.set_title(
-        f'{sym} — {label} | القوة الرقمية الثلاثية | {method_lbl}{abd_tag}',
-        fontsize=12, color='#1a1a2e', pad=6
-    )
-    ax1.set_ylabel('السعر', fontsize=9)
-    ax2.set_ylabel('الحجم', fontsize=8)
+    rtl(f'{sym} — {label} | القوة الرقمية الثلاثية | {method_lbl}{abd_tag}'),
+    fontsize=12, color='#1a1a2e', pad=6,
+    fontproperties=MPL_FONT_PROP
+)
+    ax1.set_ylabel(rtl('السعر'), fontsize=9, fontproperties=MPL_FONT_PROP)
+    ax2.set_ylabel(rtl('الحجم'), fontsize=8, fontproperties=MPL_FONT_PROP)
     ax1.grid(True, alpha=0.3); ax2.grid(False)
     plt.tight_layout(rect=[0, 0, 0.86, 1])
     buf = io.BytesIO()
@@ -3636,7 +3637,7 @@ def _qr_build_chart_buf(sym, label, df, candle, fibs, method, abd):
     plt.close(fig)
     buf.seek(0)
     return buf
-
+#########YASSSSS
 def _qr_build_summary_panel(img_w, results, sym, stock_name):
     panel_h = 260
     panel = PILImage.new('RGB', (img_w, panel_h), '#FAFBFE')
