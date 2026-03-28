@@ -3604,14 +3604,18 @@ def _qr_build_chart_buf(sym, label, df, candle, fibs, method, abd):
     }
     for r, p in fibs.items():
         fc, fs, fl = fib_styles[r]
-        ax1.axhline(p, color=fc, lw=1.2, ls=fs, alpha=0.85)
+        #ax1.axhline(p, color=fc, lw=1.2, ls=fs, alpha=0.85)###yas
+        ax1.plot([0, n-1], [p, p], color=fc, lw=1.2, ls=fs, alpha=0.85)
         ax1.text(n + 0.3, p, f'{fl} {p}', color=fc, fontsize=7.5, va='center')
-    ax1.axhline(candle['high'], color='#D50000', lw=2, ls='-')
-    ax1.axhline(candle['low'],  color='#FF6D00', lw=1.5, ls='-')
+    #ax1.axhline(candle['high'], color='#D50000', lw=2, ls='-')###YAS
+    ax1.plot([0, n-1], [candle['high'], candle['high']], color='#D50000', lw=2, ls='-')
+    #ax1.axhline(candle['low'],  color='#FF6D00', lw=1.5, ls='-')###YAS
+    ax1.plot([0, n-1], [candle['low'], candle['low']], color='#FF6D00', lw=1.5, ls='-')
     ax1.text(n + 0.3, candle['high'], f'H {candle["high"]}', color='#D50000', fontsize=7.5, va='center')
     ax1.text(n + 0.3, candle['low'],  f'L {candle["low"]}',  color='#FF6D00', fontsize=7.5, va='center')
     if abd:
-        ax1.axhline(abd['low'], color='#00C853', lw=2.5, ls='-')
+        #ax1.axhline(abd['low'], color='#00C853', lw=2.5, ls='-')###YAS
+        ax1.plot([0, n-1], [abd['low'], abd['low']], color='#00C853', lw=2.5, ls='-')
         ax1.text(n + 0.3, abd['low'], f'🟢 ABD {abd["low"]}', color='#00C853', fontsize=7.5, va='center')
     step = max(1, n // 10)
     ax2.set_xticks(range(0, n, step))
