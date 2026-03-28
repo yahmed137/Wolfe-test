@@ -1,12 +1,32 @@
-python-telegram-bot[webhooks]==21.3
-aiohttp>=3.9.0
-yfinance>=0.2.40
-numpy>=1.26.0
-pandas>=2.2.0
-scipy>=1.13.0
-matplotlib>=3.9.0
+# ── Telegram Bot ──
+python-telegram-bot==20.7
+
+# ── Web server (webhook mode) ──
+aiohttp>=3.9
+
+# ── Financial data ──
+yfinance>=0.2.36
+
+# ── Data & numerics ──
+numpy>=1.26
+pandas>=2.1
+scipy>=1.11
+
+# ── Charts & plotting ──
+matplotlib>=3.8
 mplfinance>=0.12.10b0
-reportlab>=4.2.0
-arabic-reshaper>=3.0.0
+
+# ── PDF generation ──
+reportlab>=4.1
+
+# ── Arabic text rendering ──
+arabic-reshaper>=3.0
 python-bidi>=0.4.2
-#https://www.argaam.com/ar/monitors/market-analytics
+
+# ── QR / القوة الرقمية الثلاثية (TradingView data + image compositing) ──
+tvDatafeed>=2.3.0
+Pillow>=10.2
+
+# ── STOCKS scraper (optional — bot falls back to yfinance if missing) ──
+selenium>=4.18
+beautifulsoup4>=4.12
