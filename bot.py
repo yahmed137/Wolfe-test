@@ -3643,13 +3643,13 @@ def _qr_build_chart_buf(sym, label, df, candle, fibs, method, abd):
     ax2.set_xlim(-1, n + label_margin)
 
     # ── Title: show Arabic method name, no "Body>70%" ──
-    method_lbl = ar('الطريقة العادية') if method == 1 else ar('متساهل')
-    abd_tag    = f" | {ar('ABD')}" if abd else ""
+    method_lbl = rtl('الطريقة العادية') if method == 1 else rtl('متساهل')
+    abd_tag    = rtl(" | ABD") if abd else ""
     ax1.set_title(
-        rtl(f'{sym} — {label} | القوة الرقمية الثلاثية | {method_lbl}{abd_tag}'),
-        fontsize=12, color='#1a1a2e', pad=6,
-        fontproperties=MPL_FONT_PROP
-    )
+       rtl(f'{sym} — {label} | القوة الرقمية الثلاثية | {method_lbl}{abd_tag}'),
+       fontsize=12, color='#1a1a2e', pad=6,
+       fontproperties=MPL_FONT_PROP
+)
     ax1.set_ylabel(rtl('السعر'), fontsize=9, fontproperties=MPL_FONT_PROP)
     ax2.set_ylabel(rtl('الحجم'), fontsize=8, fontproperties=MPL_FONT_PROP)
     ax1.grid(True, alpha=0.3); ax2.grid(False)
@@ -3842,7 +3842,7 @@ def build_back_main_keyboard():
 
 def build_qr_method_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("1️⃣ االطريقة العادية",       callback_data="qr_method_2")],
+        [InlineKeyboardButton("1️⃣ الطريقة العادية",       callback_data="qr_method_2")],
         [InlineKeyboardButton("2️⃣ متساهل",  callback_data="qr_method_1")],
         [InlineKeyboardButton("🔙 رجوع للقائمة الرئيسية",      callback_data="back_to_main")],
     ])
