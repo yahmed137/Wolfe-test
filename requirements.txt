@@ -23,8 +23,7 @@ reportlab>=4.1
 arabic-reshaper>=3.0
 python-bidi>=0.4.2
 
-# ── QR / القوة الرقمية الثلاثية (TradingView data + image compositing) ──
-tvDatafeed>=2.3.0
+# ── QR / القوة الرقمية الثلاثية (image compositing) ──
 Pillow>=10.2
 
 # ── STOCKS scraper (optional — bot falls back to yfinance if missing) ──
