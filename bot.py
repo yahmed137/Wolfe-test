@@ -3706,83 +3706,47 @@ def _qr_build_chart_buf(sym, label, df, candle, fibs, method, abd):
 
 
 def _qr_build_summary_panel(img_w, results, sym, stock_name):
-    """Bottom summary panel — white bg, Arabic rendered correctly with TrueType font."""
-    from PIL import ImageFont as PILFont
-
-    # ── Font loader ──
-    def _pil_font(size):
-        for fpath in [AMIRI_REG_PATH, CAIRO_PATH]:
-            if os.path.exists(fpath):
-                try:
-                    return PILFont.truetype(fpath, size)
-                except Exception:
-                    pass
-        return PILFont.load_default()
-
-    # ── Arabic shaper: handles mixed Arabic+numbers correctly ──
-    # Strategy: split on whitespace, reshape only tokens that contain Arabic,
-    # then join and apply bidi on the whole line.  This prevents bidi algorithm
-    # from reordering numeric tokens that are embedded in Arabic sentences.
-    _AR_RE = re.compile(r'[\u0600-\u06FF]')
-
-    def _shaped(text):
-        try:
-            # Reshape Arabic tokens only, keep numeric tokens untouched
-            tokens = str(text).split(' ')
-            reshaped_tokens = []
-            for tok in tokens:
-                if _AR_RE.search(tok):
-                    reshaped_tokens.append(arabic_reshaper.reshape(tok))
-                else:
-                    reshaped_tokens.append(tok)
-            joined = ' '.join(reshaped_tokens)
-            return get_display(joined)
-        except Exception:
-            return str(text)
-
-    def _draw_rtl(draw, text, y, color, size, canvas_w, right_margin=24):
-        """Render one RTL Arabic line, right-aligned."""
-        font   = _pil_font(size)
-        shaped = _shaped(text)
-        try:
-            bbox = draw.textbbox((0, 0), shaped, font=font)
-            tw   = bbox[2] - bbox[0]
-        except Exception:
-            tw = len(shaped) * max(6, size // 2)
-        x = max(10, canvas_w - tw - right_margin)
-        draw.text((x, y), shaped, fill=color, font=font)
-        return y + size + 10
-
-    panel_h = 320
-    panel = PILImage.new('RGB', (img_w, panel_h), '#FFFFFF')
-    draw  = PILDraw.Draw(panel)
-    draw.rectangle([0, 0, img_w, 7], fill='#CC2200')    # top red bar
+    """
+    Bottom summary panel rendered via matplotlib (no candles) so that
+    Arabic text uses the registered Amiri TrueType font — identical width
+    to the chart images above it, converted to a PIL image for compositing.
+    """
+    DPI = 100
+    fig_w_in = img_w / DPI
 
     m = results.get('monthly')
     w = results.get('weekly')
     d = results.get('daily')
 
-    y = 18
-    # ── Title line ──
-    y = _draw_rtl(draw,
-                  f'بسم الله — تحليل القوة الرقمية الثلاثية لـ {stock_name} ({sym})',
-                  y, '#1a1a2e', 17, img_w)
-    y = _draw_rtl(draw,
-                  'السهم في مناطق قيعان لكن للآن لم يفتح الموجة',
-                  y, '#555555', 13, img_w)
-    y += 6
+    # ── Build text lines (raw Arabic strings — ar() handles reshaping) ──
+    report_date = datetime.now().strftime('%Y-%m-%d')
 
-    # ── Per-timeframe trigger levels ──
+    lines = []  # list of (text, color, fontsize, weight)
+
+    lines.append((
+        f'بسم الله — تحليل القوة الرقمية الثلاثية لـ {stock_name} ({sym})',
+        '#1a1a2e', 15, 'bold'
+    ))
+    lines.append((
+        'السهم في مناطق قيعان لكن للآن لم يفتح الموجة',
+        '#555555', 12, 'normal'
+    ))
+
     if m:
-        y = _draw_rtl(draw, f'الفاصل الشهري — الإغلاق فوق: {m["high"]}',
-                      y, '#CC2200', 13, img_w)
+        lines.append((
+            f'الفاصل الشهري — الإغلاق فوق: {m["high"]}',
+            '#CC2200', 12, 'normal'
+        ))
     if w:
-        y = _draw_rtl(draw, f'الفاصل الأسبوعي — الإغلاق فوق: {w["high"]}',
-                      y, '#B8860B', 13, img_w)
+        lines.append((
+            f'الفاصل الأسبوعي — الإغلاق فوق: {w["high"]}',
+            '#B8860B', 12, 'normal'
+        ))
     if d:
-        y = _draw_rtl(draw, f'الفاصل اليومي — الإغلاق فوق: {d["high"]}',
-                      y, '#1a7a5e', 13, img_w)
-    y += 6
+        lines.append((
+            f'الفاصل اليومي — الإغلاق فوق: {d["high"]}',
+            '#1a7a5e', 12, 'normal'
+        ))
 
     # ── Summary sentence ──
     parts = []
@@ -3790,17 +3754,72 @@ def _qr_build_summary_panel(img_w, results, sym, stock_name):
     if w: parts.append(f'للإيجابية يحتاج العودة فوق {w["high"]}')
     if m: parts.append(f'لفتح الموجة يحتاج الإغلاق الشهري فوق {m["high"]}')
     if parts:
-        summary = 'الزبدة: السهم لا زال تحت الضغط، ' + ' و'.join(parts) + '.'
-        y = _draw_rtl(draw, summary, y, '#CC2200', 13, img_w)
+        summary_txt = 'الزبدة: السهم لا زال تحت الضغط، ' + ' و'.join(parts) + '.'
+        lines.append((summary_txt, '#CC2200', 12, 'bold'))
 
-    y += 4
-    report_date = datetime.now().strftime('%Y-%m-%d')
-    _draw_rtl(draw,
-              f'القراءة على مدرسة القوة الرقمية الثلاثية — ليست دعوة للبيع والشراء | {report_date}',
-              y, '#999999', 11, img_w)
+    lines.append((
+        f'القراءة على مدرسة القوة الرقمية الثلاثية — ليست دعوة للبيع والشراء | {report_date}',
+        '#999999', 10, 'normal'
+    ))
 
-    draw.rectangle([0, panel_h - 5, img_w, panel_h], fill='#CC2200')   # bottom red bar
-    return panel
+    # ── Dynamic figure height: ~0.38 in per line + padding ──
+    n_lines = len(lines)
+    fig_h_in = max(2.5, n_lines * 0.42 + 0.6)
+
+    fig, ax = plt.subplots(figsize=(fig_w_in, fig_h_in), dpi=DPI)
+    fig.patch.set_facecolor('#FFFFFF')
+    ax.set_facecolor('#FFFFFF')
+    ax.axis('off')
+
+    # Top red bar via figure line
+    fig.add_artist(plt.Line2D(
+        [0, 1], [1, 1], transform=fig.transFigure,
+        color='#CC2200', linewidth=6, solid_capstyle='butt'
+    ))
+    # Bottom red bar
+    fig.add_artist(plt.Line2D(
+        [0, 1], [0, 0], transform=fig.transFigure,
+        color='#CC2200', linewidth=6, solid_capstyle='butt'
+    ))
+
+    # ── Draw each line using ar() for correct RTL shaping ──
+    fp_regular = MPL_FONT_PROP      # FontProperties(fname=Amiri-Regular)
+    fp_bold    = MPL_FONT_PROP_BOLD # FontProperties(fname=Amiri-Bold)
+
+    total = n_lines
+    for i, (txt, color, fs, weight) in enumerate(lines):
+        # y position: evenly spaced top-to-bottom within axes (0=bottom, 1=top)
+        y_pos = 1.0 - (i + 0.7) / total
+        fp = fp_bold if (weight == 'bold' and fp_bold) else (fp_regular or None)
+        kwargs = dict(
+            transform=ax.transAxes,
+            fontsize=fs,
+            color=color,
+            ha='right',
+            va='center',
+            wrap=False,
+        )
+        if fp:
+            kwargs['fontproperties'] = fp
+        ax.text(0.97, y_pos, ar(txt), **kwargs)
+
+    plt.tight_layout(pad=0.2)
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format='PNG', dpi=DPI, bbox_inches='tight',
+                facecolor='#FFFFFF')
+    plt.close(fig)
+    buf.seek(0)
+
+    panel_img = PILImage.open(buf).copy()
+
+    # ── Ensure exact pixel width matches chart images ──
+    if panel_img.width != img_w:
+        panel_img = panel_img.resize(
+            (img_w, panel_img.height), PILImage.LANCZOS
+        )
+
+    return panel_img
 
 def _qr_build_combined_image(chart_bufs, results, sym, stock_name):
     images = []
