@@ -3596,16 +3596,14 @@ def _qr_build_chart_buf(sym, label, df, candle, fibs, method, abd):
     ci_dp      = max(0, min(ci_dp, n - 1))
 
     # ── Line / label geometry ──
-    LINE_EXTRA = 3                        # bars lines extend past last candle
+    LINE_EXTRA = 3
     LINE_END   = n - 1 + LINE_EXTRA
 
-    # When ABD is present: price labels shift 6 more steps right to leave a
-    # clear column for the ABD label; fib/H/L lines fade to ~15 % alpha.
     if abd:
-        LABEL_OFF   = 9                   # 3 base + 6 extra = 9 gap from LINE_END
-        FIB_ALPHA   = 0.15                # faded fibonaccis
-        HL_ALPHA    = 0.15                # faded H / L lines
-        HL_LW_SCALE = 0.6                 # thinner when faded
+        LABEL_OFF   = 9
+        FIB_ALPHA   = 0.15
+        HL_ALPHA    = 0.15
+        HL_LW_SCALE = 0.6
     else:
         LABEL_OFF   = 3
         FIB_ALPHA   = 0.85
@@ -3618,7 +3616,6 @@ def _qr_build_chart_buf(sym, label, df, candle, fibs, method, abd):
         2, 1, figsize=(14, 6),
         gridspec_kw={'height_ratios': [0.78, 0.22]}, sharex=True
     )
-    # ── Pure white background, no grid ──
     fig.patch.set_facecolor('#FFFFFF')
     ax1.set_facecolor('#FFFFFF')
     ax2.set_facecolor('#FFFFFF')
@@ -3645,7 +3642,7 @@ def _qr_build_chart_buf(sym, label, df, candle, fibs, method, abd):
     for r, p in fibs.items():
         fc, fs, fl = fib_styles[r]
         ax1.plot([ci_dp, LINE_END], [p, p], color=fc, lw=1.2, ls=fs, alpha=FIB_ALPHA)
-        lbl_color = fc if not abd else '#AAAAAA'          # grey text when faded
+        lbl_color = fc if not abd else '#AAAAAA'
         ax1.text(LABEL_X, p, f'{fl} {p}', color=lbl_color, fontsize=7.5,
                  va='center', alpha=1.0)
 
@@ -3661,13 +3658,12 @@ def _qr_build_chart_buf(sym, label, df, candle, fibs, method, abd):
     ax1.text(LABEL_X, candle['low'],  f'L {candle["low"]}',
              color=ll_txt_color, fontsize=7.5, va='center')
 
-    # ── ABD line — full opacity, prominent, in its own label column ──
+    # ── ABD line ──
     if abd:
         abd_ci = abd['idx'] - tail_start
         abd_ci = max(0, min(abd_ci, n - 1))
         ax1.plot([abd_ci, LINE_END], [abd['low'], abd['low']],
                  color='#00C853', lw=2.5, ls='-', alpha=1.0)
-        # ABD label sits at LINE_END + 3 (closer column, before the faded fib labels)
         abd_label_x = LINE_END + 3
         ax1.text(abd_label_x, abd['low'], f'ABC {abd["low"]}',
                  color='#00C853', fontsize=8, fontweight='bold', va='center')
@@ -3705,11 +3701,35 @@ def _qr_build_chart_buf(sym, label, df, candle, fibs, method, abd):
     return buf
 
 
-def _qr_build_summary_panel(img_w, results, sym, stock_name):
+# ═══════════════════════════════════════════════════════════════════
+# NEW: Smart price-vs-level classifier for each timeframe
+# ═══════════════════════════════════════════════════════════════════
+def _qr_classify_price_vs_level(df, signal_candle):
     """
-    Bottom summary panel rendered via matplotlib (no candles) so that
-    Arabic text uses the registered Amiri TrueType font — identical width
-    to the chart images above it, converted to a PIL image for compositing.
+    Compare the LATEST bar's close & high against the signal candle's high.
+    Returns one of three states:
+        'above'      — close > signal high  (positive / bullish)
+        'broke_back' — high > signal high BUT close < signal high (broke it then fell back)
+        'below'      — close < signal high AND high < signal high (still under pressure)
+    """
+    last_row   = df.iloc[-1]
+    cur_close  = float(last_row['Close'])
+    cur_high   = float(last_row['High'])
+    level      = signal_candle['high']
+
+    if cur_close > level:
+        return 'above'
+    elif cur_high > level and cur_close <= level:
+        return 'broke_back'
+    else:
+        return 'below'
+
+
+def _qr_build_summary_panel(img_w, results, sym, stock_name, tf_dataframes=None):
+    """
+    Bottom summary panel rendered via matplotlib.
+    Now accepts tf_dataframes dict {'monthly': df, 'weekly': df, 'daily': df}
+    so it can compare the current price against signal levels.
     """
     DPI = 100
     fig_w_in = img_w / DPI
@@ -3718,43 +3738,107 @@ def _qr_build_summary_panel(img_w, results, sym, stock_name):
     w = results.get('weekly')
     d = results.get('daily')
 
-    # ── Build text lines (raw Arabic strings — ar() handles reshaping) ──
+    # ── Classify each timeframe against current price ──
+    tf_states = {}
+    if tf_dataframes:
+        for tf_key, candle in [('monthly', m), ('weekly', w), ('daily', d)]:
+            if candle and tf_key in tf_dataframes and tf_dataframes[tf_key] is not None:
+                tf_states[tf_key] = _qr_classify_price_vs_level(
+                    tf_dataframes[tf_key], candle
+                )
+
     report_date = datetime.now().strftime('%Y-%m-%d')
 
-    lines = []  # list of (text, color, fontsize, weight)
+    lines = []  # (text, color, fontsize, weight)
 
     lines.append((
         f'بسم الله — تحليل القوة الرقمية الثلاثية لـ {stock_name} ({sym})',
         '#1a1a2e', 15, 'bold'
     ))
-    lines.append((
-        'السهم في مناطق قيعان لكن للآن لم يفتح الموجة',
-        '#555555', 12, 'normal'
-    ))
 
-    if m:
-        lines.append((
-            f'الفاصل الشهري — الإغلاق فوق: {m["high"]}',
-            '#CC2200', 12, 'normal'
-        ))
-    if w:
-        lines.append((
-            f'الفاصل الأسبوعي — الإغلاق فوق: {w["high"]}',
-            '#B8860B', 12, 'normal'
-        ))
-    if d:
-        lines.append((
-            f'الفاصل اليومي — الإغلاق فوق: {d["high"]}',
-            '#1a7a5e', 12, 'normal'
-        ))
+    # ── Determine overall sentiment from states ──
+    all_states = list(tf_states.values())
+    if all(s == 'above' for s in all_states) and all_states:
+        headline = 'السهم إيجابي — أغلق فوق جميع المستويات'
+        headline_color = '#00C853'
+    elif any(s == 'above' for s in all_states):
+        headline = 'السهم يحاول التعافي — إيجابي على بعض الفواصل'
+        headline_color = '#B8860B'
+    elif any(s == 'broke_back' for s in all_states):
+        headline = 'السهم اخترق بعض المستويات لكنه تراجع — بحاجة لتأكيد'
+        headline_color = '#FF6D00'
+    else:
+        headline = 'السهم في مناطق قيعان لكن للآن لم يفتح الموجة'
+        headline_color = '#555555'
 
-    # ── Summary sentence ──
+    lines.append((headline, headline_color, 12, 'normal'))
+
+    # ── Per-timeframe status lines ──
+    tf_config = [
+        ('monthly', m, 'الفاصل الشهري',   '#CC2200'),
+        ('weekly',  w, 'الفاصل الأسبوعي', '#B8860B'),
+        ('daily',   d, 'الفاصل اليومي',   '#1a7a5e'),
+    ]
+
+    for tf_key, candle, tf_label, color in tf_config:
+        if not candle:
+            continue
+        state = tf_states.get(tf_key, 'below')
+        h_val = candle['high']
+
+        if state == 'above':
+            status_text = f'{tf_label} إيجابي فوق {h_val}'
+            line_color  = '#00C853'
+        elif state == 'broke_back':
+            status_text = f'{tf_label} — اخترق {h_val} لكن تراجع، يجب العودة والإغلاق فوق {h_val}'
+            line_color  = '#FF6D00'
+        else:  # 'below'
+            status_text = f'{tf_label} — الإغلاق فوق: {h_val}'
+            line_color  = color
+
+        lines.append((status_text, line_color, 12, 'normal'))
+
+    # ── Smart summary sentence ──
     parts = []
-    if d: parts.append(f'لبدء ردة الفعل يحتاج الإغلاق فوق {d["high"]}')
-    if w: parts.append(f'للإيجابية يحتاج العودة فوق {w["high"]}')
-    if m: parts.append(f'لفتح الموجة يحتاج الإغلاق الشهري فوق {m["high"]}')
+
+    # Daily
+    d_state = tf_states.get('daily')
+    if d:
+        if d_state == 'above':
+            parts.append(f'الفاصل اليومي ايجابي فوق {d["high"]}')
+        elif d_state == 'broke_back':
+            parts.append(f'لبدء ردة الفعل يجب العودة والإغلاق فوق {d["high"]}')
+        else:
+            parts.append(f'لبدء ردة الفعل يحتاج الإغلاق فوق {d["high"]}')
+
+    # Weekly
+    w_state = tf_states.get('weekly')
+    if w:
+        if w_state == 'above':
+            parts.append(f'الفاصل الاسبوعي ايجابي فوق {w["high"]}')
+        elif w_state == 'broke_back':
+            parts.append(f'للإيجابية يجب العودة والإغلاق فوق {w["high"]}')
+        else:
+            parts.append(f'للإيجابية يحتاج العودة فوق {w["high"]}')
+
+    # Monthly
+    m_state = tf_states.get('monthly')
+    if m:
+        if m_state == 'above':
+            parts.append(f'الفاصل الشهري ايجابي فوق {m["high"]}')
+        elif m_state == 'broke_back':
+            parts.append(f'لفتح الموجة يجب العودة والإغلاق الشهري فوق {m["high"]}')
+        else:
+            parts.append(f'لفتح الموجة يحتاج الإغلاق الشهري فوق {m["high"]}')
+
     if parts:
-        summary_txt = 'الزبدة: السهم لا زال تحت الضغط، ' + ' و'.join(parts) + '.'
+        # Choose prefix based on overall state
+        if all(s == 'above' for s in all_states) and all_states:
+            summary_txt = 'الزبدة: السهم إيجابي، ' + ' و'.join(parts) + '.'
+        elif any(s == 'above' for s in all_states):
+            summary_txt = 'الزبدة: السهم يتحسن، ' + ' و'.join(parts) + '.'
+        else:
+            summary_txt = 'الزبدة: السهم لا زال تحت الضغط، ' + ' و'.join(parts) + '.'
         lines.append((summary_txt, '#CC2200', 12, 'bold'))
 
     lines.append((
@@ -3762,7 +3846,7 @@ def _qr_build_summary_panel(img_w, results, sym, stock_name):
         '#999999', 10, 'normal'
     ))
 
-    # ── Dynamic figure height: ~0.38 in per line + padding ──
+    # ── Dynamic figure height ──
     n_lines = len(lines)
     fig_h_in = max(2.5, n_lines * 0.42 + 0.6)
 
@@ -3771,24 +3855,20 @@ def _qr_build_summary_panel(img_w, results, sym, stock_name):
     ax.set_facecolor('#FFFFFF')
     ax.axis('off')
 
-    # Top red bar via figure line
     fig.add_artist(plt.Line2D(
         [0, 1], [1, 1], transform=fig.transFigure,
         color='#CC2200', linewidth=6, solid_capstyle='butt'
     ))
-    # Bottom red bar
     fig.add_artist(plt.Line2D(
         [0, 1], [0, 0], transform=fig.transFigure,
         color='#CC2200', linewidth=6, solid_capstyle='butt'
     ))
 
-    # ── Draw each line using ar() for correct RTL shaping ──
-    fp_regular = MPL_FONT_PROP      # FontProperties(fname=Amiri-Regular)
-    fp_bold    = MPL_FONT_PROP_BOLD # FontProperties(fname=Amiri-Bold)
+    fp_regular = MPL_FONT_PROP
+    fp_bold    = MPL_FONT_PROP_BOLD
 
     total = n_lines
     for i, (txt, color, fs, weight) in enumerate(lines):
-        # y position: evenly spaced top-to-bottom within axes (0=bottom, 1=top)
         y_pos = 1.0 - (i + 0.7) / total
         fp = fp_bold if (weight == 'bold' and fp_bold) else (fp_regular or None)
         kwargs = dict(
@@ -3813,7 +3893,6 @@ def _qr_build_summary_panel(img_w, results, sym, stock_name):
 
     panel_img = PILImage.open(buf).copy()
 
-    # ── Ensure exact pixel width matches chart images ──
     if panel_img.width != img_w:
         panel_img = panel_img.resize(
             (img_w, panel_img.height), PILImage.LANCZOS
@@ -3821,7 +3900,7 @@ def _qr_build_summary_panel(img_w, results, sym, stock_name):
 
     return panel_img
 
-def _qr_build_combined_image(chart_bufs, results, sym, stock_name):
+def _qr_build_combined_image(chart_bufs, results, sym, stock_name, tf_dataframes=None):
     images = []
     for buf in chart_bufs:
         buf.seek(0)
@@ -3829,7 +3908,7 @@ def _qr_build_combined_image(chart_bufs, results, sym, stock_name):
     if not images:
         return None
     img_w    = images[0].width
-    panel    = _qr_build_summary_panel(img_w, results, sym, stock_name)
+    panel    = _qr_build_summary_panel(img_w, results, sym, stock_name, tf_dataframes)
     sep_h    = 4
     sep_cls  = ['#D50000', '#B8860B', '#1a7a5e']
     total_h  = sum(img.height for img in images) + sep_h * len(images) + panel.height + sep_h
@@ -3858,8 +3937,10 @@ def _qr_analyze_sync(symbol_raw, method=1):
     stock_name = get_name(ticker)
     exchange   = _QR_EXCHANGE_DEFAULT
     tv         = TvDatafeed()
-    results    = {}
-    chart_bufs = []
+    results       = {}
+    chart_bufs    = []
+    tf_dataframes = {}  # NEW: store DataFrames for price comparison
+
     for tf in ['monthly', 'weekly', 'daily']:
         cfg    = _QR_TIMEFRAMES[tf]
         df     = _qr_fetch(tv, tv_sym, exchange, cfg['interval'], cfg['n_bars'])
@@ -3868,24 +3949,68 @@ def _qr_analyze_sync(symbol_raw, method=1):
         candle = _qr_find_bearish_current(df) if method == 1 else _qr_find_bearish_body75(df)
         if candle is None:
             continue
-        fibs          = _qr_fib_targets(candle)
-        results[tf]   = candle
-        abd           = _qr_find_abd(df, candle['idx'], fibs[400], method)
+        fibs             = _qr_fib_targets(candle)
+        results[tf]      = candle
+        tf_dataframes[tf] = df   # NEW: keep the df for summary comparison
+        abd              = _qr_find_abd(df, candle['idx'], fibs[400], method)
         chart_bufs.append(_qr_build_chart_buf(tv_sym, cfg['label'], df, candle, fibs, method, abd))
+
     if not results:
         raise ValueError(f"❌ لم يُعثر على شمعة بيعية لـ {stock_name} في أي إطار زمني.")
-    combined_buf = _qr_build_combined_image(chart_bufs, results, tv_sym, stock_name)
+
+    combined_buf = _qr_build_combined_image(
+        chart_bufs, results, tv_sym, stock_name, tf_dataframes
+    )
     if combined_buf is None:
         raise ValueError("❌ فشل إنشاء الصورة المجمّعة.")
+
     m = results.get('monthly'); w = results.get('weekly'); d = results.get('daily')
+
+    # ── Smart text summary (same logic as the panel) ──
     lines = [f"📊 *تحليل القوة الرقمية الثلاثية — {stock_name}*\n"]
-    if m: lines.append(f"📅 الفاصل الشهري: الإغلاق فوق *{m['high']}*")
-    if w: lines.append(f"📆 الفاصل الأسبوعي: الإغلاق فوق *{w['high']}*")
-    if d: lines.append(f"🗓 الفاصل اليومي: الإغلاق فوق *{d['high']}*")
+
+    tf_states = {}
+    for tf_key, candle in [('monthly', m), ('weekly', w), ('daily', d)]:
+        if candle and tf_key in tf_dataframes and tf_dataframes[tf_key] is not None:
+            tf_states[tf_key] = _qr_classify_price_vs_level(
+                tf_dataframes[tf_key], candle
+            )
+
+    # Monthly text summary
+    if m:
+        ms = tf_states.get('monthly', 'below')
+        if ms == 'above':
+            lines.append(f"📅 الفاصل الشهري: إيجابي فوق *{m['high']}*")
+        elif ms == 'broke_back':
+            lines.append(f"📅 الفاصل الشهري: اخترق *{m['high']}* لكن تراجع — يجب العودة والإغلاق فوقه")
+        else:
+            lines.append(f"📅 الفاصل الشهري: الإغلاق فوق *{m['high']}*")
+
+    # Weekly text summary
+    if w:
+        ws = tf_states.get('weekly', 'below')
+        if ws == 'above':
+            lines.append(f"📆 الفاصل الأسبوعي: إيجابي فوق *{w['high']}*")
+        elif ws == 'broke_back':
+            lines.append(f"📆 الفاصل الأسبوعي: اخترق *{w['high']}* لكن تراجع — يجب العودة والإغلاق فوقه")
+        else:
+            lines.append(f"📆 الفاصل الأسبوعي: الإغلاق فوق *{w['high']}*")
+
+    # Daily text summary
+    if d:
+        ds = tf_states.get('daily', 'below')
+        if ds == 'above':
+            lines.append(f"🗓 الفاصل اليومي: إيجابي فوق *{d['high']}*")
+        elif ds == 'broke_back':
+            lines.append(f"🗓 الفاصل اليومي: اخترق *{d['high']}* لكن تراجع — يجب العودة والإغلاق فوقه")
+        else:
+            lines.append(f"🗓 الفاصل اليومي: الإغلاق فوق *{d['high']}*")
+
     lines.append("\n_هذه القراءة على مدرسة القوة الرقمية الثلاثية — ليست دعوة للبيع ولا الشراء_")
     summary = "\n".join(lines)
     return combined_buf, summary, tv_sym
 
+        
 # ─────────────────────────────────────────────────────────────
 # 12. KEYBOARD BUILDERS
 # ─────────────────────────────────────────────────────────────
